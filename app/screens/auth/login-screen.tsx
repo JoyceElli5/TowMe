@@ -41,7 +41,12 @@ export default function LoginScreen() {
     console.log('Login data:', { ...data, role });
     setTimeout(() => {
       setIsLoading(false);
-      router.replace('/(tabs)');
+      // Navigate to appropriate dashboard based on role
+      if (role === 'tow_operator') {
+        router.replace('/screens/operator/dashboard');
+      } else {
+        router.replace('/screens/user/home-screen');
+      }
     }, 1500);
   };
 
