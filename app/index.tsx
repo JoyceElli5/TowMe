@@ -120,9 +120,6 @@ export default function SplashScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Made with ❤️ from 🇬🇭</Text>
-      </View>
     </View>
   );
 }
@@ -152,12 +149,14 @@ const styles = StyleSheet.create({
     color: '#111827',
     textAlign: 'center',
     marginBottom: 8,
+    fontFamily: 'Euclid-Circular-B',
   },
   subtitle: {
     color: '#6b7280',
     textAlign: 'center',
     fontSize: 15,
     lineHeight: 22,
+    fontFamily: 'Euclid-Circular-B',
   },
   cardsContainer: {
     flexDirection: 'row',

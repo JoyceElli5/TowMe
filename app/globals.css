@@ -1,0 +1,14 @@
+@font-face {
+  font-family: "Euclid-Circular-B";
+  src: url("../assets/fonts/Euclid-Circular-B.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Euclid-Circular-B", Helvetica, sans-serif;
+}
