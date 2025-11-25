@@ -25,11 +25,8 @@ import MapView, { PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import AddressInputCard from '@/components/address-input-card';
 import PriceEstimatorCard from '@/components/price-estimator-card';
 import PrimaryButton from '@/components/primary-button';
-import VehicleTypeCard, { VehicleType, VEHICLE_OPTIONS } from '@/components/vehicle-type-card';
-
-// Base price per km for tow service
-const BASE_PRICE_PER_KM = 15;
-const MINIMUM_PRICE = 50;
+import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
+import { calculateEstimatedPrice } from '@/constants/pricing';
 
 export default function HomeScreen() {
   // Bottom sheet reference
@@ -57,28 +54,18 @@ export default function HomeScreen() {
   });
 
   // Calculate estimated price based on vehicle type and mock distance
-  const calculateEstimatedPrice = useCallback((): number | null => {
-    if (!selectedVehicle || !pickupAddress || !destinationAddress) {
+  const getEstimatedPrice = useCallback((): number | null => {
+    if (!pickupAddress || !destinationAddress) {
       return null;
     }
 
     // Mock distance calculation (in a real app, this would use Google Directions API)
     const mockDistanceKm = 10; // Simulated 10km distance
 
-    // Get vehicle multiplier
-    const vehicleOption = VEHICLE_OPTIONS.find(v => v.id === selectedVehicle);
-    const multiplier = vehicleOption?.priceMultiplier || 1;
-
-    // Calculate price
-    const calculatedPrice = Math.max(
-      mockDistanceKm * BASE_PRICE_PER_KM * multiplier,
-      MINIMUM_PRICE
-    );
-
-    return calculatedPrice;
+    return calculateEstimatedPrice(mockDistanceKm, selectedVehicle);
   }, [selectedVehicle, pickupAddress, destinationAddress]);
 
-  const estimatedPrice = calculateEstimatedPrice();
+  const estimatedPrice = getEstimatedPrice();
 
   // Handle address input press
   const handlePickupPress = useCallback(() => {

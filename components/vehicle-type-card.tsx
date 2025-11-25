@@ -14,26 +14,10 @@ import {
   View,
 } from 'react-native';
 
-/** Vehicle type options */
-export type VehicleType = 'car' | 'suv' | 'saloon' | 'van' | 'truck' | 'motorcycle' | 'others';
+import { VEHICLE_OPTIONS, VehicleType } from '@/constants/pricing';
 
-interface VehicleOption {
-  id: VehicleType;
-  label: string;
-  icon: string;
-  priceMultiplier: number;
-}
-
-/** Available vehicle options with icons and price multipliers */
-export const VEHICLE_OPTIONS: VehicleOption[] = [
-  { id: 'car', label: 'Car', icon: '🚗', priceMultiplier: 1.0 },
-  { id: 'suv', label: 'SUV', icon: '🚙', priceMultiplier: 1.3 },
-  { id: 'saloon', label: 'Saloon', icon: '🚘', priceMultiplier: 1.1 },
-  { id: 'van', label: 'Van', icon: '🚐', priceMultiplier: 1.5 },
-  { id: 'truck', label: 'Truck', icon: '🛻', priceMultiplier: 2.0 },
-  { id: 'motorcycle', label: 'Motorcycle', icon: '🏍️', priceMultiplier: 0.7 },
-  { id: 'others', label: 'Others', icon: '🚜', priceMultiplier: 1.8 },
-];
+// Re-export types for convenience
+export { VehicleType, VEHICLE_OPTIONS };
 
 interface VehicleTypeCardProps {
   /** Currently selected vehicle type */
