@@ -152,8 +152,9 @@ export default function LoginScreen() {
                   onPress={() => setShowPassword(!showPassword)}
                   accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                   accessibilityRole="button"
+                  accessibilityHint={showPassword ? 'Password is currently visible' : 'Password is currently hidden'}
                 >
-                  <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                  <Text style={styles.eyeButtonText}>{showPassword ? 'Hide' : 'Show'}</Text>
                 </TouchableOpacity>
               </View>
               {errors.password && (
@@ -206,7 +207,7 @@ export default function LoginScreen() {
                 accessibilityLabel="Sign in with Apple"
                 accessibilityRole="button"
               >
-                <Text style={styles.socialIcon}></Text>
+                <Text style={styles.socialIcon}></Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -316,10 +317,13 @@ const styles = StyleSheet.create({
   eyeButton: {
     position: 'absolute',
     right: 16,
-    top: 14,
+    top: 16,
+    paddingHorizontal: 4,
   },
-  eyeIcon: {
-    fontSize: 20,
+  eyeButtonText: {
+    fontSize: 13,
+    color: '#003554',
+    fontWeight: '600',
   },
   errorText: {
     color: '#ef4444',
