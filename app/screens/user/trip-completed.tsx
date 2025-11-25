@@ -1,0 +1,215 @@
+/**
+ * TripCompleted Screen (Placeholder)
+ * 
+ * Displayed when the towing service is complete.
+ * Shows trip summary and prompts for rating.
+ */
+
+import { router } from 'expo-router';
+import React from 'react';
+import {
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+export default function TripCompletedScreen() {
+  const handleRate = () => {
+    router.push('/screens/user/rating');
+  };
+
+  const handleHome = () => {
+    router.replace('/screens/user/home-screen');
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+
+      <View style={styles.content}>
+        {/* Success Icon */}
+        <View style={styles.iconContainer}>
+          <Text style={styles.checkIcon}>🎉</Text>
+        </View>
+
+        <Text style={styles.title}>Trip Completed!</Text>
+        <Text style={styles.subtitle}>
+          Your vehicle has been successfully towed to the destination
+        </Text>
+
+        {/* Trip Summary Card */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Trip Summary</Text>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>From</Text>
+            <Text style={styles.summaryValue}>Ring Road Central, Accra</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>To</Text>
+            <Text style={styles.summaryValue}>Accra Mall, Accra</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Distance</Text>
+            <Text style={styles.summaryValue}>10.2 km</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Duration</Text>
+            <Text style={styles.summaryValue}>25 min</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total Amount</Text>
+            <Text style={styles.totalValue}>GH₵ 150.00</Text>
+          </View>
+        </View>
+
+        {/* Rate Button */}
+        <TouchableOpacity
+          style={styles.rateButton}
+          onPress={handleRate}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.rateButtonText}>Rate Your Experience</Text>
+        </TouchableOpacity>
+
+        {/* Home Button */}
+        <TouchableOpacity
+          style={styles.homeButton}
+          onPress={handleHome}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.homeButtonText}>Back to Home</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#fef3c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  checkIcon: {
+    fontSize: 48,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 32,
+    paddingHorizontal: 20,
+  },
+  summaryCard: {
+    width: '100%',
+    backgroundColor: '#f9fafb',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 32,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    flex: 1,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111827',
+    flex: 2,
+    textAlign: 'right',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 12,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  totalValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#003554',
+  },
+  rateButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#003554',
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#003554',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  rateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  homeButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+  },
+  homeButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+});
