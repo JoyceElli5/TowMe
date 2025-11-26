@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { ONBOARDING_IMAGES } from '@/constants/onboarding';
 import { UserRole } from '@/schemas/auth';
 
 const { width } = Dimensions.get('window');
@@ -22,10 +23,14 @@ export default function RoleSelectionScreen() {
   const handleGetStarted = () => {
     if (!selectedRole) return;
     setIsLoading(true);
-    router.push({
-      pathname: '/screens/auth/login-screen',
-      params: { role: selectedRole },
-    });
+    try {
+      router.push({
+        pathname: '/screens/auth/login-screen',
+        params: { role: selectedRole },
+      });
+    } catch {
+      setIsLoading(false);
+    }
   };
 
   const roles = [
@@ -45,7 +50,7 @@ export default function RoleSelectionScreen() {
 
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1611083497391-971ad20e269a?q=80&w=870&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D' }}
+      source={{ uri: ONBOARDING_IMAGES.roleSelection }}
       style={styles.container}
       resizeMode="cover"
     >
