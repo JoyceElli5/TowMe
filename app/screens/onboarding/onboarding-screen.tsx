@@ -13,6 +13,8 @@ import {
   NativeScrollEvent,
 } from 'react-native';
 
+import { ONBOARDING_IMAGES } from '@/constants/onboarding';
+
 const { width, height } = Dimensions.get('window');
 
 interface OnboardingSlide {
@@ -25,12 +27,12 @@ interface OnboardingSlide {
 const slides: OnboardingSlide[] = [
   {
     id: '1',
-    image: 'https://images.unsplash.com/photo-1611083203153-1f0f49fcf093?q=80&w=387&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    title: "Guess you are stuck on the road, Let's get Started",
+    image: ONBOARDING_IMAGES.slide1,
+    title: "Guess you are stuck on the road, let's get Started",
   },
   {
     id: '2',
-    image: 'https://images.unsplash.com/photo-1675092910167-13382da372e6?q=80&w=385&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+    image: ONBOARDING_IMAGES.slide2,
     title: 'Get access to tow trucks easily',
     subtitle: 'Experience fast and reliable services',
   },
@@ -42,7 +44,12 @@ export default function OnboardingScreen() {
 
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
-      flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
+      try {
+        flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
+      } catch {
+        // Fallback to scrollToOffset if scrollToIndex fails
+        flatListRef.current?.scrollToOffset({ offset: (currentIndex + 1) * width });
+      }
     } else {
       // Navigate to role selection screen
       router.replace('/screens/onboarding/role-selection-screen');
