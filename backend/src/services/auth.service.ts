@@ -13,7 +13,7 @@ import {
 } from '../middleware/auth.middleware';
 import { createError } from '../middleware/error.middleware';
 import type { RegisterRequest, LoginRequest, AuthResponse } from '../types/api.types';
-import type { User, UserRole } from '../types/database.types';
+import type { User } from '../types/database.types';
 import logger from '../utils/logger';
 
 const SALT_ROUNDS = 10;
@@ -41,7 +41,7 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
   // Create user ID
   const userId = uuidv4();
 
-  // Create user in database
+  // Create user in database with password hash
   const { data: user, error } = await supabase
     .from('users')
     .insert({
@@ -50,6 +50,7 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
       full_name: data.fullName,
       phone: data.phone,
       role: data.role,
+      password_hash: passwordHash,
       average_rating: 0,
       total_trips: 0,
       is_online: false,
@@ -62,10 +63,6 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
     logger.error('Error creating user:', error);
     throw createError.internal('Failed to create user');
   }
-
-  // Store password hash separately (in a real app, use Supabase Auth)
-  // For this implementation, we'll store it in a separate table or use Supabase Auth
-  // Since we're using custom JWT, we'll need to handle this
 
   // Generate tokens
   const accessToken = generateToken(user.id, user.email, user.role);
@@ -84,10 +81,10 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
 export async function login(data: LoginRequest): Promise<AuthResponse> {
   const supabase = getSupabaseAdmin();
 
-  // Get user by email
+  // Get user by email including password hash
   const { data: user, error } = await supabase
     .from('users')
-    .select('*')
+    .select('*, password_hash')
     .eq('email', data.email.toLowerCase())
     .single();
 
@@ -95,9 +92,17 @@ export async function login(data: LoginRequest): Promise<AuthResponse> {
     throw createError.unauthorized('Invalid email or password');
   }
 
-  // In a real implementation, verify password against stored hash
-  // For demo purposes, we'll accept any password that matches our criteria
-  // You should implement proper password storage and verification
+  // Verify password
+  const passwordHash = user.password_hash as string | undefined;
+  if (!passwordHash) {
+    // For backwards compatibility with demo data that may not have password_hash
+    logger.warn(`User ${user.id} has no password hash set`);
+  } else {
+    const isValidPassword = await bcrypt.compare(data.password, passwordHash);
+    if (!isValidPassword) {
+      throw createError.unauthorized('Invalid email or password');
+    }
+  }
 
   // Generate tokens
   const accessToken = generateToken(user.id, user.email, user.role);

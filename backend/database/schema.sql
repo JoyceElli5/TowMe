@@ -16,6 +16,7 @@ CREATE TYPE notification_type AS ENUM ('request', 'status_update', 'rating', 'pa
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email TEXT UNIQUE NOT NULL,
+  password_hash TEXT,
   full_name TEXT NOT NULL,
   phone TEXT NOT NULL,
   role user_role NOT NULL,
