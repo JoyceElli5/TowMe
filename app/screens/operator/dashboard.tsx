@@ -1,13 +1,14 @@
 /**
- * Operator Dashboard Screen (Placeholder)
+ * Operator Dashboard Screen
  * 
  * Main dashboard for tow operators.
  * Shows availability toggle and incoming request notifications.
  */
 
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Platform,
   StatusBar,
   StyleSheet,
@@ -19,19 +20,89 @@ import {
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { 
+  getPendingRequests, 
+  toggleOperatorOnlineStatus, 
+  getCurrentUser,
+  ApiError,
+  type TowingRequest,
+  type User,
+} from '@/lib/api';
+
 export default function OperatorDashboardScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [earnings] = useState(1250.00);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<TowingRequest[]>([]);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
 
-  // Simulate incoming request after going online
+  // Fetch current user on mount
   useEffect(() => {
-    if (isOnline) {
-      const timer = setTimeout(() => {
-        router.push('/screens/operator/incoming-request');
-      }, 3000);
-      return () => clearTimeout(timer);
+    const fetchUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUser(user);
+        if (user) {
+          setIsOnline(user.isOnline);
+        }
+      } catch (error) {
+        console.error('Failed to fetch current user:', error);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  // Poll for pending requests when online
+  useEffect(() => {
+    if (!isOnline || !currentUser) return;
+
+    const fetchPendingRequests = async () => {
+      try {
+        const requests = await getPendingRequests();
+        setPendingRequests(requests);
+        
+        // If there are pending requests, navigate to incoming request screen
+        if (requests.length > 0) {
+          router.push({
+            pathname: '/screens/operator/incoming-request',
+            params: { requestId: requests[0].id },
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch pending requests:', error);
+      }
+    };
+
+    // Fetch immediately
+    fetchPendingRequests();
+
+    // Poll every 10 seconds
+    const interval = setInterval(fetchPendingRequests, 10000);
+    return () => clearInterval(interval);
+  }, [isOnline, currentUser]);
+
+  // Handle online status toggle
+  const handleOnlineToggle = useCallback(async (value: boolean) => {
+    if (!currentUser) {
+      Alert.alert('Error', 'Please log in to go online');
+      return;
     }
-  }, [isOnline]);
+
+    setIsLoadingStatus(true);
+    try {
+      const result = await toggleOperatorOnlineStatus(currentUser.id, value);
+      setIsOnline(result.isOnline);
+    } catch (error) {
+      console.error('Failed to toggle online status:', error);
+      if (error instanceof ApiError) {
+        Alert.alert('Error', error.message || 'Could not update status');
+      } else {
+        Alert.alert('Error', 'An unexpected error occurred');
+      }
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  }, [currentUser]);
 
   return (
     <View style={styles.container}>
@@ -63,7 +134,8 @@ export default function OperatorDashboardScreen() {
             </Text>
             <Switch
               value={isOnline}
-              onValueChange={setIsOnline}
+              onValueChange={handleOnlineToggle}
+              disabled={isLoadingStatus}
               trackColor={{ false: '#e5e7eb', true: '#bae6fd' }}
               thumbColor={isOnline ? '#003554' : '#9ca3af'}
             />
