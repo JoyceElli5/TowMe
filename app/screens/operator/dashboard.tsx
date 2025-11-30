@@ -25,7 +25,6 @@ import {
   toggleOperatorOnlineStatus, 
   getCurrentUser,
   ApiError,
-  type TowingRequest,
   type User,
 } from '@/lib/api';
 
@@ -33,7 +32,6 @@ export default function OperatorDashboardScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [earnings] = useState(1250.00);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [pendingRequests, setPendingRequests] = useState<TowingRequest[]>([]);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
 
   // Fetch current user on mount
@@ -59,7 +57,6 @@ export default function OperatorDashboardScreen() {
     const fetchPendingRequests = async () => {
       try {
         const requests = await getPendingRequests();
-        setPendingRequests(requests);
         
         // If there are pending requests, navigate to incoming request screen
         if (requests.length > 0) {
