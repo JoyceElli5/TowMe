@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,6 +16,7 @@ import {
   View,
 } from 'react-native';
 
+import { login, ApiError } from '@/lib/api';
 import { LoginFormData, loginSchema, UserRole } from '@/schemas/auth';
 
 export default function LoginScreen() {
@@ -37,17 +39,26 @@ export default function LoginScreen() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    // Simulate API call
-    console.log('Login data:', { ...data, role });
-    setTimeout(() => {
-      setIsLoading(false);
-      // Navigate to appropriate dashboard based on role
-      if (role === 'tow_operator') {
+    try {
+      const user = await login({ email: data.email, password: data.password });
+      console.log('Login successful:', user);
+      
+      // Navigate to appropriate dashboard based on user role from API response
+      if (user.role === 'tow_operator') {
         router.replace('/screens/operator/dashboard');
       } else {
         router.replace('/screens/user/home-screen');
       }
-    }, 1500);
+    } catch (error) {
+      console.error('Login error:', error);
+      if (error instanceof ApiError) {
+        Alert.alert('Login Failed', error.message || 'Invalid email or password');
+      } else {
+        Alert.alert('Login Failed', 'An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleRegisterPress = () => {

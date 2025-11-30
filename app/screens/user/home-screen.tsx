@@ -13,6 +13,7 @@ import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Platform,
   StatusBar,
   StyleSheet,
@@ -27,6 +28,7 @@ import PriceEstimatorCard from '@/components/price-estimator-card';
 import PrimaryButton from '@/components/primary-button';
 import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
 import { calculateEstimatedPrice } from '@/constants/pricing';
+import { createRequest, ApiError } from '@/lib/api';
 
 export default function HomeScreen() {
   // Bottom sheet reference
@@ -38,6 +40,10 @@ export default function HomeScreen() {
   // State for addresses
   const [pickupAddress, setPickupAddress] = useState<string>('');
   const [destinationAddress, setDestinationAddress] = useState<string>('');
+
+  // State for coordinates (in a real app, these would come from Google Places)
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // State for vehicle selection
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleType | null>(null);
@@ -70,15 +76,17 @@ export default function HomeScreen() {
   // Handle address input press
   const handlePickupPress = useCallback(() => {
     // In a real app, this would open a Google Places autocomplete
-    // For now, we'll set a mock address
+    // For now, we'll set a mock address with coordinates
     setPickupAddress('Ring Road Central, Accra');
+    setPickupCoords({ lat: 5.5500, lng: -0.2050 });
     bottomSheetRef.current?.snapToIndex(1);
   }, []);
 
   const handleDestinationPress = useCallback(() => {
     // In a real app, this would open a Google Places autocomplete
-    // For now, we'll set a mock address
+    // For now, we'll set a mock address with coordinates
     setDestinationAddress('Accra Mall, Accra');
+    setDestinationCoords({ lat: 5.6350, lng: -0.1650 });
     bottomSheetRef.current?.snapToIndex(1);
   }, []);
 
@@ -89,21 +97,46 @@ export default function HomeScreen() {
 
   // Handle request button press
   const handleRequestPress = useCallback(async () => {
-    if (!selectedVehicle || !pickupAddress || !destinationAddress) {
+    if (!selectedVehicle || !pickupAddress || !destinationAddress || !pickupCoords || !destinationCoords) {
       return;
     }
 
     setIsRequesting(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // Create the towing request via API
+      // VehicleType from constants/pricing matches the API VehicleType exactly
+      const request = await createRequest({
+        pickupAddress,
+        destinationAddress,
+        pickupLat: pickupCoords.lat,
+        pickupLng: pickupCoords.lng,
+        destinationLat: destinationCoords.lat,
+        destinationLng: destinationCoords.lng,
+        vehicleType: selectedVehicle,
+      });
 
-    // Navigate to searching screen
-    router.push('/screens/user/searching-operator');
-  }, [selectedVehicle, pickupAddress, destinationAddress]);
+      console.log('Request created:', request);
+
+      // Navigate to searching screen with request ID
+      router.push({
+        pathname: '/screens/user/searching-operator',
+        params: { requestId: request.id },
+      });
+    } catch (error) {
+      console.error('Request creation error:', error);
+      if (error instanceof ApiError) {
+        Alert.alert('Request Failed', error.message || 'Could not create towing request');
+      } else {
+        Alert.alert('Request Failed', 'An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setIsRequesting(false);
+    }
+  }, [selectedVehicle, pickupAddress, destinationAddress, pickupCoords, destinationCoords]);
 
   // Check if request can be made
-  const canRequest = selectedVehicle && pickupAddress && destinationAddress;
+  const canRequest = selectedVehicle && pickupAddress && destinationAddress && pickupCoords && destinationCoords;
 
   return (
     <GestureHandlerRootView style={styles.container}>
