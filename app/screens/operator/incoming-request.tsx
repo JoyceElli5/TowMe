@@ -1,13 +1,15 @@
 /**
- * Incoming Request Screen (Placeholder)
+ * Incoming Request Screen
  * 
  * Displays new tow request for operator to accept or decline.
  * Shows pickup/destination info and estimated earnings.
  */
 
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -16,8 +18,42 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  getRequestById,
+  acceptRequest,
+  ApiError,
+  type TowingRequest,
+} from '@/lib/api';
+
 export default function IncomingRequestScreen() {
+  const params = useLocalSearchParams<{ requestId: string }>();
   const [timeLeft, setTimeLeft] = useState(30);
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAccepting, setIsAccepting] = useState(false);
+
+  // Fetch request details
+  useEffect(() => {
+    const fetchRequest = async () => {
+      if (!params.requestId) {
+        router.back();
+        return;
+      }
+
+      try {
+        const requestData = await getRequestById(params.requestId);
+        setRequest(requestData);
+      } catch (error) {
+        console.error('Failed to fetch request:', error);
+        Alert.alert('Error', 'Failed to load request details');
+        router.back();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRequest();
+  }, [params.requestId]);
 
   // Countdown timer
   useEffect(() => {
@@ -35,13 +71,54 @@ export default function IncomingRequestScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleAccept = () => {
-    router.replace('/screens/operator/navigation-to-pickup');
+  const handleAccept = async () => {
+    if (!params.requestId) return;
+
+    setIsAccepting(true);
+    try {
+      await acceptRequest(params.requestId);
+      router.replace({
+        pathname: '/screens/operator/navigation-to-pickup',
+        params: { requestId: params.requestId },
+      });
+    } catch (error) {
+      console.error('Failed to accept request:', error);
+      if (error instanceof ApiError) {
+        Alert.alert('Error', error.message || 'Failed to accept request');
+      } else {
+        Alert.alert('Error', 'An unexpected error occurred');
+      }
+    } finally {
+      setIsAccepting(false);
+    }
   };
 
   const handleDecline = () => {
     router.back();
   };
+
+  // Get user initials
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#003554" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={styles.loadingText}>Loading request...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
