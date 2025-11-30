@@ -1,50 +1,125 @@
-# Welcome to your Expo app 👋
+# TowMe 🚛
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A roadside assistance and towing request mobile application for Ghana built with React Native/Expo and Express.js.
 
-## Get started
+## 📱 Features
 
-1. Install dependencies
+- **Vehicle Owners**: Request towing services, track operators in real-time, rate services
+- **Tow Operators**: Accept requests, manage jobs, track earnings
+- **Real-time Tracking**: Live location updates during active trips
+- **Smart Pricing**: Distance-based pricing with vehicle type multipliers
+- **Rating System**: Two-way ratings for quality assurance
 
-   ```bash
-   npm install
-   ```
+## 🏗️ Project Structure
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+TowMe/
+├── app/                    # React Native/Expo frontend
+│   ├── (tabs)/            # Tab navigation screens
+│   └── screens/           # Feature screens (auth, user, operator)
+├── backend/               # Express.js API server
+│   ├── src/               # TypeScript source code
+│   └── database/          # SQL schema files
+├── lib/                   # Shared libraries
+│   └── api/               # API client for frontend
+└── components/            # Reusable UI components
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🚀 Quick Start
 
-## Learn more
+### Prerequisites
 
-To learn more about developing your project with Expo, look at the following resources:
+- Node.js 18+
+- npm or yarn
+- Supabase account ([supabase.com](https://supabase.com))
+- Expo CLI (`npm install -g expo-cli`)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Frontend Setup
 
-## Join the community
+```bash
+# Install dependencies
+npm install
 
-Join our community of developers creating universal apps.
+# Start the app
+npx expo start
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Backend Setup
+
+```bash
+cd backend
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your Supabase credentials
+
+# Set up database (run schema.sql in Supabase SQL Editor)
+
+# Seed demo data (optional)
+npm run seed
+
+# Start server
+npm run dev
+```
+
+See [backend/README.md](./backend/README.md) for detailed backend documentation.
+
+## 💰 Pricing
+
+| Vehicle Type | Multiplier |
+|-------------|------------|
+| Motorcycle | 0.7x |
+| Car | 1.0x |
+| Saloon | 1.1x |
+| SUV | 1.3x |
+| Van | 1.5x |
+| Others | 1.8x |
+| Truck | 2.0x |
+
+- **Base Rate**: GH₵15/km
+- **Minimum Fare**: GH₵50
+
+## 📚 API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/auth/register` | User registration |
+| `POST /api/auth/login` | User login |
+| `GET /api/requests` | Get towing requests |
+| `POST /api/requests` | Create new request |
+| `GET /api/pricing/estimate` | Get price estimate |
+
+Full API documentation in [backend/README.md](./backend/README.md).
+
+## 🔒 Security
+
+- JWT authentication (24h expiry)
+- bcrypt password hashing
+- Rate limiting (100 auth / 1000 general requests per 15 min)
+- Row Level Security (RLS) in Supabase
+- Helmet.js HTTP security headers
+
+## 🛠️ Tech Stack
+
+**Frontend:**
+- React Native + Expo
+- TypeScript
+- NativeWind (Tailwind CSS)
+- React Hook Form + Zod
+
+**Backend:**
+- Express.js + TypeScript
+- Supabase (PostgreSQL)
+- JWT Authentication
+- Pino Logger
+
+## 📄 License
+
+ISC
+
+---
+
+Built with ❤️ for Ghana 🇬🇭
