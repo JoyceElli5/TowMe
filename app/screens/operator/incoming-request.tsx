@@ -1,13 +1,15 @@
 /**
- * Incoming Request Screen (Placeholder)
+ * Incoming Request Screen
  * 
  * Displays new tow request for operator to accept or decline.
  * Shows pickup/destination info and estimated earnings.
  */
 
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -16,8 +18,51 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  getRequestById,
+  acceptRequest,
+  ApiError,
+  type TowingRequest,
+} from '@/lib/api';
+
+// Estimated minutes per kilometer for duration calculation
+const MINUTES_PER_KM_ESTIMATE = 2.5;
+
+// Helper function to capitalize vehicle type
+const formatVehicleType = (vehicleType?: string): string => {
+  if (!vehicleType) return 'Unknown';
+  return vehicleType.charAt(0).toUpperCase() + vehicleType.slice(1);
+};
+
 export default function IncomingRequestScreen() {
+  const params = useLocalSearchParams<{ requestId: string }>();
   const [timeLeft, setTimeLeft] = useState(30);
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAccepting, setIsAccepting] = useState(false);
+
+  // Fetch request details
+  useEffect(() => {
+    const fetchRequest = async () => {
+      if (!params.requestId) {
+        router.back();
+        return;
+      }
+
+      try {
+        const requestData = await getRequestById(params.requestId);
+        setRequest(requestData);
+      } catch (error) {
+        console.error('Failed to fetch request:', error);
+        Alert.alert('Error', 'Failed to load request details');
+        router.back();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRequest();
+  }, [params.requestId]);
 
   // Countdown timer
   useEffect(() => {
@@ -35,13 +80,54 @@ export default function IncomingRequestScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleAccept = () => {
-    router.replace('/screens/operator/navigation-to-pickup');
+  const handleAccept = async () => {
+    if (!params.requestId) return;
+
+    setIsAccepting(true);
+    try {
+      await acceptRequest(params.requestId);
+      router.replace({
+        pathname: '/screens/operator/navigation-to-pickup',
+        params: { requestId: params.requestId },
+      });
+    } catch (error) {
+      console.error('Failed to accept request:', error);
+      if (error instanceof ApiError) {
+        Alert.alert('Error', error.message || 'Failed to accept request');
+      } else {
+        Alert.alert('Error', 'An unexpected error occurred');
+      }
+    } finally {
+      setIsAccepting(false);
+    }
   };
 
   const handleDecline = () => {
     router.back();
   };
+
+  // Get user initials
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#003554" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={styles.loadingText}>Loading request...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -61,18 +147,18 @@ export default function IncomingRequestScreen() {
           {/* User Info */}
           <View style={styles.userSection}>
             <View style={styles.userAvatar}>
-              <Text style={styles.avatarText}>SK</Text>
+              <Text style={styles.avatarText}>{getUserInitials(request?.user?.fullName)}</Text>
             </View>
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>Sarah Kofi</Text>
+              <Text style={styles.userName}>{request?.user?.fullName || 'Unknown User'}</Text>
               <View style={styles.ratingRow}>
                 <Text style={styles.starIcon}>⭐</Text>
-                <Text style={styles.rating}>4.7</Text>
+                <Text style={styles.rating}>{request?.user?.averageRating?.toFixed(1) || '0.0'}</Text>
               </View>
             </View>
             <View style={styles.earningsContainer}>
               <Text style={styles.earningsLabel}>Earnings</Text>
-              <Text style={styles.earningsValue}>GH₵ 150</Text>
+              <Text style={styles.earningsValue}>GH₵ {request?.estimatedPrice?.toFixed(0) || '0'}</Text>
             </View>
           </View>
 
@@ -82,7 +168,7 @@ export default function IncomingRequestScreen() {
               <View style={styles.locationDot} />
               <View style={styles.locationInfo}>
                 <Text style={styles.locationLabel}>Pickup</Text>
-                <Text style={styles.locationText}>Ring Road Central, Accra</Text>
+                <Text style={styles.locationText}>{request?.pickupAddress || 'Loading...'}</Text>
               </View>
             </View>
             
@@ -92,7 +178,7 @@ export default function IncomingRequestScreen() {
               <View style={[styles.locationDot, styles.destinationDot]} />
               <View style={styles.locationInfo}>
                 <Text style={styles.locationLabel}>Destination</Text>
-                <Text style={styles.locationText}>Accra Mall, Accra</Text>
+                <Text style={styles.locationText}>{request?.destinationAddress || 'Loading...'}</Text>
               </View>
             </View>
           </View>
@@ -100,15 +186,15 @@ export default function IncomingRequestScreen() {
           {/* Trip Info */}
           <View style={styles.tripInfo}>
             <View style={styles.tripInfoItem}>
-              <Text style={styles.tripInfoValue}>10.2 km</Text>
+              <Text style={styles.tripInfoValue}>{request?.distanceKm?.toFixed(1) || '0'} km</Text>
               <Text style={styles.tripInfoLabel}>Distance</Text>
             </View>
             <View style={styles.tripInfoItem}>
-              <Text style={styles.tripInfoValue}>~25 min</Text>
+              <Text style={styles.tripInfoValue}>~{Math.ceil((request?.distanceKm || 0) * MINUTES_PER_KM_ESTIMATE)} min</Text>
               <Text style={styles.tripInfoLabel}>Est. Duration</Text>
             </View>
             <View style={styles.tripInfoItem}>
-              <Text style={styles.tripInfoValue}>Car</Text>
+              <Text style={styles.tripInfoValue}>{formatVehicleType(request?.vehicleType)}</Text>
               <Text style={styles.tripInfoLabel}>Vehicle</Text>
             </View>
           </View>
@@ -120,15 +206,21 @@ export default function IncomingRequestScreen() {
             style={styles.declineButton}
             onPress={handleDecline}
             activeOpacity={0.7}
+            disabled={isAccepting}
           >
             <Text style={styles.declineButtonText}>Decline</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.acceptButton}
+            style={[styles.acceptButton, isAccepting && styles.buttonDisabled]}
             onPress={handleAccept}
             activeOpacity={0.8}
+            disabled={isAccepting}
           >
-            <Text style={styles.acceptButtonText}>Accept</Text>
+            {isAccepting ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.acceptButtonText}>Accept</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -140,6 +232,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#003554',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#ffffff',
   },
   content: {
     flex: 1,
@@ -318,5 +420,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 });

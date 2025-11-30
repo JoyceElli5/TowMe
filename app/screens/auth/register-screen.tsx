@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,6 +16,7 @@ import {
   View,
 } from 'react-native';
 
+import { register as registerUser, ApiError } from '@/lib/api';
 import { RegisterFormData, registerSchema, UserRole } from '@/schemas/auth';
 
 export default function RegisterScreen() {
@@ -41,12 +43,37 @@ export default function RegisterScreen() {
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
-    // Simulate API call
-    console.log('Register data:', { ...data, role });
-    setTimeout(() => {
+    try {
+      const user = await registerUser({
+        email: data.email,
+        password: data.password,
+        fullName: data.fullName,
+        phone: data.phone,
+        role: role,
+      });
+      console.log('Registration successful:', user);
+      
+      // Navigate to appropriate dashboard based on user role
+      if (user.role === 'tow_operator') {
+        router.replace('/screens/operator/dashboard');
+      } else {
+        router.replace('/screens/user/home-screen');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      if (error instanceof ApiError) {
+        if (error.errors && error.errors.length > 0) {
+          const errorMessages = error.errors.map(e => `${e.field}: ${e.message}`).join('\n');
+          Alert.alert('Registration Failed', errorMessages);
+        } else {
+          Alert.alert('Registration Failed', error.message || 'Could not complete registration');
+        }
+      } else {
+        Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
+      }
+    } finally {
       setIsLoading(false);
-      router.replace('/(tabs)');
-    }, 1500);
+    }
   };
 
   const handleLoginPress = () => {
