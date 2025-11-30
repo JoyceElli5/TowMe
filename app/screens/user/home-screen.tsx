@@ -29,7 +29,6 @@ import PrimaryButton from '@/components/primary-button';
 import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
 import { calculateEstimatedPrice } from '@/constants/pricing';
 import { createRequest, ApiError } from '@/lib/api';
-import type { VehicleType as ApiVehicleType } from '@/lib/api';
 
 export default function HomeScreen() {
   // Bottom sheet reference
@@ -106,6 +105,7 @@ export default function HomeScreen() {
 
     try {
       // Create the towing request via API
+      // VehicleType from constants/pricing matches the API VehicleType exactly
       const request = await createRequest({
         pickupAddress,
         destinationAddress,
@@ -113,7 +113,7 @@ export default function HomeScreen() {
         pickupLng: pickupCoords.lng,
         destinationLat: destinationCoords.lat,
         destinationLng: destinationCoords.lng,
-        vehicleType: selectedVehicle as ApiVehicleType,
+        vehicleType: selectedVehicle,
       });
 
       console.log('Request created:', request);

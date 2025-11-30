@@ -25,6 +25,15 @@ import {
   type TowingRequest,
 } from '@/lib/api';
 
+// Estimated minutes per kilometer for duration calculation
+const MINUTES_PER_KM_ESTIMATE = 2.5;
+
+// Helper function to capitalize vehicle type
+const formatVehicleType = (vehicleType?: string): string => {
+  if (!vehicleType) return 'Unknown';
+  return vehicleType.charAt(0).toUpperCase() + vehicleType.slice(1);
+};
+
 export default function IncomingRequestScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
   const [timeLeft, setTimeLeft] = useState(30);
@@ -181,11 +190,11 @@ export default function IncomingRequestScreen() {
               <Text style={styles.tripInfoLabel}>Distance</Text>
             </View>
             <View style={styles.tripInfoItem}>
-              <Text style={styles.tripInfoValue}>~{Math.ceil((request?.distanceKm || 0) * 2.5)} min</Text>
+              <Text style={styles.tripInfoValue}>~{Math.ceil((request?.distanceKm || 0) * MINUTES_PER_KM_ESTIMATE)} min</Text>
               <Text style={styles.tripInfoLabel}>Est. Duration</Text>
             </View>
             <View style={styles.tripInfoItem}>
-              <Text style={styles.tripInfoValue}>{request?.vehicleType?.charAt(0).toUpperCase()}{request?.vehicleType?.slice(1) || 'Unknown'}</Text>
+              <Text style={styles.tripInfoValue}>{formatVehicleType(request?.vehicleType)}</Text>
               <Text style={styles.tripInfoLabel}>Vehicle</Text>
             </View>
           </View>
