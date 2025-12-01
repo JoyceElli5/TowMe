@@ -3,7 +3,7 @@
  */
 
 import api from './client';
-import type { User } from './auth';
+import type { User, PublicUser } from './auth';
 
 // Types
 export interface UserStats {
@@ -14,8 +14,9 @@ export interface UserStats {
 }
 
 // User API functions
-export async function getUserById(userId: string): Promise<User> {
-  const response = await api.get<User>(`/users/${userId}`);
+// Note: getUserById returns PublicUser (without email/phone for privacy)
+export async function getUserById(userId: string): Promise<PublicUser> {
+  const response = await api.get<PublicUser>(`/users/${userId}`);
   if (response.data) {
     return response.data;
   }
