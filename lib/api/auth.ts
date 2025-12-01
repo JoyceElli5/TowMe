@@ -18,6 +18,11 @@ export interface User {
   isVerified: boolean;
 }
 
+// PublicUser represents user data returned from public endpoints (without sensitive info like email/phone)
+export type PublicUser = Omit<User, 'email' | 'phone'> & {
+  createdAt: string;
+};
+
 export interface AuthResponse {
   user: User;
   accessToken: string;
