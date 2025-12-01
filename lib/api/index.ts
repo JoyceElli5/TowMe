@@ -16,7 +16,7 @@ export {
   forgotPassword,
   resetPassword,
 } from './auth';
-export type { User, AuthResponse, RegisterRequest, LoginRequest } from './auth';
+export type { User, PublicUser, AuthResponse, RegisterRequest, LoginRequest } from './auth';
 
 // Requests
 export {

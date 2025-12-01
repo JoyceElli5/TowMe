@@ -18,6 +18,19 @@ export interface User {
   isVerified: boolean;
 }
 
+// PublicUser represents user data returned from public endpoints (without sensitive info)
+export interface PublicUser {
+  id: string;
+  fullName: string;
+  role: 'vehicle_owner' | 'tow_operator';
+  avatarUrl: string | null;
+  averageRating: number;
+  totalTrips: number;
+  isOnline: boolean;
+  isVerified: boolean;
+  createdAt: string;
+}
+
 export interface AuthResponse {
   user: User;
   accessToken: string;
