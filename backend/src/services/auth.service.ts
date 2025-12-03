@@ -7,12 +7,12 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabaseAdmin } from '../config/database';
 import {
-  generateToken,
   generateRefreshToken,
+  generateToken,
   verifyRefreshToken,
 } from '../middleware/auth.middleware';
 import { createError } from '../middleware/error.middleware';
-import type { RegisterRequest, LoginRequest, AuthResponse } from '../types/api.types';
+import type { AuthResponse, LoginRequest, RegisterRequest } from '../types/api.types';
 import type { User } from '../types/database.types';
 import logger from '../utils/logger';
 

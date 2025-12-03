@@ -6,7 +6,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 // API Configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = 'http://172.20.10.4:3001/api';
 
 // Token storage keys
 const ACCESS_TOKEN_KEY = 'towme_access_token';
@@ -18,7 +18,7 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   message?: string;
   error?: string;
-  errors?: Array<{ field: string; message: string }>;
+  errors?: { field: string; message: string }[];
 }
 
 export interface PaginatedResponse<T> {
@@ -34,9 +34,9 @@ export interface PaginatedResponse<T> {
 
 export class ApiError extends Error {
   status: number;
-  errors?: Array<{ field: string; message: string }>;
+  errors?: { field: string; message: string }[];
 
-  constructor(message: string, status: number, errors?: Array<{ field: string; message: string }>) {
+  constructor(message: string, status: number, errors?: { field: string; message: string }[]) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
