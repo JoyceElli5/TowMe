@@ -3,7 +3,7 @@
  * Uses EXPO_PUBLIC_ environment variables for URL and anon key
  */
 
-import { createClient, SupabaseClient, AuthError, User, Session } from '@supabase/supabase-js';
+import { AuthError, createClient, Session, SupabaseClient, User } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
 // Supabase configuration from environment variables
@@ -11,33 +11,76 @@ import * as SecureStore from 'expo-secure-store';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Custom storage adapter using expo-secure-store for secure token storage
-const ExpoSecureStoreAdapter = {
-  getItem: async (key: string): Promise<string | null> => {
-    try {
-      return await SecureStore.getItemAsync(key);
-    } catch {
-      return null;
+// Keys used to persist only small token values (avoid storing large session JSON)
+const ACCESS_TOKEN_KEY = 'supabase.access_token';
+const REFRESH_TOKEN_KEY = 'supabase.refresh_token';
+
+async function saveTokens(accessToken?: string | null, refreshToken?: string | null) {
+  try {
+    if (accessToken) {
+      await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
+    } else {
+      await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
     }
-  },
-  setItem: async (key: string, value: string): Promise<void> => {
-    try {
-      await SecureStore.setItemAsync(key, value);
-    } catch (error) {
-      console.error('SecureStore setItem error:', error);
+
+    if (refreshToken) {
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+    } else {
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
     }
-  },
-  removeItem: async (key: string): Promise<void> => {
-    try {
-      await SecureStore.deleteItemAsync(key);
-    } catch (error) {
-      console.error('SecureStore removeItem error:', error);
-    }
-  },
-};
+  } catch (err) {
+    console.warn('Failed to persist tokens to SecureStore:', err);
+  }
+}
+
+async function clearStoredTokens() {
+  try {
+    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  } catch (err) {
+    console.warn('Failed to clear tokens from SecureStore:', err);
+  }
+}
+
+async function getStoredAccessToken(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function getStoredRefreshToken(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
 
 // Create Supabase client with secure storage
 let supabaseClient: SupabaseClient | null = null;
+
+function restoreSessionFromStorage(client: SupabaseClient) {
+  // Try to restore a small token pair from SecureStore and set session in-memory
+  (async () => {
+    try {
+      const access = await getStoredAccessToken();
+      const refresh = await getStoredRefreshToken();
+      // Only set session if both tokens are present as strings
+      if (access && refresh) {
+        // setSession expects access_token and refresh_token as strings
+        await client.auth.setSession({
+          access_token: access,
+          refresh_token: refresh,
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to restore supabase session from storage:', err);
+      await clearStoredTokens();
+    }
+  })();
+}
 
 export function getSupabase(): SupabaseClient {
   if (!supabaseClient) {
@@ -46,15 +89,21 @@ export function getSupabase(): SupabaseClient {
         'Supabase configuration missing. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY environment variables.'
       );
     }
-    
+
+    // Do not persist the full session JSON in SecureStore (can exceed iOS limit).
+    // Persist only the minimal tokens via SecureStore helpers above.
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
-        storage: ExpoSecureStoreAdapter,
+        // keep auto refresh enabled for in-memory sessions
         autoRefreshToken: true,
-        persistSession: true,
+        // we manage persistence ourselves (store tokens only), so disable built-in persistence
+        persistSession: false,
         detectSessionInUrl: false,
       },
     });
+
+    // Attempt to restore a previously-stored token pair into the client (async)
+    restoreSessionFromStorage(supabaseClient);
   }
   return supabaseClient;
 }
@@ -100,6 +149,14 @@ export async function signInWithEmail(email: string, password: string): Promise<
     password,
   });
 
+  // Persist only the tokens (avoid storing the entire session JSON)
+  try {
+    await saveTokens(data.session?.access_token ?? null, data.session?.refresh_token ?? null);
+  } catch (err) {
+    // non-fatal; continue returning sign-in result
+    console.warn('Failed to persist auth tokens after sign-in:', err);
+  }
+
   return {
     user: data.user,
     session: data.session,
@@ -112,6 +169,12 @@ export async function signInWithEmail(email: string, password: string): Promise<
  */
 export async function signOut(): Promise<{ error: AuthError | null }> {
   const { error } = await supabase.auth.signOut();
+  // Clear our small token storage as well
+  try {
+    await clearStoredTokens();
+  } catch (err) {
+    console.warn('Failed to clear stored tokens on sign out:', err);
+  }
   return { error };
 }
 
@@ -135,6 +198,10 @@ export async function getCurrentUser(): Promise<{ user: User | null; error: Auth
  * Get the current access token for API calls
  */
 export async function getAccessToken(): Promise<string | null> {
+  // Prefer stored access token (smaller and persisted across restarts)
+  const stored = await getStoredAccessToken();
+  if (stored) return stored;
+
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }

@@ -6,7 +6,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 // API Configuration
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:3001/api';
 
 // Token storage keys
 const ACCESS_TOKEN_KEY = 'towme_access_token';
