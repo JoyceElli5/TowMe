@@ -16,7 +16,8 @@ import {
   View,
 } from 'react-native';
 
-import { register as registerUser, ApiError } from '@/lib/api';
+import { createProfile, ApiError } from '@/lib/api';
+import { signUpWithEmail } from '@/lib/supabase';
 import { RegisterFormData, registerSchema, UserRole } from '@/schemas/auth';
 
 export default function RegisterScreen() {
@@ -44,13 +45,33 @@ export default function RegisterScreen() {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      const user = await registerUser({
-        email: data.email,
-        password: data.password,
-        fullName: data.fullName,
-        phone: data.phone,
-        role: role,
-      });
+      // Step 1: Sign up with Supabase Auth
+      const { user: supabaseUser, session, error: signUpError } = await signUpWithEmail(
+        data.email,
+        data.password
+      );
+
+      if (signUpError) {
+        throw new Error(signUpError.message || 'Failed to create account');
+      }
+
+      if (!supabaseUser || !session) {
+        throw new Error('Failed to create account. Please try again.');
+      }
+
+      // Step 2: Create profile in backend with the Supabase access token
+      // This stores the user's role and additional profile data
+      const user = await createProfile(
+        {
+          userId: supabaseUser.id,
+          email: data.email,
+          fullName: data.fullName,
+          phone: data.phone,
+          role: role,
+        },
+        session.access_token
+      );
+
       console.log('Registration successful:', user);
       
       // Navigate to appropriate dashboard based on user role
@@ -68,6 +89,8 @@ export default function RegisterScreen() {
         } else {
           Alert.alert('Registration Failed', error.message || 'Could not complete registration');
         }
+      } else if (error instanceof Error) {
+        Alert.alert('Registration Failed', error.message || 'An unexpected error occurred. Please try again.');
       } else {
         Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
       }

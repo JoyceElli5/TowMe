@@ -28,6 +28,15 @@ export interface LoginRequest {
   password: string;
 }
 
+// Create profile request (for Supabase auth flow)
+export interface CreateProfileRequest {
+  userId: string;
+  email: string;
+  fullName: string;
+  phone: string;
+  role: UserRole;
+}
+
 export interface AuthResponse {
   user: {
     id: string;
