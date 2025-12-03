@@ -42,7 +42,7 @@ export default function LoginScreen() {
     setIsLoading(true);
     try {
       // Step 1: Sign in with Supabase Auth
-      const { user: supabaseUser, session, error: signInError } = await signInWithEmail(
+      const { session, error: signInError } = await signInWithEmail(
         data.email,
         data.password
       );
@@ -51,16 +51,14 @@ export default function LoginScreen() {
         throw new Error(signInError.message || 'Invalid email or password');
       }
 
-      if (signInError) throw new Error(signInError);
-
-if (!session) {
-  throw new Error('Please confirm your email before logging in.');
-}
+      if (!session) {
+        throw new Error('Please confirm your email before logging in.');
+      }
 
       // Step 2: Get session from backend using Supabase token
-      // This retrieves the user profile and generates backend tokens
+      // Backend stores only accessToken and refreshToken in SecureStore
       const { getSessionWithSupabaseToken } = await import('@/lib/api');
-      const user = await getSessionWithSupabaseToken(session.access_token);
+      const { user } = await getSessionWithSupabaseToken(session.access_token);
 
       console.log('Login successful:', user);
       
@@ -84,9 +82,6 @@ if (!session) {
     }
   };
 
-  // const onSubmit= async () => {
-  //   router.push('/screens/user/home-screen')
-  // }
   const handleRegisterPress = () => {
     router.push({
       pathname: '/screens/auth/register-screen',

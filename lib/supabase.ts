@@ -149,13 +149,9 @@ export async function signInWithEmail(email: string, password: string): Promise<
     password,
   });
 
-  // Persist only the tokens (avoid storing the entire session JSON)
-  try {
-    await saveTokens(data.session?.access_token ?? null, data.session?.refresh_token ?? null);
-  } catch (err) {
-    // non-fatal; continue returning sign-in result
-    console.warn('Failed to persist auth tokens after sign-in:', err);
-  }
+  // Note: We don't persist Supabase tokens here. After sign-in, the caller should
+  // use the session.access_token to call the backend's getSessionWithSupabaseToken,
+  // which will store the backend tokens in SecureStore.
 
   return {
     user: data.user,

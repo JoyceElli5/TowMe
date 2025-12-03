@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native';
 
-import { createProfile } from '@/lib/api';
+import { ApiError, createProfile } from '@/lib/api';
 import { signUpWithEmail } from '@/lib/supabase';
 import { RegisterFormData, registerSchema, UserRole } from '@/schemas/auth';
 
@@ -42,138 +42,76 @@ export default function RegisterScreen() {
     },
   });
 
-//   const onSubmit = async (data: RegisterFormData) => {
-//     setIsLoading(true);
-//     try {
-//       // Step 1: Sign up with Supabase Auth
-//       const { user: supabaseUser, session, error: signUpError } = await signUpWithEmail(
-//         data.email,
-//         data.password
-//       );
-
-//       if (signUpError) {
-//         throw new Error(signUpError.message || 'Failed to create account');
-//       }
-
-//       // if (!supabaseUser || !session) {
-//       //   throw new Error('Failed to create account. Please try again.');
-//       // }
-
-//       if (signUpError) throw new Error(signUpError);
-
-// if (!supabaseUser) {
-//   Alert.alert(
-//     "Check your email",
-//     "Your account was created. Confirm your email to proceed."
-//   );
-//   return;
-// }
-
-// if (!session) {
-//   // If there's no session (e.g. email confirmation required), inform the user and stop.
-//   Alert.alert(
-//     "Check your email",
-//     "Your account was created. Confirm your email to proceed."
-//   );
-//   return;
-// }
-
-//       // Step 2: Create profile in backend with the Supabase access token
-//       // This stores the user's role and additional profile data
-//         const user = await createProfile(
-//           {
-//             userId: supabaseUser.id,
-//             email: data.email,
-//             fullName: data.fullName,
-//             phone: data.phone,
-//             role: role,
-//           },
-//           session.access_token
-//         );
-
-//       console.log('Registration successful:', user);
-      
-//       // Navigate to appropriate dashboard based on user role
-//       if (user.role === 'tow_operator') {
-//         router.replace('/screens/operator/dashboard');
-//       } else {
-//         router.replace('/screens/user/home-screen');
-//       }
-//     } catch (error) {
-//       console.error('Registration error:', error);
-//       if (error instanceof ApiError) {
-//         if (error.errors && error.errors.length > 0) {
-//           const errorMessages = error.errors.map(e => `${e.field}: ${e.message}`).join('\n');
-//           Alert.alert('Registration Failed', errorMessages);
-//         } else {
-//           Alert.alert('Registration Failed', error.message || 'Could not complete registration');
-//         }
-//       } else if (error instanceof Error) {
-//         Alert.alert('Registration Failed', error.message || 'An unexpected error occurred. Please try again.');
-//       } else {
-//         Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
-//       }
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
-
-const onRegister = async (data: RegisterFormData) => {
-  setIsLoading(true);
-  try {
-    // Step 1: Sign up with Supabase
-    const { user: supabaseUser, session, error: signUpError } = await signUpWithEmail(
-      data.email,
-      data.password
-    );
-
-    if (signUpError) throw new Error(signUpError.message);
-
-    // Supabase may not return a user or session if email confirmation is required
-    if (!supabaseUser) {
-      Alert.alert(
-        "Check your email",
-        "Your account was created. Confirm your email to proceed."
+  const onSubmit = async (data: RegisterFormData) => {
+    setIsLoading(true);
+    try {
+      // Step 1: Sign up with Supabase
+      const { user: supabaseUser, session, error: signUpError } = await signUpWithEmail(
+        data.email,
+        data.password
       );
-      return;
-    }
 
-    // Supabase may not return a session if email confirmation is required
-    if (!session) {
-      Alert.alert(
-        "Check your email",
-        "Your account was created. Confirm your email to proceed."
+      if (signUpError) {
+        throw new Error(signUpError.message || 'Failed to create account');
+      }
+
+      // Supabase may not return a user or session if email confirmation is required
+      if (!supabaseUser) {
+        Alert.alert(
+          'Check your email',
+          'Your account was created. Confirm your email to proceed.'
+        );
+        return;
+      }
+
+      // Supabase may not return a session if email confirmation is required
+      if (!session) {
+        Alert.alert(
+          'Check your email',
+          'Your account was created. Confirm your email to proceed.'
+        );
+        return;
+      }
+
+      // Step 2: Create backend profile using Supabase access token
+      // Backend stores only accessToken and refreshToken in SecureStore
+      const { user } = await createProfile(
+        {
+          userId: supabaseUser.id,
+          email: data.email,
+          fullName: data.fullName,
+          phone: data.phone,
+          role,
+        },
+        session.access_token
       );
-      return;
+
+      console.log('Registration successful:', user);
+
+      // Navigate based on user role
+      if (user.role === 'tow_operator') {
+        router.replace('/screens/operator/dashboard');
+      } else {
+        router.replace('/screens/user/home-screen');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      if (error instanceof ApiError) {
+        if (error.errors && error.errors.length > 0) {
+          const errorMessages = error.errors.map(e => `${e.field}: ${e.message}`).join('\n');
+          Alert.alert('Registration Failed', errorMessages);
+        } else {
+          Alert.alert('Registration Failed', error.message || 'Could not complete registration');
+        }
+      } else if (error instanceof Error) {
+        Alert.alert('Registration Failed', error.message || 'An unexpected error occurred. Please try again.');
+      } else {
+        Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
     }
-
-    // Step 2: Create backend profile using Supabase access token
-    const user = await createProfile(
-      {
-        userId: supabaseUser.id,
-        email: data.email,
-        fullName: data.fullName,
-        phone: data.phone,
-        role,
-      },
-      session.access_token
-    );
-
-    console.log('Registration successful:', user);
-
-    // Navigate
-    router.replace(user.role === 'tow_operator'
-      ? '/screens/operator/dashboard'
-      : '/screens/user/home-screen'
-    );
-
-  } catch (error) {
-    console.error('Registration error:', error);
-    Alert.alert('Registration Failed', (error as Error).message || 'Unexpected error');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const handleLoginPress = () => {
     router.push({
