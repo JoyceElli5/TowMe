@@ -112,7 +112,7 @@ export async function createProfile(
     );
   }
   
-  if (result.data && result.data.user && result.data.accessToken && result.data.refreshToken) {
+  if (result.data?.user && result.data?.accessToken && result.data?.refreshToken) {
     // Store only the backend tokens in SecureStore (not the full Supabase session)
     await setAccessToken(result.data.accessToken);
     await setRefreshToken(result.data.refreshToken);
@@ -155,7 +155,7 @@ export async function getSessionWithSupabaseToken(
     );
   }
   
-  if (result.data && result.data.user && result.data.accessToken && result.data.refreshToken) {
+  if (result.data?.user && result.data?.accessToken && result.data?.refreshToken) {
     // Store only the backend tokens in SecureStore (not the full Supabase session)
     await setAccessToken(result.data.accessToken);
     await setRefreshToken(result.data.refreshToken);
