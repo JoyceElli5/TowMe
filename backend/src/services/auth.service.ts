@@ -276,8 +276,14 @@ export async function createProfile(
     throw createError.internal('Failed to create user profile');
   }
 
-  // Generate our own tokens for subsequent API calls
-  // This allows the backend to have its own session management if needed
+  // Generate backend JWT tokens for subsequent API calls
+  // We use a dual-token system where:
+  // 1. Supabase handles initial authentication (login/signup)
+  // 2. Backend generates its own tokens for API authorization
+  // This approach provides:
+  // - Independence from Supabase token expiration policies
+  // - Ability to include custom claims (like role) in tokens
+  // - Flexibility to add backend-specific session management features
   const accessToken = generateToken(user.id, user.email, user.role);
   const refreshToken = generateRefreshToken(user.id);
 

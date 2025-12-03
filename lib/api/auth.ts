@@ -2,7 +2,7 @@
  * Authentication API
  */
 
-import api, { setAccessToken, setRefreshToken, clearTokens, ApiResponse, ApiError } from './client';
+import api, { setAccessToken, setRefreshToken, clearTokens, ApiResponse, ApiError, API_BASE_URL } from './client';
 
 // Types
 export interface User {
@@ -91,8 +91,7 @@ export async function createProfile(
   supabaseAccessToken: string
 ): Promise<User> {
   // Make request with Supabase access token for authentication
-  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
-  
+  // Using direct fetch here because we need to pass the Supabase token, not the stored backend token
   const response = await fetch(`${API_BASE_URL}/auth/create-profile`, {
     method: 'POST',
     headers: {
@@ -132,8 +131,7 @@ export async function createProfile(
 export async function getSessionWithSupabaseToken(
   supabaseAccessToken: string
 ): Promise<User> {
-  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
-  
+  // Using direct fetch here because we need to pass the Supabase token, not the stored backend token
   const response = await fetch(`${API_BASE_URL}/auth/session`, {
     method: 'GET',
     headers: {
