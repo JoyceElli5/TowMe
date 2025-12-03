@@ -12,7 +12,7 @@ import {
   verifyRefreshToken,
 } from '../middleware/auth.middleware';
 import { createError } from '../middleware/error.middleware';
-import type { RegisterRequest, LoginRequest, AuthResponse } from '../types/api.types';
+import type { RegisterRequest, LoginRequest, AuthResponse, CreateProfileRequest } from '../types/api.types';
 import type { User } from '../types/database.types';
 import logger from '../utils/logger';
 
@@ -212,5 +212,109 @@ function mapUserToResponse(user: User): AuthResponse['user'] {
     totalTrips: user.total_trips,
     isOnline: user.is_online,
     isVerified: user.is_verified,
+  };
+}
+
+/**
+ * Create a user profile after Supabase authentication
+ * This is called after the user signs up with Supabase Auth
+ * The userId must match the authenticated user's ID from the Supabase JWT
+ */
+export async function createProfile(
+  data: CreateProfileRequest,
+  authenticatedUserId: string
+): Promise<AuthResponse> {
+  // Security check: ensure the authenticated user is creating their own profile
+  if (data.userId !== authenticatedUserId) {
+    throw createError.forbidden('You can only create a profile for yourself');
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  // Check if user profile already exists
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('id', data.userId)
+    .single();
+
+  if (existingUser) {
+    throw createError.conflict('User profile already exists');
+  }
+
+  // Check if email already exists (different user)
+  const { data: existingEmail } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', data.email.toLowerCase())
+    .single();
+
+  if (existingEmail) {
+    throw createError.conflict('Email already registered');
+  }
+
+  // Create user profile in database
+  // Note: We don't store password_hash here since Supabase Auth handles authentication
+  const { data: user, error } = await supabase
+    .from('users')
+    .insert({
+      id: data.userId, // Use the Supabase Auth user ID
+      email: data.email.toLowerCase(),
+      full_name: data.fullName,
+      phone: data.phone,
+      role: data.role,
+      average_rating: 0,
+      total_trips: 0,
+      is_online: false,
+      is_verified: false,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    logger.error('Error creating user profile:', error);
+    throw createError.internal('Failed to create user profile');
+  }
+
+  // Generate our own tokens for subsequent API calls
+  // This allows the backend to have its own session management if needed
+  const accessToken = generateToken(user.id, user.email, user.role);
+  const refreshToken = generateRefreshToken(user.id);
+
+  logger.info(`User profile created for Supabase user: ${user.id}`);
+
+  return {
+    user: mapUserToResponse(user),
+    accessToken,
+    refreshToken,
+  };
+}
+
+/**
+ * Get session data for a Supabase authenticated user
+ * This is called after Supabase login to get the user's profile and generate backend tokens
+ */
+export async function getSessionForSupabaseUser(supabaseUserId: string): Promise<AuthResponse> {
+  const supabase = getSupabaseAdmin();
+
+  // Get user profile by Supabase user ID
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', supabaseUserId)
+    .single();
+
+  if (error || !user) {
+    throw createError.notFound('User profile not found. Please complete registration first.');
+  }
+
+  // Generate backend tokens for subsequent API calls
+  const accessToken = generateToken(user.id, user.email, user.role);
+  const refreshToken = generateRefreshToken(user.id);
+
+  return {
+    user: mapUserToResponse(user),
+    accessToken,
+    refreshToken,
   };
 }

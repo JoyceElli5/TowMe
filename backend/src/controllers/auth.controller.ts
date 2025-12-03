@@ -137,3 +137,50 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response): P
     throw error;
   }
 }
+
+/**
+ * POST /api/auth/create-profile
+ * Creates a user profile after Supabase authentication
+ * Protected by supabaseAuthMiddleware - only the authenticated user can create their profile
+ */
+export async function createProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: 'Not authenticated' });
+      return;
+    }
+
+    const result = await authService.createProfile(req.body, req.user.id);
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: 'Profile created successfully',
+    });
+  } catch (error) {
+    throw error;
+  }
+}
+
+/**
+ * GET /api/auth/session
+ * Gets the user's session data using Supabase token
+ * Returns the user profile and generates backend tokens for subsequent API calls
+ * Protected by supabaseAuthMiddleware
+ */
+export async function getSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: 'Not authenticated' });
+      return;
+    }
+
+    const result = await authService.getSessionForSupabaseUser(req.user.id);
+    res.json({
+      success: true,
+      data: result,
+      message: 'Session retrieved successfully',
+    });
+  } catch (error) {
+    throw error;
+  }
+}

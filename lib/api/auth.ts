@@ -2,7 +2,7 @@
  * Authentication API
  */
 
-import api, { setAccessToken, setRefreshToken, clearTokens, ApiResponse } from './client';
+import api, { setAccessToken, setRefreshToken, clearTokens, ApiResponse, ApiError } from './client';
 
 // Types
 export interface User {
@@ -42,6 +42,15 @@ export interface LoginRequest {
   password: string;
 }
 
+// Create profile request for Supabase auth flow
+export interface CreateProfileRequest {
+  userId: string;
+  email: string;
+  fullName: string;
+  phone: string;
+  role: 'vehicle_owner' | 'tow_operator';
+}
+
 // Auth API functions
 export async function register(data: RegisterRequest): Promise<User> {
   const response = await api.post<AuthResponse>('/auth/register', data);
@@ -69,6 +78,90 @@ export async function login(data: LoginRequest): Promise<User> {
   }
   
   throw new Error(response.error || 'Login failed');
+}
+
+/**
+ * Create a user profile after Supabase authentication
+ * This should be called after successful Supabase signup with the Supabase access token
+ * @param data Profile data including userId from Supabase
+ * @param supabaseAccessToken The access token from Supabase session
+ */
+export async function createProfile(
+  data: CreateProfileRequest,
+  supabaseAccessToken: string
+): Promise<User> {
+  // Make request with Supabase access token for authentication
+  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+  
+  const response = await fetch(`${API_BASE_URL}/auth/create-profile`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAccessToken}`,
+    },
+    body: JSON.stringify(data),
+  });
+  
+  const result = await response.json();
+  
+  if (!response.ok) {
+    throw new ApiError(
+      result.error || 'Failed to create profile',
+      response.status,
+      result.errors
+    );
+  }
+  
+  if (result.data) {
+    // Store the backend tokens for subsequent API calls
+    await setAccessToken(result.data.accessToken);
+    if (result.data.refreshToken) {
+      await setRefreshToken(result.data.refreshToken);
+    }
+    return result.data.user;
+  }
+  
+  throw new Error('Failed to create profile');
+}
+
+/**
+ * Get session data using Supabase token
+ * This should be called after Supabase login to get user profile and backend tokens
+ * @param supabaseAccessToken The access token from Supabase session
+ */
+export async function getSessionWithSupabaseToken(
+  supabaseAccessToken: string
+): Promise<User> {
+  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+  
+  const response = await fetch(`${API_BASE_URL}/auth/session`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAccessToken}`,
+    },
+  });
+  
+  const result = await response.json();
+  
+  if (!response.ok) {
+    throw new ApiError(
+      result.error || 'Failed to get session',
+      response.status,
+      result.errors
+    );
+  }
+  
+  if (result.data) {
+    // Store the backend tokens for subsequent API calls
+    await setAccessToken(result.data.accessToken);
+    if (result.data.refreshToken) {
+      await setRefreshToken(result.data.refreshToken);
+    }
+    return result.data.user;
+  }
+  
+  throw new Error('Failed to get session');
 }
 
 export async function logout(): Promise<void> {

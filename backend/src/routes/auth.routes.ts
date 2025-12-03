@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import * as authController from '../controllers/auth.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
+import { supabaseAuthMiddleware, requireSameUser } from '../middleware/supabaseAuth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 import { validateBody, schemas } from '../middleware/validate.middleware';
 import { authLimiter } from '../middleware/rateLimiter';
@@ -45,7 +46,25 @@ router.post(
   asyncHandler(authController.resetPassword)
 );
 
-// Protected routes
+// Supabase auth protected routes
+// This endpoint is called after Supabase signup to create a user profile with role
+router.post(
+  '/create-profile',
+  supabaseAuthMiddleware,
+  requireSameUser,
+  validateBody(schemas.createProfile),
+  asyncHandler(authController.createProfile)
+);
+
+// Get session/user data using Supabase token
+// This is used after Supabase login to get the user's profile and generate backend tokens
+router.get(
+  '/session',
+  supabaseAuthMiddleware,
+  asyncHandler(authController.getSession)
+);
+
+// Protected routes (using internal JWT auth)
 router.post('/logout', authMiddleware, asyncHandler(authController.logout));
 router.get('/me', authMiddleware, asyncHandler(authController.getCurrentUser));
 router.patch(
