@@ -15,8 +15,10 @@ export {
   refreshAccessToken,
   forgotPassword,
   resetPassword,
+  createProfile,
+  getSessionWithSupabaseToken,
 } from './auth';
-export type { User, PublicUser, AuthResponse, RegisterRequest, LoginRequest } from './auth';
+export type { User, PublicUser, AuthResponse, RegisterRequest, LoginRequest, CreateProfileRequest } from './auth';
 
 // Requests
 export {

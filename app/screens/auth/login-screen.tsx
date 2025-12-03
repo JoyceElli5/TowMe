@@ -16,7 +16,8 @@ import {
   View,
 } from 'react-native';
 
-import { login, ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/api';
+import { signInWithEmail } from '@/lib/supabase';
 import { LoginFormData, loginSchema, UserRole } from '@/schemas/auth';
 
 export default function LoginScreen() {
@@ -40,7 +41,25 @@ export default function LoginScreen() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const user = await login({ email: data.email, password: data.password });
+      // Step 1: Sign in with Supabase Auth
+      const { user: supabaseUser, session, error: signInError } = await signInWithEmail(
+        data.email,
+        data.password
+      );
+
+      if (signInError) {
+        throw new Error(signInError.message || 'Invalid email or password');
+      }
+
+      if (!supabaseUser || !session) {
+        throw new Error('Invalid email or password');
+      }
+
+      // Step 2: Get session from backend using Supabase token
+      // This retrieves the user profile and generates backend tokens
+      const { getSessionWithSupabaseToken } = await import('@/lib/api');
+      const user = await getSessionWithSupabaseToken(session.access_token);
+
       console.log('Login successful:', user);
       
       // Navigate to appropriate dashboard based on user role from API response
@@ -53,6 +72,8 @@ export default function LoginScreen() {
       console.error('Login error:', error);
       if (error instanceof ApiError) {
         Alert.alert('Login Failed', error.message || 'Invalid email or password');
+      } else if (error instanceof Error) {
+        Alert.alert('Login Failed', error.message || 'An unexpected error occurred. Please try again.');
       } else {
         Alert.alert('Login Failed', 'An unexpected error occurred. Please try again.');
       }

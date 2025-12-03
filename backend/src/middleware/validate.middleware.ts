@@ -123,6 +123,15 @@ export const schemas = {
     email: z.string().email('Please enter a valid email address'),
   }),
 
+  // Create profile schema (for Supabase auth flow)
+  createProfile: z.object({
+    userId: z.string().uuid('Invalid user ID'),
+    email: z.string().email('Please enter a valid email address'),
+    fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+    phone: z.string().min(10, 'Please enter a valid phone number'),
+    role: z.enum(['vehicle_owner', 'tow_operator'] as const) as z.ZodType<UserRole>,
+  }),
+
   // User schemas
   updateProfile: z.object({
     fullName: z.string().min(2).optional(),
