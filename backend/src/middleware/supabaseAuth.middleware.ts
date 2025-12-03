@@ -72,8 +72,10 @@ export async function supabaseAuthMiddleware(
     // Verify the Supabase JWT token
     const decoded = jwt.verify(token, getSupabaseJWTSecret()) as SupabaseJWTPayload;
 
-    // Validate that it's a Supabase token (check issuer)
-    if (decoded.iss && !decoded.iss.includes('supabase')) {
+    // Validate that it's a Supabase token by checking the issuer format
+    // Supabase issuer format: https://<project-ref>.supabase.co/auth/v1
+    const expectedIssuerPattern = /^https:\/\/[a-z0-9-]+\.supabase\.co\/auth\/v1$/;
+    if (decoded.iss && !expectedIssuerPattern.test(decoded.iss)) {
       res.status(401).json({
         success: false,
         error: 'Invalid token issuer',
@@ -82,10 +84,12 @@ export async function supabaseAuthMiddleware(
     }
 
     // Attach user info to request from Supabase JWT
+    // Note: Role is not set here as it should be retrieved from the database
+    // The role will be determined during profile creation or session retrieval
     req.user = {
       id: decoded.sub, // Supabase uses 'sub' for user ID
       email: decoded.email,
-      role: 'vehicle_owner' as UserRole, // Default role, will be set during profile creation
+      role: 'vehicle_owner' as UserRole, // Placeholder - actual role from DB in service layer
     };
 
     next();

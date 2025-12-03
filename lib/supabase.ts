@@ -42,7 +42,9 @@ let supabaseClient: SupabaseClient | null = null;
 export function getSupabase(): SupabaseClient {
   if (!supabaseClient) {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      console.warn('Supabase URL or Anon Key not configured. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY environment variables.');
+      throw new Error(
+        'Supabase configuration missing. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY environment variables.'
+      );
     }
     
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
