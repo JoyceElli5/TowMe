@@ -51,9 +51,11 @@ export default function LoginScreen() {
         throw new Error(signInError.message || 'Invalid email or password');
       }
 
-      if (!supabaseUser || !session) {
-        throw new Error('Invalid email or password');
-      }
+      if (signInError) throw new Error(signInError);
+
+if (!session) {
+  throw new Error('Please confirm your email before logging in.');
+}
 
       // Step 2: Get session from backend using Supabase token
       // This retrieves the user profile and generates backend tokens
