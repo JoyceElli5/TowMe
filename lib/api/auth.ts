@@ -85,11 +85,12 @@ export async function login(data: LoginRequest): Promise<User> {
  * This should be called after successful Supabase signup with the Supabase access token
  * @param data Profile data including userId from Supabase
  * @param supabaseAccessToken The access token from Supabase session
+ * @returns Object containing user, accessToken, and refreshToken
  */
 export async function createProfile(
   data: CreateProfileRequest,
   supabaseAccessToken: string
-): Promise<User> {
+): Promise<{ user: User; accessToken: string; refreshToken: string }> {
   // Make request with Supabase access token for authentication
   // Using direct fetch here because we need to pass the Supabase token, not the stored backend token
   const response = await fetch(`${API_BASE_URL}/auth/create-profile`, {
@@ -111,13 +112,16 @@ export async function createProfile(
     );
   }
   
-  if (result.data) {
-    // Store the backend tokens for subsequent API calls
+  if (result.data?.user && result.data?.accessToken && result.data?.refreshToken) {
+    // Store only the backend tokens in SecureStore (not the full Supabase session)
     await setAccessToken(result.data.accessToken);
-    if (result.data.refreshToken) {
-      await setRefreshToken(result.data.refreshToken);
-    }
-    return result.data.user;
+    await setRefreshToken(result.data.refreshToken);
+    
+    return {
+      user: result.data.user,
+      accessToken: result.data.accessToken,
+      refreshToken: result.data.refreshToken,
+    };
   }
   
   throw new Error('Failed to create profile');
@@ -127,10 +131,11 @@ export async function createProfile(
  * Get session data using Supabase token
  * This should be called after Supabase login to get user profile and backend tokens
  * @param supabaseAccessToken The access token from Supabase session
+ * @returns Object containing user, accessToken, and refreshToken
  */
 export async function getSessionWithSupabaseToken(
   supabaseAccessToken: string
-): Promise<User> {
+): Promise<{ user: User; accessToken: string; refreshToken: string }> {
   // Using direct fetch here because we need to pass the Supabase token, not the stored backend token
   const response = await fetch(`${API_BASE_URL}/auth/session`, {
     method: 'GET',
@@ -150,13 +155,16 @@ export async function getSessionWithSupabaseToken(
     );
   }
   
-  if (result.data) {
-    // Store the backend tokens for subsequent API calls
+  if (result.data?.user && result.data?.accessToken && result.data?.refreshToken) {
+    // Store only the backend tokens in SecureStore (not the full Supabase session)
     await setAccessToken(result.data.accessToken);
-    if (result.data.refreshToken) {
-      await setRefreshToken(result.data.refreshToken);
-    }
-    return result.data.user;
+    await setRefreshToken(result.data.refreshToken);
+    
+    return {
+      user: result.data.user,
+      accessToken: result.data.accessToken,
+      refreshToken: result.data.refreshToken,
+    };
   }
   
   throw new Error('Failed to get session');
