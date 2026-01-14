@@ -7,8 +7,8 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabaseAdmin } from '../config/database';
 import {
-  generateToken,
   generateRefreshToken,
+  generateToken,
   verifyRefreshToken,
 } from '../middleware/auth.middleware';
 import { createError } from '../middleware/error.middleware';
