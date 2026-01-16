@@ -5,9 +5,14 @@
  * Shows trip summary and prompts for rating.
  */
 
-import { router } from 'expo-router';
-import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -16,13 +21,69 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useToast } from '@/hooks/use-toast';
+import { API_BASE_URL, getAccessToken } from '@/lib/api';
+
 export default function TripCompletedScreen() {
+  const params = useLocalSearchParams<{ requestId?: string }>();
+  const requestId = params.requestId || '';
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { showToast } = useToast();
+
   const handleRate = () => {
     router.push('/screens/user/rating');
   };
 
   const handleHome = () => {
     router.replace('/screens/user/home-screen');
+  };
+
+  const handleDownloadReceipt = async () => {
+    if (!requestId) {
+      showToast('Request ID not found', 'error');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`${API_BASE_URL}/requests/${requestId}/receipt`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download receipt');
+      }
+
+      const receiptText = await response.text();
+      
+      // Save to file system
+      const fileUri = `${FileSystem.documentDirectory}receipt-${requestId}.txt`;
+      await FileSystem.writeAsStringAsync(fileUri, receiptText, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/plain',
+          dialogTitle: 'Save Receipt',
+        });
+        showToast('Receipt downloaded successfully', 'success');
+      } else {
+        Alert.alert('Receipt Saved', `Receipt saved to: ${fileUri}`);
+        showToast('Receipt saved to device', 'success');
+      }
+    } catch (error) {
+      console.error('Receipt download error:', error);
+      showToast('Failed to download receipt', 'error');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -73,6 +134,23 @@ export default function TripCompletedScreen() {
             <Text style={styles.totalValue}>GH₵ 150.00</Text>
           </View>
         </View>
+
+        {/* Download Receipt Button */}
+        <TouchableOpacity
+          style={styles.downloadButton}
+          onPress={handleDownloadReceipt}
+          disabled={isDownloading}
+          activeOpacity={0.8}
+        >
+          {isDownloading ? (
+            <ActivityIndicator color="#003554" size="small" />
+          ) : (
+            <>
+              <Ionicons name="download-outline" size={20} color="#003554" />
+              <Text style={styles.downloadButtonText}>Download Receipt</Text>
+            </>
+          )}
+        </TouchableOpacity>
 
         {/* Rate Button */}
         <TouchableOpacity
@@ -182,6 +260,24 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 24,
     fontWeight: '700',
+    color: '#003554',
+  },
+  downloadButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#ffffff',
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#003554',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  downloadButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#003554',
   },
   rateButton: {

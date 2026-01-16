@@ -11,8 +11,13 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -21,6 +26,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import { useTheme } from '@/contexts/theme-context';
+import { useToast } from '@/hooks/use-toast';
+import { ApiError, getCurrentUser, logout, updateUserAvatar, type User } from '@/lib/api';
 
 interface SettingItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -42,7 +51,8 @@ function SettingItem({
   showSwitch = false,
   switchValue = false,
   onPress,
-}: SettingItemProps) {
+  onSwitchChange,
+}: SettingItemProps & { onSwitchChange?: (value: boolean) => void }) {
   return (
     <TouchableOpacity
       style={styles.settingItem}
@@ -64,7 +74,7 @@ function SettingItem({
       {showSwitch && (
         <Switch
           value={switchValue}
-          onValueChange={() => {}}
+          onValueChange={onSwitchChange}
           trackColor={{ false: '#E5E7EB', true: '#93C5FD' }}
           thumbColor={switchValue ? '#3B82F6' : '#F9FAFB'}
         />
@@ -82,6 +92,122 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export default function ProfileScreen() {
+  const { theme, toggleTheme } = useTheme();
+  const { showToast } = useToast();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    loadUser();
+  }, []);
+
+  const loadUser = async () => {
+    try {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Failed to load user:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/screens/auth/login-screen');
+              showToast('Logged out successfully', 'success');
+            } catch (error) {
+              console.error('Logout error:', error);
+              if (error instanceof ApiError) {
+                showToast(error.message || 'Failed to log out', 'error');
+              } else {
+                showToast('Failed to log out', 'error');
+              }
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleImagePick = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('Permission to access camera roll is required', 'error');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setIsUploading(true);
+        const imageUri = result.assets[0].uri;
+        
+        // In a real app, you would upload the image to a storage service (e.g., Supabase Storage)
+        // and get a URL back. For now, we'll use the local URI as a placeholder
+        // TODO: Implement actual image upload to Supabase Storage or similar
+        
+        if (currentUser) {
+          try {
+            // For now, we'll just update with a placeholder URL
+            // In production, upload to Supabase Storage first
+            await updateUserAvatar(currentUser.id, imageUri);
+            await loadUser();
+            showToast('Profile picture updated', 'success');
+          } catch (error) {
+            console.error('Failed to update avatar:', error);
+            if (error instanceof ApiError) {
+              showToast(error.message || 'Failed to update profile picture', 'error');
+            } else {
+              showToast('Failed to update profile picture', 'error');
+            }
+          }
+        }
+        setIsUploading(false);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      showToast('Failed to pick image', 'error');
+      setIsUploading(false);
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -92,31 +218,73 @@ export default function ProfileScreen() {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>JD</Text>
-            </View>
-            <TouchableOpacity style={styles.editAvatarButton}>
-              <Ionicons name="camera" size={16} color="#FFFFFF" />
+            {currentUser?.avatarUrl ? (
+              <Image
+                source={{ uri: currentUser.avatarUrl }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {currentUser ? getInitials(currentUser.fullName) : 'JD'}
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.editAvatarButton}
+              onPress={handleImagePick}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="camera" size={16} color="#FFFFFF" />
+              )}
             </TouchableOpacity>
           </View>
-          <Text style={styles.userName}>John Doe</Text>
-          <Text style={styles.userEmail}>john.doe@example.com</Text>
+          <Text style={styles.userName}>
+            {currentUser?.fullName || 'John Doe'}
+          </Text>
+          <Text style={styles.userEmail}>
+            {currentUser?.email || 'john.doe@example.com'}
+          </Text>
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>4.9</Text>
+              <Text style={styles.statValue}>
+                {currentUser?.averageRating?.toFixed(1) || '0.0'}
+              </Text>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>156</Text>
+              <Text style={styles.statValue}>
+                {currentUser?.totalTrips || 0}
+              </Text>
               <Text style={styles.statLabel}>Trips</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>2 yrs</Text>
-              <Text style={styles.statLabel}>Member</Text>
+              <Text style={styles.statValue}>
+                {currentUser?.isVerified ? '✓' : '—'}
+              </Text>
+              <Text style={styles.statLabel}>Verified</Text>
             </View>
           </View>
+        </View>
+
+        {/* Appearance */}
+        <SectionHeader title="Appearance" />
+        <View style={styles.settingsCard}>
+          <SettingItem
+            icon={theme === 'dark' ? 'moon' : 'sunny'}
+            iconColor={theme === 'dark' ? '#6366F1' : '#F59E0B'}
+            title="Dark Mode"
+            subtitle={theme === 'dark' ? 'Enabled' : 'Disabled'}
+            showArrow={false}
+            showSwitch
+            switchValue={theme === 'dark'}
+            onSwitchChange={toggleTheme}
+          />
         </View>
 
         {/* Notification Preferences */}
@@ -212,7 +380,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#EF4444" />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
@@ -260,10 +428,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
   avatarText: {
     fontSize: 32,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   editAvatarButton: {
     position: 'absolute',
