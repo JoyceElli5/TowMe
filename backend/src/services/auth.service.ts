@@ -4,6 +4,7 @@
  */
 
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabaseAdmin } from '../config/database';
 import {
@@ -15,8 +16,11 @@ import { createError } from '../middleware/error.middleware';
 import type { RegisterRequest, LoginRequest, AuthResponse, CreateProfileRequest } from '../types/api.types';
 import type { User } from '../types/database.types';
 import logger from '../utils/logger';
+import * as emailService from './email.service';
 
 const SALT_ROUNDS = 10;
+const RESET_TOKEN_EXPIRY_HOURS = 1; // 1 hour
+const VERIFICATION_TOKEN_EXPIRY_HOURS = 24; // 24 hours
 
 /**
  * Register a new user
@@ -41,6 +45,11 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
   // Create user ID
   const userId = uuidv4();
 
+  // Generate email verification token
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + VERIFICATION_TOKEN_EXPIRY_HOURS);
+
   // Create user in database with password hash
   const { data: user, error } = await supabase
     .from('users')
@@ -62,6 +71,24 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
   if (error) {
     logger.error('Error creating user:', error);
     throw createError.internal('Failed to create user');
+  }
+
+  // Store verification token
+  await supabase
+    .from('email_verification_tokens')
+    .insert({
+      user_id: userId,
+      token: verificationToken,
+      expires_at: expiresAt.toISOString(),
+      used: false,
+    });
+
+  // Send verification email
+  try {
+    await emailService.sendVerificationEmail(data.email, data.fullName, verificationToken);
+  } catch (emailError) {
+    logger.error('Failed to send verification email:', emailError);
+    // Don't fail registration if email fails
   }
 
   // Generate tokens
@@ -169,32 +196,129 @@ export async function requestPasswordReset(email: string): Promise<void> {
 
   const { data: user } = await supabase
     .from('users')
-    .select('id')
+    .select('id, full_name')
     .eq('email', email.toLowerCase())
     .single();
 
   if (!user) {
-    // Don't reveal if email exists
+    // Don't reveal if email exists for security
     return;
   }
 
-  // In a real implementation:
-  // 1. Generate a reset token
-  // 2. Store token with expiration in database
-  // 3. Send email with reset link
-  logger.info(`Password reset requested for: ${email}`);
+  // Generate reset token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + RESET_TOKEN_EXPIRY_HOURS);
+
+  // Store reset token
+  await supabase
+    .from('password_reset_tokens')
+    .insert({
+      user_id: user.id,
+      token: resetToken,
+      expires_at: expiresAt.toISOString(),
+      used: false,
+    });
+
+  // Send reset email
+  try {
+    await emailService.sendPasswordResetEmail(email, user.full_name, resetToken);
+    logger.info(`Password reset email sent to: ${email}`);
+  } catch (emailError) {
+    logger.error('Failed to send password reset email:', emailError);
+    throw createError.internal('Failed to send password reset email');
+  }
 }
 
 /**
  * Reset password with token
  */
-export async function resetPassword(_token: string, _newPassword: string): Promise<void> {
-  // In a real implementation:
-  // 1. Verify token is valid and not expired
-  // 2. Hash new password
-  // 3. Update user password
-  // 4. Invalidate reset token
-  throw createError.internal('Password reset not implemented');
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+
+  // Find valid reset token
+  const { data: resetTokenData } = await supabase
+    .from('password_reset_tokens')
+    .select('user_id, expires_at, used')
+    .eq('token', token)
+    .eq('used', false)
+    .single();
+
+  if (!resetTokenData) {
+    throw createError.badRequest('Invalid or expired reset token');
+  }
+
+  // Check if token is expired
+  const expiresAt = new Date(resetTokenData.expires_at);
+  if (expiresAt < new Date()) {
+    throw createError.badRequest('Reset token has expired');
+  }
+
+  // Hash new password
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+  // Update user password
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ password_hash: passwordHash })
+    .eq('id', resetTokenData.user_id);
+
+  if (updateError) {
+    logger.error('Error updating password:', updateError);
+    throw createError.internal('Failed to update password');
+  }
+
+  // Mark token as used
+  await supabase
+    .from('password_reset_tokens')
+    .update({ used: true })
+    .eq('token', token);
+
+  logger.info(`Password reset successful for user: ${resetTokenData.user_id}`);
+}
+
+/**
+ * Verify email with token
+ */
+export async function verifyEmail(token: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+
+  // Find valid verification token
+  const { data: verificationTokenData } = await supabase
+    .from('email_verification_tokens')
+    .select('user_id, expires_at, used')
+    .eq('token', token)
+    .eq('used', false)
+    .single();
+
+  if (!verificationTokenData) {
+    throw createError.badRequest('Invalid or expired verification token');
+  }
+
+  // Check if token is expired
+  const expiresAt = new Date(verificationTokenData.expires_at);
+  if (expiresAt < new Date()) {
+    throw createError.badRequest('Verification token has expired');
+  }
+
+  // Update user as verified
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ is_verified: true })
+    .eq('id', verificationTokenData.user_id);
+
+  if (updateError) {
+    logger.error('Error verifying email:', updateError);
+    throw createError.internal('Failed to verify email');
+  }
+
+  // Mark token as used
+  await supabase
+    .from('email_verification_tokens')
+    .update({ used: true })
+    .eq('token', token);
+
+  logger.info(`Email verified for user: ${verificationTokenData.user_id}`);
 }
 
 /**

@@ -6,6 +6,8 @@ export default function ScreensLayout() {
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="auth/login-screen" />
       <Stack.Screen name="auth/register-screen" />
+      <Stack.Screen name="auth/forgot-password-screen" />
+      <Stack.Screen name="auth/reset-password-screen" />
       <Stack.Screen name="user" />
       <Stack.Screen name="operator" />
     </Stack>

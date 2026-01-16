@@ -94,4 +94,12 @@ router.patch(
   asyncHandler(requestsController.cancelRequest)
 );
 
+// Download receipt (protected)
+router.get(
+  '/:id/receipt',
+  authMiddleware,
+  validateParams(schemas.uuid),
+  asyncHandler(requestsController.downloadReceipt)
+);
+
 export default router;
