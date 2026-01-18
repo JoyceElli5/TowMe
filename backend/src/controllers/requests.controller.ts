@@ -5,6 +5,7 @@
 
 import { Response } from 'express';
 import * as requestsService from '../services/requests.service';
+import * as receiptService from '../services/receipt.service';
 import type { AuthenticatedRequest } from '../types/api.types';
 import type { RequestStatus, VehicleType } from '../types/database.types';
 
@@ -216,4 +217,24 @@ export async function trackRequest(req: AuthenticatedRequest, res: Response): Pr
       } : null,
     },
   });
+}
+
+/**
+ * GET /api/requests/:id/receipt
+ */
+export async function downloadReceipt(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
+  const { id } = req.params;
+  const receiptData = await receiptService.generateReceiptData(id, req.user.id);
+  const receiptText = receiptService.formatReceiptAsText(receiptData);
+
+  // Set headers for text/plain response
+  // In production, you might want to generate a PDF using a library like pdfkit
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="towme-receipt-${id}.txt"`);
+  res.send(receiptText);
 }
