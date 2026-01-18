@@ -123,6 +123,10 @@ export const schemas = {
     email: z.string().email('Please enter a valid email address'),
   }),
 
+  verifyEmail: z.object({
+    token: z.string().min(1, 'Verification token is required'),
+  }),
+
   // Create profile schema (for Supabase auth flow)
   createProfile: z.object({
     userId: z.string().uuid('Invalid user ID'),

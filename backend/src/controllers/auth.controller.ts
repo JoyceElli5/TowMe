@@ -99,6 +99,22 @@ export async function resetPassword(req: AuthenticatedRequest, res: Response): P
 }
 
 /**
+ * POST /api/auth/verify-email
+ */
+export async function verifyEmail(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const { token } = req.body;
+    await authService.verifyEmail(token);
+    res.json({
+      success: true,
+      message: 'Email verified successfully',
+    });
+  } catch (error) {
+    throw error;
+  }
+}
+
+/**
  * GET /api/auth/me
  */
 export async function getCurrentUser(req: AuthenticatedRequest, res: Response): Promise<void> {

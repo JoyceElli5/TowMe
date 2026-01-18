@@ -46,6 +46,12 @@ router.post(
   asyncHandler(authController.resetPassword)
 );
 
+router.post(
+  '/verify-email',
+  validateBody(schemas.verifyEmail),
+  asyncHandler(authController.verifyEmail)
+);
+
 // Supabase auth protected routes
 // This endpoint is called after Supabase signup to create a user profile with role
 router.post(
