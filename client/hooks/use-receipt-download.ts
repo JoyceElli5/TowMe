@@ -20,12 +20,19 @@ export function useReceiptDownload() {
       return;
     }
 
+    // Sanitize requestId to prevent directory traversal
+    const sanitizedRequestId = requestId.replace(/[^a-zA-Z0-9-]/g, '');
+    if (!sanitizedRequestId || sanitizedRequestId !== requestId) {
+      showToast('Invalid request ID', 'error');
+      return;
+    }
+
     setIsDownloading(true);
     try {
       const receiptText = await downloadReceipt(requestId);
       
-      // Save to file system
-      const fileUri = `${FileSystem.documentDirectory}receipt-${requestId}.txt`;
+      // Save to file system with sanitized ID
+      const fileUri = `${FileSystem.documentDirectory}receipt-${sanitizedRequestId}.txt`;
       await FileSystem.writeAsStringAsync(fileUri, receiptText, {
         encoding: FileSystem.EncodingType.UTF8,
       });

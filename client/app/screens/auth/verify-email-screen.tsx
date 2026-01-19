@@ -5,7 +5,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -26,14 +26,7 @@ export default function VerifyEmailScreen() {
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'success' | 'error'>('pending');
   const { showToast } = useToast();
 
-  useEffect(() => {
-    if (token) {
-      handleVerification();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  const handleVerification = async () => {
+  const handleVerification = useCallback(async () => {
     if (!token) {
       setVerificationStatus('error');
       showToast('Invalid verification link', 'error');
@@ -58,7 +51,13 @@ export default function VerifyEmailScreen() {
     } finally {
       setIsVerifying(false);
     }
-  };
+  }, [token, showToast]);
+
+  useEffect(() => {
+    if (token) {
+      handleVerification();
+    }
+  }, [token, handleVerification]);
 
   const handleBackPress = () => {
     router.back();
