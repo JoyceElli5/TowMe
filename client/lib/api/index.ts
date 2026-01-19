@@ -3,7 +3,7 @@
  */
 
 // Client
-export { default as api, ApiError, clearTokens, getAccessToken } from './client';
+export { default as api, ApiError, checkApiConnection, clearTokens, getAccessToken } from './client';
 export type { ApiResponse, PaginatedResponse } from './client';
 
 // Auth
