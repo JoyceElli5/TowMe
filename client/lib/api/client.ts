@@ -243,6 +243,45 @@ class ApiClient {
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
+
+  async getRaw(endpoint: string): Promise<string> {
+    const url = `${this.baseUrl}${endpoint}`;
+    
+    // Get access token
+    const token = await getAccessToken();
+    
+    // Default headers
+    const headers: HeadersInit = {
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    };
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new ApiError(`Request failed with status ${response.status}`, response.status);
+      }
+
+      return await response.text();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        error instanceof Error ? error.message : 'Network error occurred',
+        0
+      );
+    }
+  }
 }
 
 // Export singleton instance
