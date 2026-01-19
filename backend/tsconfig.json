@@ -9,6 +9,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmitOnError": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": true,
