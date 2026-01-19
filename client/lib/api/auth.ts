@@ -2,7 +2,7 @@
  * Authentication API
  */
 
-import api, { setAccessToken, setRefreshToken, clearTokens, ApiResponse, ApiError, API_BASE_URL } from './client';
+import api, { ApiError, clearTokens, setAccessToken, setRefreshToken } from './client';
 
 // Types
 export interface User {
@@ -56,7 +56,7 @@ export async function register(data: RegisterRequest): Promise<User> {
   
   throw new ApiError(
     response.error || 'Registration failed',
-    response.status || 500,
+    500,
     response.errors
   );
 }
@@ -74,7 +74,7 @@ export async function login(data: LoginRequest): Promise<User> {
   
   throw new ApiError(
     response.error || 'Login failed',
-    response.status || 500,
+    500,
     response.errors
   );
 }
