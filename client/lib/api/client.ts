@@ -8,6 +8,29 @@ import * as SecureStore from 'expo-secure-store';
 // API Configuration
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:3001/api';
 
+// Helper function to check API connectivity
+export async function checkApiConnection(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    // Ensure URL ends with /api/health
+    const healthUrl = API_BASE_URL.endsWith('/api') 
+      ? `${API_BASE_URL}/health` 
+      : `${API_BASE_URL}/health`;
+    
+    const response = await fetch(healthUrl, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 // Token storage keys
 const ACCESS_TOKEN_KEY = 'towme_access_token';
 const REFRESH_TOKEN_KEY = 'towme_refresh_token';
@@ -115,19 +138,41 @@ class ApiClient {
     }
 
     try {
+      // Create AbortController for timeout (AbortSignal.timeout not available in React Native)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
 
-      const data = await response.json();
+      clearTimeout(timeoutId);
 
+      // Check if response is ok before trying to parse JSON
       if (!response.ok) {
-        throw new ApiError(
-          data.error || 'An error occurred',
-          response.status,
-          data.errors
-        );
+        let errorMessage = `Request failed with status ${response.status}`;
+        let errors;
+
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+          errors = errorData.errors;
+        } catch {
+          // If response isn't JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+
+        throw new ApiError(errorMessage, response.status, errors);
+      }
+
+      // Parse JSON response
+      let data: ApiResponse<T>;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        throw new ApiError('Invalid JSON response from server', response.status);
       }
 
       return data;
@@ -135,7 +180,25 @@ class ApiClient {
       if (error instanceof ApiError) {
         throw error;
       }
-      throw new ApiError('Network error', 0);
+
+      // Handle network errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(
+          `Cannot connect to server. Please check your internet connection and ensure the backend is running at ${this.baseUrl}`,
+          0
+        );
+      }
+
+      // Handle timeout/abort errors (AbortController throws AbortError)
+      if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
+        throw new ApiError('Request timed out. Please try again.', 0);
+      }
+
+      // Generic error
+      throw new ApiError(
+        error instanceof Error ? error.message : 'Network error occurred',
+        0
+      );
     }
   }
 
