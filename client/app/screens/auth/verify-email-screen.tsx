@@ -30,6 +30,7 @@ export default function VerifyEmailScreen() {
     if (token) {
       handleVerification();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleVerification = async () => {

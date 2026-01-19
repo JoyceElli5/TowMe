@@ -6,13 +6,10 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
-  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -21,14 +18,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useToast } from '@/hooks/use-toast';
-import { downloadReceipt } from '@/lib/api';
+import { useReceiptDownload } from '@/hooks/use-receipt-download';
 
 export default function TripCompletedOperatorScreen() {
   const params = useLocalSearchParams<{ requestId?: string }>();
   const requestId = params.requestId || '';
-  const [isDownloading, setIsDownloading] = useState(false);
-  const { showToast } = useToast();
+  const { isDownloading, handleDownloadReceipt } = useReceiptDownload();
 
   const handleRate = () => {
     router.push('/screens/operator/rate-user');
@@ -36,42 +31,6 @@ export default function TripCompletedOperatorScreen() {
 
   const handleDone = () => {
     router.replace('/screens/operator/dashboard');
-  };
-
-  const handleDownloadReceipt = async () => {
-    if (!requestId) {
-      showToast('Request ID not found', 'error');
-      return;
-    }
-
-    setIsDownloading(true);
-    try {
-      const receiptText = await downloadReceipt(requestId);
-      
-      // Save to file system
-      const fileUri = `${FileSystem.documentDirectory}receipt-${requestId}.txt`;
-      await FileSystem.writeAsStringAsync(fileUri, receiptText, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      // Check if sharing is available
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/plain',
-          dialogTitle: 'Save Receipt',
-        });
-        showToast('Receipt downloaded successfully', 'success');
-      } else {
-        Alert.alert('Receipt Saved', `Receipt saved to: ${fileUri}`);
-        showToast('Receipt saved to device', 'success');
-      }
-    } catch (error) {
-      console.error('Receipt download error:', error);
-      showToast('Failed to download receipt', 'error');
-    } finally {
-      setIsDownloading(false);
-    }
   };
 
   return (
@@ -115,7 +74,7 @@ export default function TripCompletedOperatorScreen() {
         {/* Download Receipt Button */}
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={handleDownloadReceipt}
+          onPress={() => handleDownloadReceipt(requestId)}
           disabled={isDownloading}
           activeOpacity={0.8}
         >
