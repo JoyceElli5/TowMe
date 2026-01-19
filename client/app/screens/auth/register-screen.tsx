@@ -133,7 +133,7 @@ const onRegister = async (data: RegisterFormData) => {
 
     console.log('Registration successful:', user);
 
-    showToast('Account created successfully!', 'success');
+    showToast('Account created! Please check your email to verify your account.', 'success');
 
     // Navigate to appropriate dashboard
     setTimeout(() => {
