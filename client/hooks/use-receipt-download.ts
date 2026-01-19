@@ -20,10 +20,10 @@ export function useReceiptDownload() {
       return;
     }
 
-    // Sanitize requestId to prevent directory traversal
-    const sanitizedRequestId = requestId.replace(/[^a-zA-Z0-9-]/g, '');
-    if (!sanitizedRequestId || sanitizedRequestId !== requestId) {
-      showToast('Invalid request ID', 'error');
+    // Validate requestId format (UUIDs are alphanumeric with hyphens)
+    const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+    if (!uuidRegex.test(requestId)) {
+      showToast('Invalid request ID format', 'error');
       return;
     }
 
@@ -31,8 +31,8 @@ export function useReceiptDownload() {
     try {
       const receiptText = await downloadReceipt(requestId);
       
-      // Save to file system with sanitized ID
-      const fileUri = `${FileSystem.documentDirectory}receipt-${sanitizedRequestId}.txt`;
+      // Safe to use requestId in file path after validation
+      const fileUri = `${FileSystem.documentDirectory}receipt-${requestId}.txt`;
       await FileSystem.writeAsStringAsync(fileUri, receiptText, {
         encoding: FileSystem.EncodingType.UTF8,
       });
