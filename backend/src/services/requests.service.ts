@@ -1,18 +1,13 @@
-/**
- * Towing Requests Service
- * Handles towing request lifecycle management
- */
-
 import { v4 as uuidv4 } from 'uuid';
-import { getSupabaseAdmin } from '../config/database';
 import { REQUEST_STATUS } from '../config/constants';
+import { getSupabaseAdmin } from '../config/database';
 import { createError } from '../middleware/error.middleware';
+import type { CreateTowingRequest, PaginatedResponse, TowingRequestFilters, TowingRequestResponse } from '../types/api.types';
+import type { TowingRequest } from '../types/database.types';
 import { calculateDistance } from '../utils/distance.calculator';
+import logger from '../utils/logger';
 import { calculateEstimatedPrice, calculateFinalPrice } from '../utils/price.calculator';
 import { incrementUserTrips } from './users.service';
-import type { CreateTowingRequest, TowingRequestFilters, TowingRequestResponse, PaginatedResponse } from '../types/api.types';
-import type { TowingRequest, RequestStatus } from '../types/database.types';
-import logger from '../utils/logger';
 
 /**
  * Create a new towing request
