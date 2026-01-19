@@ -22,7 +22,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useToast } from '@/hooks/use-toast';
-import { API_BASE_URL, getAccessToken } from '@/lib/api';
+import { downloadReceipt } from '@/lib/api';
 
 export default function TripCompletedOperatorScreen() {
   const params = useLocalSearchParams<{ requestId?: string }>();
@@ -46,19 +46,7 @@ export default function TripCompletedOperatorScreen() {
 
     setIsDownloading(true);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(`${API_BASE_URL}/requests/${requestId}/receipt`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to download receipt');
-      }
-
-      const receiptText = await response.text();
+      const receiptText = await downloadReceipt(requestId);
       
       // Save to file system
       const fileUri = `${FileSystem.documentDirectory}receipt-${requestId}.txt`;
