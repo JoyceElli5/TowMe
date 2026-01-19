@@ -270,14 +270,18 @@ class ApiClient {
       if (!response.ok) {
         let errorMessage = `Request failed with status ${response.status}`;
         try {
-          // Try to get error details from response
-          const errorText = await response.text();
-          if (errorText) {
-            errorMessage = errorText;
+          // Try to parse as JSON first for structured errors
+          const contentType = response.headers.get('content-type');
+          if (contentType?.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } else {
+            // For non-JSON responses, use a generic message
+            errorMessage = response.statusText || errorMessage;
           }
         } catch {
-          // If text parsing fails, use status text
-          errorMessage = response.statusText || errorMessage;
+          // If parsing fails, use generic message
+          errorMessage = `Failed to download content: ${response.statusText || 'Unknown error'}`;
         }
         throw new ApiError(errorMessage, response.status);
       }
