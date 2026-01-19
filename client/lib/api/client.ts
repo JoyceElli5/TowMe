@@ -268,7 +268,18 @@ class ApiClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new ApiError(`Request failed with status ${response.status}`, response.status);
+        let errorMessage = `Request failed with status ${response.status}`;
+        try {
+          // Try to get error details from response
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        } catch {
+          // If text parsing fails, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new ApiError(errorMessage, response.status);
       }
 
       return await response.text();
