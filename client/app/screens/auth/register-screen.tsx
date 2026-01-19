@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 
 import { useToast } from '@/hooks/use-toast';
-import { ApiError, register as registerApi } from '@/lib/api';
+import { ApiError, checkApiConnection, register as registerApi } from '@/lib/api';
 import { RegisterFormData, registerSchema, UserRole } from '@/schemas/auth';
 
 export default function RegisterScreen() {
@@ -122,6 +122,23 @@ export default function RegisterScreen() {
 const onRegister = async (data: RegisterFormData) => {
   setIsLoading(true);
   try {
+    // Check API connection first
+    const isConnected = await checkApiConnection();
+    
+    if (!isConnected) {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:3001/api';
+      showToast(
+        `Cannot connect to backend at ${apiUrl}\n\n` +
+        `Please check:\n` +
+        `1. Backend is running\n` +
+        `2. EXPO_PUBLIC_API_URL is set correctly\n` +
+        `3. Network connection is active`,
+        'error'
+      );
+      setIsLoading(false);
+      return;
+    }
+    
     // Register directly with backend API
     const user = await registerApi({
       email: data.email,
