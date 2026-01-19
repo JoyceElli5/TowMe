@@ -24,7 +24,9 @@ export const config = {
   
   // CORS
   cors: {
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+      : '*',
   },
   
   // Rate Limiting
@@ -37,10 +39,13 @@ export const config = {
 
 // Validate required environment variables
 export function validateEnv(): void {
-  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
   const missing = required.filter(key => !process.env[key]);
   
   if (missing.length > 0) {
     console.warn(`Warning: Missing environment variables: ${missing.join(', ')}`);
+    if (missing.includes('SUPABASE_SERVICE_ROLE_KEY')) {
+      console.error('ERROR: SUPABASE_SERVICE_ROLE_KEY is required for user registration and other admin operations!');
+    }
   }
 }
