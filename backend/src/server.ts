@@ -3,13 +3,13 @@
  * Express.js server with Supabase integration
  */
 
-import express from 'express';
 import cors from 'cors';
+import express from 'express';
 import helmet from 'helmet';
 import { config, validateEnv } from './config/env';
-import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { generalLimiter } from './middleware/rateLimiter';
+import routes from './routes';
 import logger from './utils/logger';
 
 // Validate environment variables
@@ -18,8 +18,11 @@ validateEnv();
 // Create Express app
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware - configure helmet to work with CORS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
+}));
 
 // CORS configuration
 app.use(cors({

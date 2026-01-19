@@ -146,6 +146,13 @@ const onRegister = async (data: RegisterFormData) => {
   } catch (error) {
     console.error('Registration error:', error);
     if (error instanceof ApiError) {
+      // Log full error details for debugging
+      console.error('API Error Details:', {
+        message: error.message,
+        status: error.status,
+        errors: error.errors,
+      });
+      
       if (error.errors && error.errors.length > 0) {
         const errorMessages = error.errors.map(e => `${e.field}: ${e.message}`).join('\n');
         showToast(errorMessages, 'error');
@@ -153,6 +160,7 @@ const onRegister = async (data: RegisterFormData) => {
         showToast(error.message || 'Registration failed', 'error');
       }
     } else if (error instanceof Error) {
+      console.error('Error details:', error.message, error.stack);
       showToast(error.message || 'An unexpected error occurred. Please try again.', 'error');
     } else {
       showToast('An unexpected error occurred. Please try again.', 'error');

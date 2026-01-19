@@ -60,6 +60,7 @@ export function errorHandler(
     res.status(err.statusCode).json({
       success: false,
       error: err.message,
+      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
     });
     return;
   }

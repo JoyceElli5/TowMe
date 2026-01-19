@@ -13,7 +13,7 @@ import {
   verifyRefreshToken,
 } from '../middleware/auth.middleware';
 import { createError } from '../middleware/error.middleware';
-import type { RegisterRequest, LoginRequest, AuthResponse, CreateProfileRequest } from '../types/api.types';
+import type { AuthResponse, CreateProfileRequest, LoginRequest, RegisterRequest } from '../types/api.types';
 import type { User } from '../types/database.types';
 import logger from '../utils/logger';
 import * as emailService from './email.service';
@@ -69,19 +69,55 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
     .single();
 
   if (error) {
-    logger.error('Error creating user:', error);
-    throw createError.internal('Failed to create user');
+    logger.error('Error creating user:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      fullError: error,
+    });
+    
+    // Check for common database errors
+    if (error.code === '23505') { // Unique violation
+      throw createError.conflict('Email already registered');
+    }
+    if (error.code === '23503') { // Foreign key violation
+      throw createError.badRequest('Invalid data provided');
+    }
+    if (error.code === '23502') { // Not null violation
+      const field = error.details?.match(/column "(\w+)"/)?.[1] || 'unknown';
+      throw createError.badRequest(`Missing required field: ${field}`);
+    }
+    if (error.code === '42501') { // Insufficient privilege (RLS)
+      throw createError.forbidden('Permission denied. Please check database permissions.');
+    }
+    
+    // Include error details in non-production
+    const errorMessage = error.message || 'Failed to create user';
+    const errorDetails = error.details || error.hint || '';
+    const fullMessage = process.env.NODE_ENV === 'production'
+      ? 'Failed to create user. Please try again.'
+      : errorDetails 
+        ? `${errorMessage}: ${errorDetails}` 
+        : errorMessage;
+    
+    throw createError.internal(fullMessage);
   }
 
-  // Store verification token
-  await supabase
-    .from('email_verification_tokens')
-    .insert({
-      user_id: userId,
-      token: verificationToken,
-      expires_at: expiresAt.toISOString(),
-      used: false,
-    });
+  // Store verification token (non-blocking - don't fail registration if this fails)
+  try {
+    await supabase
+      .from('email_verification_tokens')
+      .insert({
+        user_id: userId,
+        token: verificationToken,
+        expires_at: expiresAt.toISOString(),
+        used: false,
+      });
+  } catch (tokenError) {
+    logger.warn('Failed to store verification token (non-critical):', tokenError);
+    // Continue with registration even if token storage fails
+  }
 
   // Send verification email
   try {
