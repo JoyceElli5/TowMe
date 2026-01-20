@@ -5,6 +5,7 @@
  * Displays progress and allows completion confirmation.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -61,7 +62,7 @@ export default function TowingInProgressScreen() {
           title="Destination"
         >
           <View style={styles.destinationMarker}>
-            <Text style={styles.destinationIcon}>🎯</Text>
+            <Ionicons name="flag" size={24} color="#EF4444" />
           </View>
         </Marker>
       </MapView>
@@ -139,9 +140,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
-  },
-  destinationIcon: {
-    fontSize: 24,
   },
   header: {
     position: 'absolute',
