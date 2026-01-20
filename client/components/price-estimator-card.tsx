@@ -8,9 +8,13 @@
 import React from 'react';
 import {
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { Fonts } from '@/constants/theme';
 
 interface PriceEstimatorCardProps {
   /** Estimated price value */
@@ -30,83 +34,89 @@ export default function PriceEstimatorCard({
     return price.toFixed(2);
   };
 
+  const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
+  const dividerColor = useThemeColor({ light: '#f3f4f6', dark: '#374151' }, 'background');
+  const priceColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+
   return (
-    <View style={styles.container}>
+    <ThemedView style={[styles.container, { borderColor }]}>
       <View style={styles.priceContainer}>
-        <Text style={styles.label}>Estimated Cost</Text>
+        <ThemedText style={styles.label}>Estimated Cost</ThemedText>
         
         {isCalculating ? (
           <View style={styles.calculatingContainer}>
-            <Text style={styles.calculatingText}>Calculating...</Text>
+            <ThemedText style={styles.calculatingText}>Calculating...</ThemedText>
           </View>
         ) : estimatedPrice !== null ? (
           <View style={styles.priceRow}>
-            <Text style={styles.currency}>{currency}</Text>
-            <Text style={styles.priceValue}>{formatPrice(estimatedPrice)}</Text>
+            <ThemedText style={[styles.currency, { color: priceColor }]}>{currency}</ThemedText>
+            <ThemedText style={[styles.priceValue, { color: priceColor }]}>{formatPrice(estimatedPrice)}</ThemedText>
           </View>
         ) : (
-          <Text style={styles.noPriceText}>Select vehicle & locations</Text>
+          <ThemedText style={styles.noPriceText}>Select vehicle & locations</ThemedText>
         )}
         
-        <Text style={styles.caption}>
+        <ThemedText style={styles.caption}>
           Estimated cost based on route & vehicle type
-        </Text>
+        </ThemedText>
       </View>
 
       {/* Price breakdown hint */}
       {estimatedPrice !== null && !isCalculating && (
-        <View style={styles.breakdownHint}>
-          <Text style={styles.breakdownIcon}>ℹ️</Text>
-          <Text style={styles.breakdownText}>
+        <View style={[styles.breakdownHint, { borderTopColor: dividerColor }]}>
+          <ThemedText style={styles.breakdownIcon}>ℹ️</ThemedText>
+          <ThemedText style={styles.breakdownText}>
             Final price may vary based on actual distance and conditions
-          </Text>
+          </ThemedText>
         </View>
       )}
-    </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    overflow: 'visible',
   },
   priceContainer: {
     alignItems: 'center',
+    overflow: 'visible',
   },
   label: {
     fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '500',
+    fontFamily: Fonts.medium,
     marginBottom: 8,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     marginBottom: 8,
+    minHeight: 48,
+    justifyContent: 'center',
+    overflow: 'visible',
   },
   currency: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#003554',
+    fontFamily: Fonts.semiBold,
     marginRight: 4,
+    lineHeight: 28,
   },
   priceValue: {
     fontSize: 36,
-    fontWeight: '700',
-    color: '#003554',
+    fontFamily: Fonts.semiBold,
+    lineHeight: 44,
   },
   noPriceText: {
     fontSize: 18,
-    color: '#9ca3af',
+    fontFamily: Fonts.regular,
     marginBottom: 8,
   },
   calculatingContainer: {
@@ -114,12 +124,12 @@ const styles = StyleSheet.create({
   },
   calculatingText: {
     fontSize: 18,
-    color: '#6b7280',
+    fontFamily: Fonts.regular,
     fontStyle: 'italic',
   },
   caption: {
     fontSize: 12,
-    color: '#9ca3af',
+    fontFamily: Fonts.regular,
     textAlign: 'center',
   },
   breakdownHint: {
@@ -128,7 +138,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
   },
   breakdownIcon: {
     fontSize: 12,
@@ -138,7 +147,7 @@ const styles = StyleSheet.create({
   breakdownText: {
     flex: 1,
     fontSize: 11,
-    color: '#9ca3af',
+    fontFamily: Fonts.regular,
     lineHeight: 16,
   },
 });

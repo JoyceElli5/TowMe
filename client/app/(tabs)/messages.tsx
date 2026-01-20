@@ -7,16 +7,35 @@
  * - Clear all option
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { 
+  Location01Icon, 
+  Wallet01Icon, 
+  CheckmarkCircle01Icon, 
+  StarIcon, 
+  AlertCircleIcon,
+  MessageDone01Icon
+} from 'hugeicons-react-native';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { Fonts } from '@/constants/theme';
+
+// Icon mapping for notifications
+const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
+  location: Location01Icon,
+  wallet: Wallet01Icon,
+  'checkmark-circle': CheckmarkCircle01Icon,
+  star: StarIcon,
+  'alert-circle': AlertCircleIcon,
+};
 
 // Mock notifications data
 const MOCK_NOTIFICATIONS = [
@@ -77,73 +96,81 @@ function NotificationCard({
 }: {
   notification: typeof MOCK_NOTIFICATIONS[0];
 }) {
+  const Icon = ICON_MAP[notification.icon] || Location01Icon;
+  const cardBg = useThemeColor({}, 'background');
+  const unreadBg = useThemeColor({ light: '#F0F9FF', dark: '#1E3A5F' }, 'background');
+  
   return (
-    <TouchableOpacity
-      style={[
-        styles.notificationCard,
-        !notification.read && styles.notificationCardUnread,
-      ]}
-    >
-      <View
+    <TouchableOpacity>
+      <ThemedView
         style={[
-          styles.iconContainer,
-          { backgroundColor: `${notification.iconColor}15` },
+          styles.notificationCard,
+          { backgroundColor: !notification.read ? unreadBg : cardBg },
+          !notification.read && styles.notificationCardUnread,
         ]}
       >
-        <Ionicons
-          name={notification.icon as keyof typeof Ionicons.glyphMap}
-          size={24}
-          color={notification.iconColor}
-        />
-      </View>
-
-      <View style={styles.contentContainer}>
-        <View style={styles.headerRow}>
-          <Text
-            style={[
-              styles.notificationTitle,
-              !notification.read && styles.notificationTitleUnread,
-            ]}
-            numberOfLines={1}
-          >
-            {notification.title}
-          </Text>
-          {!notification.read && <View style={styles.unreadDot} />}
+        <View
+          style={[
+            styles.iconContainer,
+            { backgroundColor: `${notification.iconColor}15` },
+          ]}
+        >
+          <Icon
+            size={24}
+            color={notification.iconColor}
+            strokeWidth={2}
+          />
         </View>
-        <Text style={styles.notificationMessage} numberOfLines={2}>
-          {notification.message}
-        </Text>
-        <Text style={styles.notificationTime}>{notification.time}</Text>
-      </View>
+
+        <View style={styles.contentContainer}>
+          <View style={styles.headerRow}>
+            <ThemedText
+              style={[
+                styles.notificationTitle,
+                !notification.read && styles.notificationTitleUnread,
+              ]}
+              numberOfLines={1}
+            >
+              {notification.title}
+            </ThemedText>
+            {!notification.read && <View style={styles.unreadDot} />}
+          </View>
+          <ThemedText style={styles.notificationMessage} numberOfLines={2}>
+            {notification.message}
+          </ThemedText>
+          <ThemedText style={styles.notificationTime}>{notification.time}</ThemedText>
+        </View>
+      </ThemedView>
     </TouchableOpacity>
   );
 }
 
 export default function MessagesScreen() {
   const unreadCount = MOCK_NOTIFICATIONS.filter((n) => !n.read).length;
+  const backgroundColor = useThemeColor({}, 'background');
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor }]}>
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Notifications</Text>
+          <ThemedText type="title" style={styles.title}>Notifications</ThemedText>
           {unreadCount > 0 && (
-            <Text style={styles.subtitle}>
+            <ThemedText style={styles.subtitle}>
               {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
-            </Text>
+            </ThemedText>
           )}
         </View>
         <TouchableOpacity style={styles.clearButton}>
-          <Text style={styles.clearButtonText}>Clear All</Text>
+          <ThemedText style={styles.clearButtonText}>Clear All</ThemedText>
         </TouchableOpacity>
       </View>
 
       {/* Quick Actions */}
       <View style={styles.quickActions}>
         <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="checkmark-done-outline" size={20} color="#3B82F6" />
-          <Text style={styles.actionButtonText}>Mark all as read</Text>
+          <MessageDone01Icon size={20} color="#3B82F6" strokeWidth={2} />
+          <ThemedText style={styles.actionButtonText}>Mark all as read</ThemedText>
         </TouchableOpacity>
       </View>
 
@@ -164,7 +191,6 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
@@ -175,13 +201,11 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
+    fontFamily: Fonts.semiBold,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    fontFamily: Fonts.regular,
     marginTop: 2,
   },
   clearButton: {
@@ -190,7 +214,7 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.semiBold,
     color: '#EF4444',
   },
   quickActions: {
@@ -205,7 +229,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: Fonts.medium,
     color: '#3B82F6',
   },
   notificationList: {
@@ -217,7 +241,6 @@ const styles = StyleSheet.create({
   },
   notificationCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -228,7 +251,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   notificationCardUnread: {
-    backgroundColor: '#F0F9FF',
     borderWidth: 1,
     borderColor: '#BAE6FD',
   },
@@ -252,12 +274,10 @@ const styles = StyleSheet.create({
   notificationTitle: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '500',
-    color: '#374151',
+    fontFamily: Fonts.medium,
   },
   notificationTitleUnread: {
-    fontWeight: '600',
-    color: '#111827',
+    fontFamily: Fonts.semiBold,
   },
   unreadDot: {
     width: 8,
@@ -267,12 +287,12 @@ const styles = StyleSheet.create({
   },
   notificationMessage: {
     fontSize: 14,
-    color: '#6B7280',
+    fontFamily: Fonts.regular,
     marginBottom: 6,
     lineHeight: 20,
   },
   notificationTime: {
     fontSize: 12,
-    color: '#9CA3AF',
+    fontFamily: Fonts.regular,
   },
 });

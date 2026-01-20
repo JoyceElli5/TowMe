@@ -1,16 +1,7 @@
-/**
- * Floating Tab Bar Component
- *
- * A modern, pill-shaped floating bottom tab bar with:
- * - Frosted glass effect (semi-transparent background)
- * - Soft shadow for depth
- * - Scale animation for active tabs
- * - Haptic feedback on tab press
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
+import { Home01Icon, Notification01Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
 import React, { useCallback } from 'react';
 import {
   Platform,
@@ -29,30 +20,25 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Tab configuration
 interface TabConfig {
   name: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconFilled: keyof typeof Ionicons.glyphMap;
+  Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 }
 
 const TAB_CONFIG: Record<string, TabConfig> = {
   index: {
     name: 'Home',
-    icon: 'map-outline',
-    iconFilled: 'map',
+    Icon: Home01Icon,
   },
   history: {
     name: 'History',
-    icon: 'time-outline',
-    iconFilled: 'time',
+    Icon: TransactionIcon,
   },
   messages: {
     name: 'Messages',
-    icon: 'chatbubble-outline',
-    iconFilled: 'chatbubble',
+    Icon: Notification01Icon,
   },
   profile: {
     name: 'Profile',
-    icon: 'person-outline',
-    iconFilled: 'person',
+    Icon: UserIcon,
   },
 };
 
@@ -70,6 +56,11 @@ function TabItem({
 }) {
   const scale = useSharedValue(1);
   const config = TAB_CONFIG[routeName] || TAB_CONFIG.index;
+  const Icon = config.Icon;
+  
+  // Theme colors - using dark blue (#003554) for active state
+  const activeColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+  const inactiveColor = useThemeColor({}, 'icon');
 
   const handlePressIn = useCallback(() => {
     scale.value = withSpring(0.9, { damping: 15, stiffness: 400 });
@@ -118,14 +109,14 @@ function TabItem({
     >
       {/* Glow effect behind active icon */}
       <Animated.View style={[styles.glowContainer, glowStyle]}>
-        <View style={styles.glowEffect} />
+        <View style={[styles.glowEffect, { backgroundColor: `${activeColor}25` }]} />
       </Animated.View>
 
       <Animated.View style={animatedStyle}>
-        <Ionicons
-          name={isFocused ? config.iconFilled : config.icon}
+        <Icon
           size={isFocused ? 28 : 24}
-          color={isFocused ? '#3B82F6' : '#9CA3AF'}
+          color={isFocused ? activeColor : inactiveColor}
+          strokeWidth={2}
         />
       </Animated.View>
     </Pressable>
@@ -137,10 +128,12 @@ export function FloatingTabBar({
   navigation,
 }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const backgroundColor = useThemeColor({ light: 'rgba(255, 255, 255, 0.95)', dark: 'rgba(31, 41, 55, 0.95)' }, 'background');
+  const borderColor = useThemeColor({ light: 'rgba(255, 255, 255, 0.8)', dark: 'rgba(55, 65, 81, 0.8)' }, 'background');
 
   return (
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor, borderColor }]}>
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
 
@@ -190,15 +183,14 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 40,
-    paddingHorizontal: 24,
+    paddingHorizontal: 3,
     paddingVertical: 12,
     height: 72,
     alignItems: 'center',
     justifyContent: 'space-around',
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 310,
     // Shadow for depth
     shadowColor: '#000',
     shadowOffset: {
@@ -210,7 +202,6 @@ const styles = StyleSheet.create({
     elevation: 12,
     // Border for subtle definition
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   tabItem: {
     alignItems: 'center',
@@ -232,6 +223,5 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
   },
 });

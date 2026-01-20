@@ -7,16 +7,19 @@
  * - Filter options
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { StarIcon, Route01Icon, FilterIcon } from 'hugeicons-react-native';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { Fonts } from '@/constants/theme';
 
 // Mock trip data
 const MOCK_TRIPS = [
@@ -50,82 +53,89 @@ const MOCK_TRIPS = [
 ];
 
 function TripCard({ trip }: { trip: typeof MOCK_TRIPS[0] }) {
+  const iconColor = useThemeColor({}, 'icon');
+  const cardBg = useThemeColor({}, 'background');
   return (
-    <TouchableOpacity style={styles.tripCard}>
+    <TouchableOpacity>
+      <ThemedView style={[styles.tripCard, { backgroundColor: cardBg }]}>
       <View style={styles.tripHeader}>
-        <Text style={styles.tripDate}>{trip.date}</Text>
+        <ThemedText style={styles.tripDate}>{trip.date}</ThemedText>
         <View style={styles.ratingContainer}>
-          <Ionicons name="star" size={14} color="#F59E0B" />
-          <Text style={styles.ratingText}>{trip.rating}</Text>
+          <StarIcon size={14} color="#F59E0B" strokeWidth={2} />
+          <ThemedText style={styles.ratingText}>{trip.rating}</ThemedText>
         </View>
       </View>
 
       <View style={styles.addressContainer}>
         <View style={styles.addressRow}>
           <View style={styles.pickupDot} />
-          <Text style={styles.addressText} numberOfLines={1}>
+          <ThemedText style={styles.addressText} numberOfLines={1}>
             {trip.pickup}
-          </Text>
+          </ThemedText>
         </View>
         <View style={styles.addressLine} />
         <View style={styles.addressRow}>
           <View style={styles.destinationDot} />
-          <Text style={styles.addressText} numberOfLines={1}>
+          <ThemedText style={styles.addressText} numberOfLines={1}>
             {trip.destination}
-          </Text>
+          </ThemedText>
         </View>
       </View>
 
       <View style={styles.tripFooter}>
         <View style={styles.distanceContainer}>
-          <Ionicons name="navigate-outline" size={16} color="#6B7280" />
-          <Text style={styles.distanceText}>{trip.distance}</Text>
+          <Route01Icon size={16} color={iconColor} strokeWidth={2} />
+          <ThemedText style={styles.distanceText}>{trip.distance}</ThemedText>
         </View>
-        <Text style={styles.earningsText}>{trip.earnings}</Text>
+        <ThemedText style={styles.earningsText}>{trip.earnings}</ThemedText>
       </View>
+      </ThemedView>
     </TouchableOpacity>
   );
 }
 
 export default function HistoryScreen() {
+  const backgroundColor = useThemeColor({}, 'background');
+  const filterButtonBg = useThemeColor({ light: '#EBF5FF', dark: '#1E3A5F' }, 'background');
+  
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Trip History</Text>
-        <TouchableOpacity style={styles.filterButton}>
-          <Ionicons name="filter-outline" size={24} color="#3B82F6" />
+        <ThemedText type="title" style={styles.title}>Trip History</ThemedText>
+        <TouchableOpacity style={[styles.filterButton, { backgroundColor: filterButtonBg }]}>
+          <FilterIcon size={24} color="#3B82F6" strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
       {/* Summary Card */}
-      <View style={styles.summaryCard}>
+      <ThemedView style={styles.summaryCard}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryValue}>GHS 434</Text>
-          <Text style={styles.summaryLabel}>Total Earnings</Text>
+          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>GHS 434</ThemedText>
+          <ThemedText style={styles.summaryLabel}>Total Earnings</ThemedText>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryValue}>3</Text>
-          <Text style={styles.summaryLabel}>Trips</Text>
+          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>3</ThemedText>
+          <ThemedText style={styles.summaryLabel}>Trips</ThemedText>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryValue}>35.7 km</Text>
-          <Text style={styles.summaryLabel}>Distance</Text>
+          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>35.7 km</ThemedText>
+          <ThemedText style={styles.summaryLabel}>Distance</ThemedText>
         </View>
-      </View>
+      </ThemedView>
 
       {/* Filter Tabs */}
       <View style={styles.filterTabs}>
         <TouchableOpacity style={[styles.filterTab, styles.filterTabActive]}>
-          <Text style={[styles.filterTabText, styles.filterTabTextActive]}>Today</Text>
+          <ThemedText style={[styles.filterTabText, styles.filterTabTextActive]}>Today</ThemedText>
         </TouchableOpacity>
         <TouchableOpacity style={styles.filterTab}>
-          <Text style={styles.filterTabText}>This Week</Text>
+          <ThemedText style={styles.filterTabText}>This Week</ThemedText>
         </TouchableOpacity>
         <TouchableOpacity style={styles.filterTab}>
-          <Text style={styles.filterTabText}>This Month</Text>
+          <ThemedText style={styles.filterTabText}>This Month</ThemedText>
         </TouchableOpacity>
       </View>
 
@@ -146,7 +156,6 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
@@ -157,21 +166,17 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
+    fontFamily: Fonts.semiBold,
   },
   filterButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#EBF5FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   summaryCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     marginBottom: 16,
     borderRadius: 16,
@@ -189,13 +194,12 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontFamily: Fonts.semiBold,
     marginBottom: 4,
   },
   summaryLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    fontFamily: Fonts.regular,
   },
   summaryDivider: {
     width: 1,
@@ -211,15 +215,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
   filterTabActive: {
     backgroundColor: '#3B82F6',
   },
   filterTabText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontFamily: Fonts.medium,
   },
   filterTabTextActive: {
     color: '#FFFFFF',
@@ -232,7 +235,6 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   tripCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -250,8 +252,7 @@ const styles = StyleSheet.create({
   },
   tripDate: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontFamily: Fonts.semiBold,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -260,8 +261,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontFamily: Fonts.semiBold,
   },
   addressContainer: {
     marginBottom: 12,
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   addressText: {
     flex: 1,
     fontSize: 14,
-    color: '#374151',
+    fontFamily: Fonts.regular,
   },
   tripFooter: {
     flexDirection: 'row',
@@ -310,11 +310,11 @@ const styles = StyleSheet.create({
   },
   distanceText: {
     fontSize: 14,
-    color: '#6B7280',
+    fontFamily: Fonts.regular,
   },
   earningsText: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: Fonts.semiBold,
     color: '#10B981',
   },
 });

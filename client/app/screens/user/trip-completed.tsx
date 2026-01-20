@@ -93,7 +93,7 @@ export default function TripCompletedScreen() {
       <View style={styles.content}>
         {/* Success Icon */}
         <View style={styles.iconContainer}>
-          <Text style={styles.checkIcon}>🎉</Text>
+          <Ionicons name="checkmark-circle" size={64} color="#10B981" />
         </View>
 
         <Text style={styles.title}>Trip Completed!</Text>
@@ -193,9 +193,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
-  },
-  checkIcon: {
-    fontSize: 48,
   },
   title: {
     fontSize: 28,
