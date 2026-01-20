@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
 import {
   getRequestById,
   acceptRequest,
@@ -152,7 +153,7 @@ export default function IncomingRequestScreen() {
             <View style={styles.userInfo}>
               <Text style={styles.userName}>{request?.user?.fullName || 'Unknown User'}</Text>
               <View style={styles.ratingRow}>
-                <Text style={styles.starIcon}>⭐</Text>
+                <Ionicons name="star" size={14} color="#F59E0B" />
                 <Text style={styles.rating}>{request?.user?.averageRating?.toFixed(1) || '0.0'}</Text>
               </View>
             </View>
@@ -305,10 +306,6 @@ const styles = StyleSheet.create({
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  starIcon: {
-    fontSize: 14,
-    marginRight: 4,
   },
   rating: {
     fontSize: 14,

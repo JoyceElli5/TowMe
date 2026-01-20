@@ -57,7 +57,7 @@ export default function LoginScreen() {
         if (user.role === 'tow_operator') {
           router.replace('/screens/operator/dashboard');
         } else {
-          router.replace('/screens/user/home-screen');
+          router.replace('/(tabs)');
         }
       }, 500);
     } catch (error) {

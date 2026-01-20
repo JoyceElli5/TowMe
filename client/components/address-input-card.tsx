@@ -6,6 +6,8 @@
  * that can open a Google Places autocomplete (or placeholder).
  */
 
+import { ThemedText } from '@/components/themed-text';
+import { Flag01Icon, Location01Icon } from 'hugeicons-react-native';
 import React from 'react';
 import {
   StyleSheet,
@@ -43,19 +45,23 @@ export default function AddressInputCard({
     >
       {/* Location Pin Icon */}
       <View style={[styles.iconContainer, isPickup ? styles.pickupIcon : styles.destinationIcon]}>
-        <Text style={styles.iconText}>{isPickup ? '📍' : '🎯'}</Text>
+        {isPickup ? (
+          <Location01Icon size={20} color="#3B82F6" />
+        ) : (
+          <Flag01Icon size={20} color="#10B981" />
+        )}
       </View>
 
       {/* Address Content */}
       <View style={styles.contentContainer}>
-        <Text style={styles.label}>{isPickup ? 'From' : 'To'}</Text>
-        <Text
+        <ThemedText style={styles.label}>{isPickup ? 'From' : 'To'}</ThemedText>
+        <ThemedText
           style={[styles.addressText, !value && styles.placeholderText]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
           {value || placeholder}
-        </Text>
+        </ThemedText>
       </View>
 
       {/* Arrow Icon */}
@@ -70,12 +76,11 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#9ca3af',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -96,25 +101,19 @@ const styles = StyleSheet.create({
   destinationIcon: {
     backgroundColor: '#fee2e2',
   },
-  iconText: {
-    fontSize: 18,
-  },
   contentContainer: {
     flex: 1,
   },
   label: {
     fontSize: 12,
-    color: '#6b7280',
     fontWeight: '500',
     marginBottom: 2,
   },
   addressText: {
     fontSize: 15,
-    color: '#111827',
     fontWeight: '500',
   },
   placeholderText: {
-    color: '#9ca3af',
     fontWeight: '400',
   },
   arrowContainer: {

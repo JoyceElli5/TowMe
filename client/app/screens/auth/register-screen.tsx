@@ -150,15 +150,21 @@ const onRegister = async (data: RegisterFormData) => {
 
     console.log('Registration successful:', user);
 
-    showToast('Account created successfully!', 'success');
+    showToast(
+      'Account created successfully! Please check your email to verify your account before logging in.',
+      'success'
+    );
 
-    // Navigate to appropriate dashboard
+    // Navigate to login screen after registration (email verification required)
     setTimeout(() => {
-      router.replace(user.role === 'tow_operator'
-        ? '/screens/operator/dashboard'
-        : '/screens/user/home-screen'
-      );
-    }, 500);
+      router.replace({
+        pathname: '/screens/auth/login-screen',
+        params: { 
+          email: data.email,
+          message: 'Please verify your email before logging in'
+        },
+      });
+    }, 1500);
 
   } catch (error) {
     console.error('Registration error:', error);

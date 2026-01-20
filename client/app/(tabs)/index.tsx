@@ -1,32 +1,24 @@
-/**
- * Home Screen (User Dashboard)
- *
- * Main user dashboard with:
- * - Full-screen map layer (native) or placeholder (web)
- * - Bottom modal (swipeable) containing the request form
- * - Vehicle type selector
- * - Price estimation
- * - Request tow button
- */
-
-import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
+import { MapsIcon, UserCircleIcon } from 'hugeicons-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   StatusBar,
   StyleSheet,
-  Text,
-  View,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import AddressInputCard from '@/components/address-input-card';
 import PriceEstimatorCard from '@/components/price-estimator-card';
 import PrimaryButton from '@/components/primary-button';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
 import { calculateEstimatedPrice } from '@/constants/pricing';
+import { useThemeColor } from '@/hooks/use-theme-color';
 
 // Conditionally import MapView for native platforms only
 let MapView: React.ComponentType<{
@@ -53,18 +45,21 @@ if (Platform.OS !== 'web') {
 
 // Web fallback for map view
 function MapPlaceholder() {
+  const iconColor = useThemeColor({}, 'icon');
   return (
-    <View style={styles.mapPlaceholder}>
-      <Ionicons name="map" size={64} color="#CBD5E1" />
-      <Text style={styles.mapPlaceholderText}>Map View</Text>
-      <Text style={styles.mapPlaceholderSubtext}>
+    <ThemedView style={styles.mapPlaceholder}>
+      <MapsIcon size={64} color={iconColor} />
+      <ThemedText style={styles.mapPlaceholderText}>Map View</ThemedText>
+      <ThemedText style={styles.mapPlaceholderSubtext}>
         (Map available on mobile devices)
-      </Text>
-    </View>
+      </ThemedText>
+    </ThemedView>
   );
 }
 
 export default function HomeScreen() {
+  const backgroundColor = useThemeColor({}, 'background');
+  
   // Bottom sheet reference
   const bottomSheetRef = useRef<BottomSheet>(null);
 
@@ -142,8 +137,17 @@ export default function HomeScreen() {
   const canRequest = selectedVehicle && pickupAddress && destinationAddress;
 
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+    <GestureHandlerRootView style={[styles.container, { backgroundColor }]}>
+      <StatusBar barStyle={backgroundColor === '#151718' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+
+      {/* Profile Icon Button */}
+      <TouchableOpacity
+        style={[styles.profileButton, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}
+        onPress={() => router.push('/(tabs)/profile')}
+        accessibilityLabel="Open profile"
+      >
+        <UserCircleIcon size={32} color={useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint')} />
+      </TouchableOpacity>
 
       {/* Full-screen Map or Placeholder on Web */}
       <View style={styles.mapContainer}>
@@ -170,16 +174,16 @@ export default function HomeScreen() {
         index={1}
         snapPoints={snapPoints}
         enablePanDownToClose={false}
-        backgroundStyle={styles.bottomSheetBackground}
-        handleIndicatorStyle={styles.handleIndicator}
+        backgroundStyle={[styles.bottomSheetBackground, { backgroundColor: useThemeColor({}, 'background') }]}
+        handleIndicatorStyle={[styles.handleIndicator, { backgroundColor: useThemeColor({}, 'icon') }]}
       >
         <BottomSheetView style={styles.bottomSheetContent}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Request a Tow</Text>
-            <Text style={styles.headerSubtitle}>
+            <ThemedText type="title" style={styles.headerTitle}>Request a Tow</ThemedText>
+            <ThemedText style={styles.headerSubtitle}>
               Enter your pickup and destination to get started
-            </Text>
+            </ThemedText>
           </View>
 
           {/* Address Inputs */}
@@ -236,7 +240,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
   },
   mapContainer: {
     position: 'absolute',
@@ -250,23 +253,19 @@ const styles = StyleSheet.create({
   },
   mapPlaceholder: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   mapPlaceholderText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#94A3B8',
     marginTop: 12,
   },
   mapPlaceholderSubtext: {
     fontSize: 14,
-    color: '#CBD5E1',
     marginTop: 4,
   },
   bottomSheetBackground: {
-    backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     shadowColor: '#000',
@@ -276,7 +275,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   handleIndicator: {
-    backgroundColor: '#d1d5db',
     width: 40,
     height: 4,
     borderRadius: 2,
@@ -286,18 +284,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 100, // Extra padding for floating tab bar
   },
+  profileButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 1000,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   header: {
     marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
   },
   addressSection: {
     marginBottom: 20,

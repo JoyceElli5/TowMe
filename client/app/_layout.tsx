@@ -6,8 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { ThemeProvider } from '@/contexts/theme-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ThemeProvider, useTheme } from '@/contexts/theme-context';
 import { ToastProvider } from '@/hooks/use-toast';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -17,9 +16,16 @@ export const unstable_settings = {
   initialRouteName: 'index',
 };
 
+function NavigationWrapper({ children }: { children: React.ReactNode }) {
+  const { theme } = useTheme();
+  return (
+    <NavigationThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      {children}
+    </NavigationThemeProvider>
+  );
+}
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  
   const [loaded, error] = useFonts({
     'Gilroy-Regular': require('../assets/fonts/Gilroy-Regular.ttf'),
     'Gilroy-Medium': require('../assets/fonts/Gilroy-Medium.ttf'),
@@ -38,7 +44,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavigationWrapper>
         <ToastProvider>
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -48,7 +54,7 @@ export default function RootLayout() {
           </Stack>
           <StatusBar style="auto" />
         </ToastProvider>
-      </NavigationThemeProvider>
+      </NavigationWrapper>
     </ThemeProvider>
   );
 }
