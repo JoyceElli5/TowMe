@@ -65,14 +65,15 @@ export default function PhoneLoginScreen() {
   const validatePhoneNumber = (phoneNum: string): boolean => {
     const cleaned = phoneNum.replace(/\D/g, '');
     
-    // Ghana phone numbers are 10 digits (with leading 0) or 12 digits (with 233)
+    // Ghana phone numbers: 10 digits with leading 0, or 12 digits with 233 prefix
     if (cleaned.startsWith('0')) {
       return cleaned.length === 10;
     } else if (cleaned.startsWith('233')) {
       return cleaned.length === 12;
     }
     
-    return cleaned.length === 9 || cleaned.length === 10;
+    // Without prefix, must be exactly 9 digits (e.g., 241234567)
+    return cleaned.length === 9;
   };
 
   const handleSendOTP = async () => {

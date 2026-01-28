@@ -119,13 +119,24 @@ export async function getCurrentUser(): Promise<{
  * Get current user profile
  */
 export async function getCurrentProfile() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', (await supabase.auth.getUser()).data.user?.id)
-    .single();
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    
+    if (!userId) {
+      return { data: null, error: new Error('No authenticated user') };
+    }
 
-  return { data, error };
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
 /**
@@ -135,17 +146,23 @@ export async function updateProfile(updates: {
   full_name?: string;
   phone?: string;
 }) {
-  const userId = (await supabase.auth.getUser()).data.user?.id;
-  if (!userId) {
-    return { error: new Error('No authenticated user') };
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    
+    if (!userId) {
+      return { data: null, error: new Error('No authenticated user') };
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
   }
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', userId)
-    .select()
-    .single();
-
-  return { data, error };
 }

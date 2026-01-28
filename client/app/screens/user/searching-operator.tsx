@@ -8,7 +8,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Alert,
   StatusBar,
@@ -35,6 +35,7 @@ export default function SearchingOperatorScreen() {
   const requestId = params.requestId;
 
   const [status, setStatus] = useState<RequestStatus>('pending');
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     if (!requestId) {
@@ -47,29 +48,37 @@ export default function SearchingOperatorScreen() {
     loadRequest();
 
     // Setup realtime subscription
-    const channel = subscribeTowRequest(requestId, (updatedRequest) => {
-      console.log('Request updated:', updatedRequest);
-      setStatus(updatedRequest.status);
+    const setupSubscription = async () => {
+      const channel = subscribeTowRequest(requestId, (updatedRequest) => {
+        console.log('Request updated:', updatedRequest);
+        setStatus(updatedRequest.status);
 
-      // Navigate when driver is matched
-      if (updatedRequest.status === 'matched') {
-        router.replace({
-          pathname: '/screens/user/operator-found',
-          params: { requestId },
-        });
-      } else if (updatedRequest.status === 'driver_enroute') {
-        router.replace({
-          pathname: '/screens/user/live-tracking',
-          params: { requestId },
-        });
-      } else if (updatedRequest.status === 'cancelled') {
-        Alert.alert('Request Cancelled', 'Your tow request was cancelled');
-        router.replace('/screens/user/home-screen');
-      }
-    });
+        // Navigate when driver is matched
+        if (updatedRequest.status === 'matched') {
+          router.replace({
+            pathname: '/screens/user/operator-found',
+            params: { requestId },
+          });
+        } else if (updatedRequest.status === 'driver_enroute') {
+          router.replace({
+            pathname: '/screens/user/live-tracking',
+            params: { requestId },
+          });
+        } else if (updatedRequest.status === 'cancelled') {
+          Alert.alert('Request Cancelled', 'Your tow request was cancelled');
+          router.replace('/screens/user/home-screen');
+        }
+      });
+      
+      channelRef.current = channel;
+    };
+
+    setupSubscription();
 
     return () => {
-      unsubscribe(channel);
+      if (channelRef.current) {
+        unsubscribe(channelRef.current);
+      }
     };
   }, [requestId]);
 

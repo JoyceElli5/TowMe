@@ -5,7 +5,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -31,6 +31,7 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const realtimeChannelRef = useRef<any>(null);
 
   useEffect(() => {
     loadNotifications();
@@ -42,24 +43,25 @@ export default function NotificationsScreen() {
     };
   }, []);
 
-  let realtimeChannel: any = null;
-
   const setupRealtimeSubscription = async () => {
     try {
       const { user } = await getCurrentUser();
       if (!user) return;
 
-      realtimeChannel = subscribeNotifications(user.id, (newNotification) => {
+      const channel = subscribeNotifications(user.id, (newNotification) => {
         setNotifications((prev) => [newNotification, ...prev]);
       });
+      
+      realtimeChannelRef.current = channel;
     } catch (error) {
       console.error('Error setting up realtime:', error);
     }
   };
 
   const unsubscribeFromNotifications = async () => {
-    if (realtimeChannel) {
-      await unsubscribe(realtimeChannel);
+    if (realtimeChannelRef.current) {
+      await unsubscribe(realtimeChannelRef.current);
+      realtimeChannelRef.current = null;
     }
   };
 

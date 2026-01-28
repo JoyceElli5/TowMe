@@ -73,6 +73,7 @@ export default function TripHistoryScreen() {
   const renderTripItem = ({ item }: { item: TripWithDetails | any }) => {
     const isFromHistory = !!item.final_cost;
     const isTowRequest = !!item.status;
+    const source = isFromHistory ? 'trip' : 'request';
 
     return (
       <TouchableOpacity style={styles.tripCard}>
@@ -161,7 +162,11 @@ export default function TripHistoryScreen() {
         <FlatList
           data={allTrips}
           renderItem={renderTripItem}
-          keyExtractor={(item, index) => item.id || index.toString()}
+          keyExtractor={(item, index) => {
+            // Prefix keys with source to avoid collisions
+            const source = item.final_cost ? 'trip' : 'request';
+            return `${source}-${item.id || index}`;
+          }}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />

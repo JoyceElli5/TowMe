@@ -11,20 +11,32 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================================================
 
 -- Role enum: user (vehicle owner) or driver (tow operator)
-CREATE TYPE role AS ENUM ('user', 'driver');
+DO $$ BEGIN
+  CREATE TYPE role AS ENUM ('user', 'driver');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- Vehicle types for towing
-CREATE TYPE vehicle_type AS ENUM ('car', 'suv', 'saloon', 'van');
+DO $$ BEGIN
+  CREATE TYPE vehicle_type AS ENUM ('car', 'suv', 'saloon', 'van');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- Request status workflow
-CREATE TYPE request_status AS ENUM (
-  'pending',           -- User created, awaiting driver match
-  'matched',          -- Driver assigned
-  'driver_enroute',   -- Driver heading to pickup
-  'towing',           -- Vehicle being towed
-  'completed',        -- Trip finished
-  'cancelled'         -- Request cancelled
-);
+DO $$ BEGIN
+  CREATE TYPE request_status AS ENUM (
+    'pending',           -- User created, awaiting driver match
+    'matched',          -- Driver assigned
+    'driver_enroute',   -- Driver heading to pickup
+    'towing',           -- Vehicle being towed
+    'completed',        -- Trip finished
+    'cancelled'         -- Request cancelled
+  );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- ============================================================================
 -- TABLES
@@ -332,16 +344,21 @@ BEGIN
     );
   END IF;
 
-  -- Find nearest available driver using simple distance calculation
-  -- Using basic lat/lng distance approximation (good enough for nearby drivers)
+  -- Find nearest available driver using Haversine formula for accurate distance
+  -- This provides better accuracy than simple Pythagorean distance
   SELECT 
     ds.driver_id,
     ds.current_lat,
     ds.current_lng,
-    -- Simple distance calculation (not exact but works for proximity)
-    SQRT(
-      POWER(ds.current_lat - request_record.pickup_lat, 2) + 
-      POWER(ds.current_lng - request_record.pickup_lng, 2)
+    -- Haversine formula for distance in kilometers
+    (
+      6371 * acos(
+        cos(radians(request_record.pickup_lat)) * 
+        cos(radians(ds.current_lat)) * 
+        cos(radians(ds.current_lng) - radians(request_record.pickup_lng)) + 
+        sin(radians(request_record.pickup_lat)) * 
+        sin(radians(ds.current_lat))
+      )
     ) AS distance
   INTO nearest_driver
   FROM driver_status ds
