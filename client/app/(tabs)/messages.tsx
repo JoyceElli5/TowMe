@@ -1,12 +1,16 @@
-/**
- * Messages Screen
- *
- * Shows chat and notifications with:
- * - List of notifications
- * - Mark as read functionality
- * - Clear all option
- */
 
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Fonts } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import {
+  AlertCircleIcon,
+  CheckmarkCircle01Icon,
+  Location01Icon,
+  MessageDone01Icon,
+  StarIcon,
+  Wallet01Icon
+} from 'hugeicons-react-native';
 import React from 'react';
 import {
   SafeAreaView,
@@ -15,18 +19,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { 
-  Location01Icon, 
-  Wallet01Icon, 
-  CheckmarkCircle01Icon, 
-  StarIcon, 
-  AlertCircleIcon,
-  MessageDone01Icon
-} from 'hugeicons-react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
-import { Fonts } from '@/constants/theme';
 
 // Icon mapping for notifications
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
