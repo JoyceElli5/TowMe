@@ -1,14 +1,16 @@
 /**
- * SearchingOperator Screen (Placeholder)
+ * SearchingOperator Screen
  * 
  * Displayed while searching for an available tow operator.
  * Shows a loading animation and allows cancellation.
+ * Uses realtime subscriptions to detect when a driver is matched.
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useEffect } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -18,19 +20,98 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PulseLoader from '@/components/pulse-loader';
+import {
+  subscribeTowRequest,
+  unsubscribe,
+} from '@/services/realtimeService';
+import {
+  getTowRequest,
+  cancelTowRequest,
+  type RequestStatus,
+} from '@/services/requestService';
 
 export default function SearchingOperatorScreen() {
-  // Simulate finding an operator after 3 seconds
+  const params = useLocalSearchParams<{ requestId: string }>();
+  const requestId = params.requestId;
+
+  const [status, setStatus] = useState<RequestStatus>('pending');
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace('/screens/user/operator-found');
-    }, 3000);
+    if (!requestId) {
+      Alert.alert('Error', 'Request ID not found');
+      router.back();
+      return;
+    }
 
-    return () => clearTimeout(timer);
-  }, []);
+    // Load initial request status
+    loadRequest();
 
-  const handleCancel = () => {
-    router.back();
+    // Setup realtime subscription
+    const channel = subscribeTowRequest(requestId, (updatedRequest) => {
+      console.log('Request updated:', updatedRequest);
+      setStatus(updatedRequest.status);
+
+      // Navigate when driver is matched
+      if (updatedRequest.status === 'matched') {
+        router.replace({
+          pathname: '/screens/user/operator-found',
+          params: { requestId },
+        });
+      } else if (updatedRequest.status === 'driver_enroute') {
+        router.replace({
+          pathname: '/screens/user/live-tracking',
+          params: { requestId },
+        });
+      } else if (updatedRequest.status === 'cancelled') {
+        Alert.alert('Request Cancelled', 'Your tow request was cancelled');
+        router.replace('/screens/user/home-screen');
+      }
+    });
+
+    return () => {
+      unsubscribe(channel);
+    };
+  }, [requestId]);
+
+  const loadRequest = async () => {
+    try {
+      const request = await getTowRequest(requestId);
+      setStatus(request.status);
+
+      // If already matched, navigate immediately
+      if (request.status === 'matched') {
+        router.replace({
+          pathname: '/screens/user/operator-found',
+          params: { requestId },
+        });
+      }
+    } catch (error) {
+      console.error('Error loading request:', error);
+    }
+  };
+
+  const handleCancel = async () => {
+    Alert.alert(
+      'Cancel Request',
+      'Are you sure you want to cancel this request?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelTowRequest(requestId);
+              Alert.alert('Cancelled', 'Your request has been cancelled');
+              router.replace('/screens/user/home-screen');
+            } catch (error) {
+              console.error('Error cancelling request:', error);
+              Alert.alert('Error', 'Failed to cancel request');
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
