@@ -11,6 +11,20 @@ export const loginSchema = z.object({
     .min(6, 'Password must be at least 6 characters'),
 });
 
+export const phoneLoginSchema = z.object({
+  phone: z
+    .string()
+    .min(1, 'Phone number is required')
+    .min(10, 'Please enter a valid phone number'),
+});
+
+export const otpVerifySchema = z.object({
+  otp: z
+    .string()
+    .min(6, 'OTP must be 6 digits')
+    .max(6, 'OTP must be 6 digits'),
+});
+
 export const registerSchema = z.object({
   fullName: z
     .string()
@@ -37,6 +51,8 @@ export const registerSchema = z.object({
 });
 
 export type LoginFormData = z.infer<typeof loginSchema>;
+export type PhoneLoginFormData = z.infer<typeof phoneLoginSchema>;
+export type OtpVerifyFormData = z.infer<typeof otpVerifySchema>;
 export type RegisterFormData = z.infer<typeof registerSchema>;
 
 export type UserRole = 'vehicle_owner' | 'tow_operator';

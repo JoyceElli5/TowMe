@@ -1,13 +1,6 @@
-/**
- * SearchingOperator Screen (Placeholder)
- * 
- * Displayed while searching for an available tow operator.
- * Shows a loading animation and allows cancellation.
- */
-
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useEffect } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
   StatusBar,
   StyleSheet,
@@ -18,19 +11,73 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PulseLoader from '@/components/pulse-loader';
+import { useToast } from '@/hooks/use-toast';
+import { realtimeService } from '@/services/realtime';
+import { requestService, RequestStatus } from '@/services/requests';
 
 export default function SearchingOperatorScreen() {
-  // Simulate finding an operator after 3 seconds
+  const params = useLocalSearchParams<{ requestId: string }>();
+  const requestId = params.requestId;
+
+  const { showToast } = useToast();
+  const [status, setStatus] = useState<RequestStatus>('pending');
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace('/screens/user/operator-found');
-    }, 3000);
+    if (!requestId) {
+      router.back();
+      return;
+    }
 
-    return () => clearTimeout(timer);
-  }, []);
+    // 1. Trigger Matching
+    matchDriver();
 
-  const handleCancel = () => {
-    router.back();
+    // 2. Subscribe to Realtime
+    const channel = realtimeService.subscribeToRequestUpdates(requestId, (payload) => {
+      console.log('Realtime update:', payload);
+      if (payload.status) {
+        setStatus(payload.status);
+        handleStatusChange(payload.status);
+      }
+    });
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [requestId]);
+
+  const matchDriver = async () => {
+    try {
+      await requestService.matchDriver(requestId!);
+      // If match is instant, realtime will trigger.
+      // Or we can poll if we wanted to be safe.
+    } catch (error) {
+      console.error("Match error:", error);
+      // Don't show error to user immediately, just keep searching (maybe retry logic)
+    }
+  };
+
+  const handleStatusChange = (newStatus: RequestStatus) => {
+    if (newStatus === 'matched' || newStatus === 'driver_enroute') {
+      router.replace({
+        pathname: '/screens/user/operator-found',
+        params: { requestId }
+      });
+    } else if (newStatus === 'cancelled') {
+      showToast('Request was cancelled', 'info');
+      router.replace('/screens/user/home-screen');
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      if (requestId) {
+        await requestService.cancelRequest(requestId);
+        router.back();
+        showToast('Request cancelled', 'success');
+      }
+    } catch (error) {
+      showToast('Failed to cancel', 'error');
+    }
   };
 
   return (
@@ -38,18 +85,15 @@ export default function SearchingOperatorScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       <View style={styles.content}>
-        {/* Animation Container */}
         <View style={styles.animationContainer}>
           <PulseLoader icon="car-sport" iconColor="#003554" pulseColor="#e0f2fe" size={120} />
         </View>
 
-        {/* Text Content */}
         <Text style={styles.title}>Searching for Operator</Text>
         <Text style={styles.subtitle}>
-          Please wait while we find the best tow operator near you...
+          Connecting you with the nearest tow truck...
         </Text>
 
-        {/* Cancel Button */}
         <TouchableOpacity
           style={styles.cancelButton}
           onPress={handleCancel}
