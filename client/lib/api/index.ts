@@ -9,13 +9,13 @@ export type { ApiResponse, PaginatedResponse } from './client';
 // Auth
 export {
   forgotPassword, getCurrentUser, login,
-  logout, refreshAccessToken, register, resetPassword
+  logout, refreshAccessToken, register, resetPassword, verifyEmail
 } from './auth';
 export type { AuthResponse, LoginRequest, PublicUser, RegisterRequest, User } from './auth';
 
 // Requests
 export {
-  acceptRequest, cancelRequest, completeRequest, createRequest, getOperatorRequests,
+  acceptRequest, cancelRequest, completeRequest, createRequest, downloadReceipt, getOperatorRequests,
   getPendingRequests, getPriceEstimate, getRequestById, getRequests, getUserRequests, startRequest, trackRequest
 } from './requests';
 export type {

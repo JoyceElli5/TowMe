@@ -5,9 +5,11 @@
  * Displays earnings and prompts for user rating.
  */
 
-import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
+  ActivityIndicator,
   StatusBar,
   StyleSheet,
   Text,
@@ -16,7 +18,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useReceiptDownload } from '@/hooks/use-receipt-download';
+
 export default function TripCompletedOperatorScreen() {
+  const params = useLocalSearchParams<{ requestId?: string }>();
+  const requestId = params.requestId || '';
+  const { isDownloading, handleDownloadReceipt } = useReceiptDownload();
+
   const handleRate = () => {
     router.push('/screens/operator/rate-user');
   };
@@ -62,6 +70,23 @@ export default function TripCompletedOperatorScreen() {
             <Text style={styles.summaryValue}>25 min</Text>
           </View>
         </View>
+
+        {/* Download Receipt Button */}
+        <TouchableOpacity
+          style={styles.downloadButton}
+          onPress={() => handleDownloadReceipt(requestId)}
+          disabled={isDownloading}
+          activeOpacity={0.8}
+        >
+          {isDownloading ? (
+            <ActivityIndicator color="#003554" size="small" />
+          ) : (
+            <>
+              <Ionicons name="download-outline" size={20} color="#003554" />
+              <Text style={styles.downloadButtonText}>Download Receipt</Text>
+            </>
+          )}
+        </TouchableOpacity>
 
         {/* Rate Button */}
         <TouchableOpacity
@@ -167,6 +192,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
+  },
+  downloadButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#ffffff',
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#003554',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  downloadButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#003554',
   },
   rateButton: {
     width: '100%',
