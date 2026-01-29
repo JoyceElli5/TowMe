@@ -8,25 +8,55 @@ import * as SecureStore from 'expo-secure-store';
 // API Configuration
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:3001/api';
 
+// Debug: Log API URL (remove in production)
+if (__DEV__) {
+  console.log('🔗 API Base URL:', API_BASE_URL);
+  console.log('🔗 Environment variable:', process.env.EXPO_PUBLIC_API_URL || 'NOT SET (using fallback)');
+}
+
 // Helper function to check API connectivity
 export async function checkApiConnection(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    // Ensure URL ends with /api/health
-    const healthUrl = API_BASE_URL.endsWith('/api') 
+    // Try health endpoint first, fallback to root
+    let healthUrl = API_BASE_URL.endsWith('/api') 
       ? `${API_BASE_URL}/health` 
       : `${API_BASE_URL}/health`;
     
-    const response = await fetch(healthUrl, {
+    // If health endpoint doesn't exist, try the base API URL
+    let response = await fetch(healthUrl, {
       method: 'GET',
       signal: controller.signal,
-    });
+    }).catch(() => null);
+    
+    // If health check failed, try base URL
+    if (!response || !response.ok) {
+      const baseUrl = API_BASE_URL.endsWith('/api') 
+        ? API_BASE_URL.replace('/api', '') 
+        : API_BASE_URL;
+      response = await fetch(baseUrl, {
+        method: 'GET',
+        signal: controller.signal,
+      }).catch(() => null);
+    }
     
     clearTimeout(timeoutId);
-    return response.ok;
-  } catch {
+    
+    if (__DEV__) {
+      console.log('🔍 API Connection Check:', {
+        url: healthUrl,
+        connected: response?.ok ?? false,
+        status: response?.status,
+      });
+    }
+    
+    return response?.ok ?? false;
+  } catch (error) {
+    if (__DEV__) {
+      console.error('❌ API Connection Check Failed:', error);
+    }
     return false;
   }
 }
@@ -123,6 +153,16 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
     
+    // Debug logging
+    if (__DEV__) {
+      console.log('🌐 API Request:', {
+        method: options.method || 'GET',
+        url,
+        endpoint,
+        baseUrl: this.baseUrl,
+      });
+    }
+    
     // Get access token
     const token = await getAccessToken();
     
@@ -147,6 +187,16 @@ class ApiClient {
         headers,
         signal: controller.signal,
       });
+      
+      // Debug logging
+      if (__DEV__) {
+        console.log('📡 API Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          url: response.url,
+        });
+      }
 
       clearTimeout(timeoutId);
 
@@ -183,10 +233,24 @@ class ApiClient {
 
       // Handle network errors
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(
-          `Cannot connect to server. Please check your internet connection and ensure the backend is running at ${this.baseUrl}`,
-          0
-        );
+        const errorMsg = `Cannot connect to server at ${this.baseUrl}${endpoint}. ` +
+          `Please check:\n` +
+          `1. Backend is running and accessible\n` +
+          `2. EXPO_PUBLIC_API_URL is set correctly\n` +
+          `3. Network connection is active\n` +
+          `4. CORS is configured on backend`;
+        
+        if (__DEV__) {
+          console.error('❌ Network Error:', {
+            error: error.message,
+            url: `${this.baseUrl}${endpoint}`,
+            baseUrl: this.baseUrl,
+            endpoint,
+            envVar: process.env.EXPO_PUBLIC_API_URL,
+          });
+        }
+        
+        throw new ApiError(errorMsg, 0);
       }
 
       // Handle timeout/abort errors (AbortController throws AbortError)

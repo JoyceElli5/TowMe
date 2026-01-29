@@ -1,6 +1,4 @@
-/**
- * Application constants
- */
+
 
 // Pricing constants (aligned with frontend)
 export const BASE_PRICE_PER_KM = 15;

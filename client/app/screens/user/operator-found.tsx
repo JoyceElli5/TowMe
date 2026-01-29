@@ -5,6 +5,7 @@
  * Shows operator details and ETA.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import {
@@ -44,7 +45,7 @@ export default function OperatorFoundScreen() {
           <View style={styles.operatorInfo}>
             <Text style={styles.operatorName}>John Doe</Text>
             <View style={styles.ratingRow}>
-              <Text style={styles.starIcon}>⭐</Text>
+              <Ionicons name="star" size={14} color="#F59E0B" />
               <Text style={styles.rating}>4.8</Text>
               <Text style={styles.trips}>(256 trips)</Text>
             </View>
@@ -57,7 +58,9 @@ export default function OperatorFoundScreen() {
 
         {/* Vehicle Info */}
         <View style={styles.vehicleCard}>
-          <Text style={styles.vehicleIcon}>🚛</Text>
+          <View style={styles.vehicleIconContainer}>
+            <Ionicons name="car-sport" size={32} color="#003554" />
+          </View>
           <View style={styles.vehicleInfo}>
             <Text style={styles.vehicleName}>Toyota Hilux</Text>
             <Text style={styles.vehiclePlate}>GR-1234-21</Text>
@@ -150,10 +153,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  starIcon: {
-    fontSize: 14,
-    marginRight: 4,
-  },
   rating: {
     fontSize: 14,
     fontWeight: '600',
@@ -189,8 +188,13 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 32,
   },
-  vehicleIcon: {
-    fontSize: 32,
+  vehicleIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 16,
   },
   vehicleInfo: {

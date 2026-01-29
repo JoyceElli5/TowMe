@@ -1,5 +1,27 @@
 # Troubleshooting Guide - Registration "Failed to create user" Error
 
+## ⚠️ CRITICAL: 401 Unauthorized Error with Service Role
+
+If you're seeing `401 Unauthorized` errors in Supabase logs when the backend tries to query the database, this is an RLS (Row Level Security) issue.
+
+### Quick Fix
+
+Run this SQL in your Supabase SQL Editor:
+
+```sql
+-- See backend/database/fix-rls-policies.sql for the complete fix
+```
+
+Or run the file `backend/database/fix-rls-policies.sql` in Supabase SQL Editor.
+
+### What's Happening
+
+Even though `service_role` should bypass RLS automatically, Supabase sometimes requires explicit policies. The backend uses `service_role` key to perform admin operations (like user registration), but RLS policies are blocking it.
+
+### Solution
+
+Add policies that explicitly allow `service_role` to perform operations on all tables. The fix file above adds these policies.
+
 ## Issues Found and Fixed
 
 ### 1. ✅ Missing Database Tables

@@ -5,6 +5,7 @@
  * Shows map with operator location and ETA updates.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -58,7 +59,7 @@ export default function LiveTrackingScreen() {
           title="Tow Operator"
         >
           <View style={styles.markerContainer}>
-            <Text style={styles.markerIcon}>🚛</Text>
+            <Ionicons name="car-sport" size={24} color="#003554" />
           </View>
         </Marker>
 
@@ -92,7 +93,7 @@ export default function LiveTrackingScreen() {
             <Text style={styles.vehicleInfo}>Toyota Hilux • GR-1234-21</Text>
           </View>
           <TouchableOpacity style={styles.callButton}>
-            <Text style={styles.callIcon}>📞</Text>
+            <Ionicons name="call" size={20} color="#10B981" />
           </TouchableOpacity>
         </View>
 
@@ -121,9 +122,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
-  },
-  markerIcon: {
-    fontSize: 24,
   },
   userMarker: {
     width: 24,
@@ -224,9 +222,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#dcfce7',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  callIcon: {
-    fontSize: 20,
   },
   progressBar: {
     height: 4,
