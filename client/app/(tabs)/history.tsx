@@ -1,11 +1,4 @@
-/**
- * History Screen
- *
- * Shows the user's trip history with:
- * - List of completed trips
- * - Date, time, addresses, distance, and earnings
- * - Filter options
- */
+
 
 import React from 'react';
 import {
