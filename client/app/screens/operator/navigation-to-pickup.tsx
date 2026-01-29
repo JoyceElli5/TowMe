@@ -5,6 +5,7 @@
  * Displays map and directions to customer.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import {
@@ -44,7 +45,7 @@ export default function NavigationToPickupScreen() {
           title="Customer Location"
         >
           <View style={styles.customerMarker}>
-            <Text style={styles.customerIcon}>📍</Text>
+            <Ionicons name="location" size={24} color="#3B82F6" />
           </View>
         </Marker>
       </MapView>
@@ -71,7 +72,7 @@ export default function NavigationToPickupScreen() {
             <Text style={styles.pickupAddress}>Ring Road Central, Accra</Text>
           </View>
           <TouchableOpacity style={styles.callButton}>
-            <Text style={styles.callIcon}>📞</Text>
+            <Ionicons name="call" size={20} color="#10B981" />
           </TouchableOpacity>
         </View>
 
@@ -104,9 +105,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
-  },
-  customerIcon: {
-    fontSize: 24,
   },
   header: {
     position: 'absolute',
@@ -212,9 +210,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#dcfce7',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  callIcon: {
-    fontSize: 20,
   },
   arrivedButton: {
     height: 56,

@@ -173,6 +173,10 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
 -- Users policies
+-- Service role bypasses RLS (for backend operations)
+CREATE POLICY "Service role can manage users" ON users
+  FOR ALL USING (auth.role() = 'service_role');
+
 CREATE POLICY "Users can view their own profile" ON users
   FOR SELECT USING (auth.uid() = id);
 
@@ -196,6 +200,10 @@ CREATE POLICY "Participants can update requests" ON towing_requests
   FOR UPDATE USING (auth.uid() = user_id OR auth.uid() = operator_id);
 
 -- Ratings policies
+-- Service role bypasses RLS (for backend operations)
+CREATE POLICY "Service role can manage ratings" ON ratings
+  FOR ALL USING (auth.role() = 'service_role');
+
 CREATE POLICY "Anyone can view ratings" ON ratings
   FOR SELECT USING (true);
 
@@ -203,6 +211,10 @@ CREATE POLICY "Users can create ratings" ON ratings
   FOR INSERT WITH CHECK (auth.uid() = from_user_id);
 
 -- Inspections policies
+-- Service role bypasses RLS (for backend operations)
+CREATE POLICY "Service role can manage inspections" ON inspections
+  FOR ALL USING (auth.role() = 'service_role');
+
 CREATE POLICY "Participants can view inspections" ON inspections
   FOR SELECT USING (
     EXISTS (
@@ -216,6 +228,10 @@ CREATE POLICY "Operators can create inspections" ON inspections
   FOR INSERT WITH CHECK (auth.uid() = operator_id);
 
 -- Operator locations policies
+-- Service role bypasses RLS (for backend operations)
+CREATE POLICY "Service role can manage operator locations" ON operator_locations
+  FOR ALL USING (auth.role() = 'service_role');
+
 CREATE POLICY "Users can view operator location for their request" ON operator_locations
   FOR SELECT USING (
     EXISTS (
@@ -232,6 +248,10 @@ CREATE POLICY "Operators can update their location data" ON operator_locations
   FOR UPDATE USING (auth.uid() = operator_id);
 
 -- Notifications policies
+-- Service role bypasses RLS (for backend operations)
+CREATE POLICY "Service role can manage notifications" ON notifications
+  FOR ALL USING (auth.role() = 'service_role');
+
 CREATE POLICY "Users can view their notifications" ON notifications
   FOR SELECT USING (auth.uid() = user_id);
 
@@ -239,6 +259,10 @@ CREATE POLICY "Users can update their notifications" ON notifications
   FOR UPDATE USING (auth.uid() = user_id);
 
 -- Payments policies
+-- Service role bypasses RLS (for backend operations)
+CREATE POLICY "Service role can manage payments" ON payments
+  FOR ALL USING (auth.role() = 'service_role');
+
 CREATE POLICY "Participants can view payments" ON payments
   FOR SELECT USING (auth.uid() = user_id OR auth.uid() = operator_id);
 

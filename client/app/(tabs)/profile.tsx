@@ -10,7 +10,6 @@
  * - Logout button
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -26,13 +25,34 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { 
+  Camera01Icon, 
+  Logout01Icon, 
+  Moon01Icon, 
+  Sun01Icon, 
+  Notification01Icon, 
+  Chatting01Icon, 
+  Mail01Icon, 
+  CreditCardIcon, 
+  SmartPhone01Icon, 
+  Wallet01Icon, 
+  UserBlock01Icon, 
+  HeadsetIcon, 
+  HelpCircleIcon, 
+  LegalDocument01Icon, 
+  ArrowRight01Icon,
+  Location01Icon
+} from 'hugeicons-react-native';
 
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, getCurrentUser, logout, updateUserAvatar, type User } from '@/lib/api';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 
 interface SettingItemProps {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   iconColor: string;
   title: string;
   subtitle?: string;
@@ -43,7 +63,7 @@ interface SettingItemProps {
 }
 
 function SettingItem({
-  icon,
+  icon: Icon,
   iconColor,
   title,
   subtitle,
@@ -53,6 +73,8 @@ function SettingItem({
   onPress,
   onSwitchChange,
 }: SettingItemProps & { onSwitchChange?: (value: boolean) => void }) {
+  const iconBgColor = useThemeColor({}, 'background');
+  const arrowColor = useThemeColor({}, 'icon');
   return (
     <TouchableOpacity
       style={styles.settingItem}
@@ -62,14 +84,14 @@ function SettingItem({
       <View
         style={[styles.settingIcon, { backgroundColor: `${iconColor}15` }]}
       >
-        <Ionicons name={icon} size={20} color={iconColor} />
+        <Icon size={20} color={iconColor} strokeWidth={2} />
       </View>
       <View style={styles.settingContent}>
-        <Text style={styles.settingTitle}>{title}</Text>
-        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+        <ThemedText style={styles.settingTitle}>{title}</ThemedText>
+        {subtitle && <ThemedText style={styles.settingSubtitle}>{subtitle}</ThemedText>}
       </View>
       {showArrow && (
-        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        <ArrowRight01Icon size={20} color={arrowColor} strokeWidth={2} />
       )}
       {showSwitch && (
         <Switch
@@ -86,7 +108,7 @@ function SettingItem({
 function SectionHeader({ title }: { title: string }) {
   return (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
     </View>
   );
 }
@@ -208,15 +230,20 @@ export default function ProfileScreen() {
     );
   }
 
+  const backgroundColor = useThemeColor({}, 'background');
+  const textColor = useThemeColor({}, 'text');
+  const statsBg = useThemeColor({ light: '#F9FAFB', dark: '#1F2937' }, 'background');
+  const dividerColor = useThemeColor({ light: '#E5E7EB', dark: '#374151' }, 'background');
+  
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Profile Header */}
-        <View style={styles.profileHeader}>
+        <ThemedView style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             {currentUser?.avatarUrl ? (
               <Image
@@ -238,48 +265,48 @@ export default function ProfileScreen() {
               {isUploading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Ionicons name="camera" size={16} color="#FFFFFF" />
+                <Camera01Icon size={16} color="#FFFFFF" strokeWidth={2} />
               )}
             </TouchableOpacity>
           </View>
-          <Text style={styles.userName}>
+          <ThemedText type="title" style={styles.userName}>
             {currentUser?.fullName || 'John Doe'}
-          </Text>
-          <Text style={styles.userEmail}>
+          </ThemedText>
+          <ThemedText style={styles.userEmail}>
             {currentUser?.email || 'john.doe@example.com'}
-          </Text>
-          <View style={styles.statsContainer}>
+          </ThemedText>
+          <ThemedView style={[styles.statsContainer, { backgroundColor: statsBg }]}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>
+              <ThemedText type="defaultSemiBold" style={styles.statValue}>
                 {currentUser?.averageRating?.toFixed(1) || '0.0'}
-              </Text>
-              <Text style={styles.statLabel}>Rating</Text>
+              </ThemedText>
+              <ThemedText style={styles.statLabel}>Rating</ThemedText>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: dividerColor }]} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>
+              <ThemedText type="defaultSemiBold" style={styles.statValue}>
                 {currentUser?.totalTrips || 0}
-              </Text>
-              <Text style={styles.statLabel}>Trips</Text>
+              </ThemedText>
+              <ThemedText style={styles.statLabel}>Trips</ThemedText>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: dividerColor }]} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>
+              <ThemedText type="defaultSemiBold" style={styles.statValue}>
                 {currentUser?.isVerified ? '✓' : '—'}
-              </Text>
-              <Text style={styles.statLabel}>Verified</Text>
+              </ThemedText>
+              <ThemedText style={styles.statLabel}>Verified</ThemedText>
             </View>
-          </View>
-        </View>
+          </ThemedView>
+        </ThemedView>
 
         {/* Appearance */}
         <SectionHeader title="Appearance" />
         <View style={styles.settingsCard}>
           <SettingItem
-            icon={theme === 'dark' ? 'moon' : 'sunny'}
+            icon={theme === 'dark' ? Moon01Icon : Sun01Icon}
             iconColor={theme === 'dark' ? '#6366F1' : '#F59E0B'}
             title="Dark Mode"
-            subtitle={theme === 'dark' ? 'Enabled' : 'Disabled'}
+            subtitle={theme === 'dark' ? 'Enabled - Tap to switch to Light Mode' : 'Disabled - Tap to switch to Dark Mode'}
             showArrow={false}
             showSwitch
             switchValue={theme === 'dark'}
@@ -291,7 +318,7 @@ export default function ProfileScreen() {
         <SectionHeader title="Notifications" />
         <View style={styles.settingsCard}>
           <SettingItem
-            icon="notifications"
+            icon={Notification01Icon}
             iconColor="#3B82F6"
             title="Push Notifications"
             showArrow={false}
@@ -299,7 +326,7 @@ export default function ProfileScreen() {
             switchValue={true}
           />
           <SettingItem
-            icon="chatbubble"
+            icon={Chatting01Icon}
             iconColor="#10B981"
             title="SMS Alerts"
             showArrow={false}
@@ -307,7 +334,7 @@ export default function ProfileScreen() {
             switchValue={true}
           />
           <SettingItem
-            icon="mail"
+            icon={Mail01Icon}
             iconColor="#F59E0B"
             title="Email Updates"
             showArrow={false}
@@ -320,19 +347,19 @@ export default function ProfileScreen() {
         <SectionHeader title="Payment" />
         <View style={styles.settingsCard}>
           <SettingItem
-            icon="card"
+            icon={CreditCardIcon}
             iconColor="#8B5CF6"
             title="Bank Account"
             subtitle="•••• 4532"
           />
           <SettingItem
-            icon="phone-portrait"
+            icon={SmartPhone01Icon}
             iconColor="#EC4899"
             title="Mobile Money"
             subtitle="024 ••• ••89"
           />
           <SettingItem
-            icon="wallet"
+            icon={Wallet01Icon}
             iconColor="#10B981"
             title="Default Withdrawal"
             subtitle="Mobile Money"
@@ -343,7 +370,7 @@ export default function ProfileScreen() {
         <SectionHeader title="Privacy" />
         <View style={styles.settingsCard}>
           <SettingItem
-            icon="location"
+            icon={Location01Icon}
             iconColor="#EF4444"
             title="Share Location"
             subtitle="Only when online"
@@ -352,7 +379,7 @@ export default function ProfileScreen() {
             switchValue={true}
           />
           <SettingItem
-            icon="ban"
+            icon={UserBlock01Icon}
             iconColor="#6B7280"
             title="Blocked Users"
             subtitle="2 users blocked"
@@ -363,17 +390,17 @@ export default function ProfileScreen() {
         <SectionHeader title="Support" />
         <View style={styles.settingsCard}>
           <SettingItem
-            icon="headset"
+            icon={HeadsetIcon}
             iconColor="#3B82F6"
             title="Contact Support"
           />
           <SettingItem
-            icon="help-circle"
+            icon={HelpCircleIcon}
             iconColor="#F59E0B"
             title="FAQs"
           />
           <SettingItem
-            icon="document-text"
+            icon={LegalDocument01Icon}
             iconColor="#6B7280"
             title="Terms & Conditions"
           />
@@ -381,8 +408,8 @@ export default function ProfileScreen() {
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-          <Text style={styles.logoutText}>Log Out</Text>
+          <Logout01Icon size={20} color="#EF4444" strokeWidth={2} />
+          <ThemedText style={styles.logoutText}>Log Out</ThemedText>
         </TouchableOpacity>
 
         {/* Version Info */}
@@ -395,7 +422,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   scrollView: {
     flex: 1,
@@ -407,7 +433,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 24,
     paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     shadowColor: '#000',
@@ -459,18 +484,15 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 14,
-    color: '#6B7280',
     marginBottom: 20,
   },
   statsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -482,17 +504,14 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
     marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
-    color: '#6B7280',
   },
   statDivider: {
     width: 1,
     height: 32,
-    backgroundColor: '#E5E7EB',
   },
   sectionHeader: {
     paddingHorizontal: 20,
@@ -502,12 +521,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   settingsCard: {
-    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     borderRadius: 16,
     overflow: 'hidden',
@@ -539,11 +556,9 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#111827',
   },
   settingSubtitle: {
     fontSize: 13,
-    color: '#6B7280',
     marginTop: 2,
   },
   logoutButton: {

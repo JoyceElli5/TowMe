@@ -9,12 +9,15 @@ import React from 'react';
 import {
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { VEHICLE_OPTIONS, VehicleType } from '@/constants/pricing';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { Fonts } from '@/constants/theme';
 
 // Re-export types for convenience
 export { VehicleType, VEHICLE_OPTIONS };
@@ -30,9 +33,18 @@ export default function VehicleTypeCard({
   selectedType,
   onSelect,
 }: VehicleTypeCardProps) {
+  const cardBg = useThemeColor({ light: '#f9fafb', dark: '#1F2937' }, 'background');
+  const selectedCardBg = useThemeColor({ light: '#f0f9ff', dark: '#1E3A5F' }, 'background');
+  const iconBg = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
+  const selectedIconBg = useThemeColor({ light: '#dbeafe', dark: '#3B82F6' }, 'background');
+  const borderColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+  const labelColor = useThemeColor({}, 'text');
+  const selectedLabelColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+  const inactiveLabelColor = useThemeColor({}, 'icon');
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Select Vehicle Type</Text>
+      <ThemedText style={styles.title}>Select Vehicle Type</ThemedText>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -45,7 +57,10 @@ export default function VehicleTypeCard({
               key={vehicle.id}
               style={[
                 styles.vehicleCard,
-                isSelected && styles.vehicleCardSelected,
+                {
+                  backgroundColor: isSelected ? selectedCardBg : cardBg,
+                  borderColor: isSelected ? borderColor : 'transparent',
+                },
               ]}
               onPress={() => onSelect(vehicle.id)}
               activeOpacity={0.7}
@@ -56,22 +71,27 @@ export default function VehicleTypeCard({
               <View
                 style={[
                   styles.iconContainer,
-                  isSelected && styles.iconContainerSelected,
+                  {
+                    backgroundColor: isSelected ? selectedIconBg : iconBg,
+                  },
                 ]}
               >
-                <Text style={styles.vehicleIcon}>{vehicle.icon}</Text>
+                <ThemedText style={styles.vehicleIcon}>{vehicle.icon}</ThemedText>
               </View>
-              <Text
+              <ThemedText
                 style={[
                   styles.vehicleLabel,
-                  isSelected && styles.vehicleLabelSelected,
+                  {
+                    color: isSelected ? selectedLabelColor : inactiveLabelColor,
+                    fontFamily: isSelected ? Fonts.semiBold : Fonts.medium,
+                  },
                 ]}
               >
                 {vehicle.label}
-              </Text>
+              </ThemedText>
               {isSelected && (
-                <View style={styles.checkmark}>
-                  <Text style={styles.checkmarkText}>✓</Text>
+                <View style={[styles.checkmark, { backgroundColor: borderColor }]}>
+                  <ThemedText style={styles.checkmarkText}>✓</ThemedText>
                 </View>
               )}
             </TouchableOpacity>
@@ -88,8 +108,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontFamily: Fonts.semiBold,
     marginBottom: 12,
   },
   scrollContent: {
@@ -98,12 +117,10 @@ const styles = StyleSheet.create({
   },
   vehicleCard: {
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 2,
-    borderColor: 'transparent',
     minWidth: 80,
     position: 'relative',
     shadowColor: '#000',
@@ -112,34 +129,20 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  vehicleCardSelected: {
-    borderColor: '#003554',
-    backgroundColor: '#f0f9ff',
-  },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#e5e7eb',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
-  },
-  iconContainerSelected: {
-    backgroundColor: '#dbeafe',
   },
   vehicleIcon: {
     fontSize: 24,
   },
   vehicleLabel: {
     fontSize: 13,
-    fontWeight: '500',
-    color: '#6b7280',
     textAlign: 'center',
-  },
-  vehicleLabelSelected: {
-    color: '#003554',
-    fontWeight: '600',
   },
   checkmark: {
     position: 'absolute',
@@ -148,13 +151,12 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#003554',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkmarkText: {
     color: '#ffffff',
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: Fonts.semiBold,
   },
 });
