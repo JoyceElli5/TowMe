@@ -1,8 +1,7 @@
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
-import * as Location from 'expo-location';
 import { router, useFocusEffect } from 'expo-router';
 import { UserCircleIcon } from 'hugeicons-react-native';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   StatusBar,
@@ -22,9 +21,10 @@ import VehicleTypeCard from '@/components/vehicle-type-card';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
 
-import { pricingService, VehiclePricing } from '@/services/pricing';
+import { VehicleType } from '@/constants/pricing';
+import { calculateDistance, getCurrentLocationWithAddress } from '@/lib/services/locationService';
+import { calculateEstimatedPrice } from '@/lib/services/pricingService';
 import { requestService, TowRequest } from '@/services/requests';
-import { VehicleType } from '@/services/vehicles';
 
 export default function HomeScreen() {
   const { showToast } = useToast();
@@ -38,15 +38,16 @@ export default function HomeScreen() {
   const activeSessionSnapPoints = useMemo(() => ['20%', '50%'], []);
 
   // State
-  const [pickupAddress, setPickupAddress] = useState<string>('Current Location');
+  const [pickupAddress, setPickupAddress] = useState<string>('Detecting location...');
   const [destinationAddress, setDestinationAddress] = useState<string>('');
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleType | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
   const [activeRequest, setActiveRequest] = useState<TowRequest | null>(null);
-  const [pricing, setPricing] = useState<Record<string, VehiclePricing>>({});
+  const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
 
+  // Map Region
   const [mapRegion, setMapRegion] = useState<Region>({
     latitude: 5.6037,
     longitude: -0.1870,
@@ -63,31 +64,19 @@ export default function HomeScreen() {
 
   const loadInitialData = async () => {
     try {
-      // 1. Permission & Location
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const location = await Location.getCurrentPositionAsync({});
-        setPickupCoords({
-          lat: location.coords.latitude,
-          lng: location.coords.longitude,
-        });
+      // 1. Location
+      const location = await getCurrentLocationWithAddress();
+      if (location) {
+        setPickupCoords(location.coordinates);
+        setPickupAddress(location.address);
         setMapRegion({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
+          latitude: location.coordinates.lat,
+          longitude: location.coordinates.lng,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         });
-
-        // Reverse Geocode
-        const [address] = await Location.reverseGeocodeAsync({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-
-        if (address) {
-          const addrStr = `${address.street || ''} ${address.name || ''}, ${address.city || ''}`.trim();
-          if (addrStr && addrStr !== ',') setPickupAddress(addrStr);
-        }
+      } else {
+        setPickupAddress("Location unavailable");
       }
 
       // 2. Active Request
@@ -99,41 +88,37 @@ export default function HomeScreen() {
         placeOrderSheetRef.current?.snapToIndex(1);
       }
 
-      // 3. Pricing
-      const pricingData = await pricingService.getPricing();
-      setPricing(pricingData);
-
     } catch (error) {
       console.error('Error in loadInitialData:', error);
     }
   };
 
-  // Calculate Price
-  const estimatedPrice = useMemo(() => {
-    if (!selectedVehicle || !pickupCoords || !destinationCoords || !pricing[selectedVehicle]) return null;
+  // Update Price Calculation
+  useEffect(() => {
+    const updatePrice = async () => {
+      if (!selectedVehicle || !pickupCoords || !destinationCoords) {
+        setEstimatedPrice(null);
+        return;
+      }
 
-    // Calculate accurate distance
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(destinationCoords.lat - pickupCoords.lat);
-    const dLon = deg2rad(destinationCoords.lng - pickupCoords.lng);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(deg2rad(pickupCoords.lat)) * Math.cos(deg2rad(destinationCoords.lat)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c; // Distance in km
+      const distance = calculateDistance(
+        pickupCoords.lat,
+        pickupCoords.lng,
+        destinationCoords.lat,
+        destinationCoords.lng
+      );
 
-    return pricingService.estimatePrice(pricing[selectedVehicle], d);
-  }, [selectedVehicle, pickupCoords, destinationCoords, pricing]);
+      const price = await calculateEstimatedPrice(distance, selectedVehicle);
+      setEstimatedPrice(price);
+    };
 
-  function deg2rad(deg: number) {
-    return deg * (Math.PI / 180);
-  }
+    updatePrice();
+  }, [selectedVehicle, pickupCoords, destinationCoords]);
+
 
   // Handlers
   const handleDestinationPress = () => {
     // For Demo: Set a fixed destination near pickup or slightly further
-    // In real app: Open Google Places Autocomplete
     if (!pickupCoords) {
       showToast('Waiting for location...', 'error');
       return;
@@ -150,20 +135,35 @@ export default function HomeScreen() {
     placeOrderSheetRef.current?.snapToIndex(2);
   };
 
-  const handlePickupPress = () => {
-    // Usually opens location picker
-    showToast('Using current location', 'success');
+  const handlePickupPress = async () => {
+    // Re-detect location
+    const location = await getCurrentLocationWithAddress();
+    if (location) {
+      setPickupCoords(location.coordinates);
+      setPickupAddress(location.address);
+      showToast('Location updated', 'success');
+    }
   };
 
   const handleRequestPress = async () => {
     if (!selectedVehicle || !pickupAddress || !destinationAddress || !pickupCoords || !destinationCoords || !estimatedPrice) {
       showToast('Please complete all fields', 'error');
+      // If price failed but others exist, maybe network error or no pricing
+      if (!estimatedPrice && selectedVehicle && pickupCoords && destinationCoords) {
+        showToast('Could not calculate price', 'error');
+      }
       return;
     }
 
     setIsRequesting(true);
     try {
-      const distance = 5.0; // Approximation for now based on coords if we calculated it
+      const distance = calculateDistance(
+        pickupCoords.lat,
+        pickupCoords.lng,
+        destinationCoords.lat,
+        destinationCoords.lng
+      );
+
       const request = await requestService.createRequest({
         pickup_lat: pickupCoords.lat,
         pickup_lng: pickupCoords.lng,
@@ -172,7 +172,7 @@ export default function HomeScreen() {
         dest_lng: destinationCoords.lng,
         dest_address: destinationAddress,
         vehicle_type: selectedVehicle,
-        estimated_distance_km: distance, // We can reuse the calculated one from estimtePrice memo if we exposed it
+        estimated_distance_km: distance,
         estimated_cost: estimatedPrice
       });
 

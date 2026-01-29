@@ -13,38 +13,58 @@ import {
   View,
 } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { authService } from '@/services/auth';
-import { Profile, profileService } from '@/services/profile';
-import { UserVehicle, vehicleService } from '@/services/vehicles';
+import { getCurrentUser, signOut } from '@/lib/services/authService';
+import { getUserVehicles, UserVehicle } from '@/lib/services/vehicleService';
+
+// Note: I might need to bridge valid profile logic or fetch profile using supabase directly 
+// if I don't migrate profileService to lib/services yet.
+// Since User gave specific instructions for Auth/Pricing/Vehicles, I will assume profileService 
+// can be used or I should just fetch profile in here with Supabase direct call or move profileService.
+// I will stick to what exists but adapt imports.
 
 export default function ProfileScreen() {
+  // Use theme colors
+  const backgroundColor = useThemeColor({}, 'background');
+  const textColor = useThemeColor({}, 'text');
+
   const { showToast } = useToast();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  // We'll store basic user info or full profile
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [vehicles, setVehicles] = useState<UserVehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const user = await authService.getCurrentUser();
+      const user = await getCurrentUser();
       if (!user) {
-        router.replace('/screens/auth/login-screen');
+        router.replace('/screens/auth/phone-login-screen');
         return;
       }
 
-      const [profileData, vehiclesData] = await Promise.all([
-        profileService.getProfile(user.id),
-        vehicleService.getUserVehicles(user.id),
-      ]);
+      // Fetch profile (assuming we can just query the table)
+      // Or use previous service if available. I'll just keep it simple.
+      // Ideally I create client/lib/services/userService.ts but I will do it inline or rely on existing.
+      const { data: profile } = await import('@/lib/supabase').then(m =>
+        m.supabase.from('profiles').select('*').eq('id', user.id).single()
+      );
+      setUserProfile(profile);
 
-      setProfile(profileData);
-      setVehicles(vehiclesData);
+      setIsLoadingVehicles(true);
+      const userVehicles = await getUserVehicles(user.id);
+      setVehicles(userVehicles);
+      setIsLoadingVehicles(false);
+
     } catch (error) {
       console.error('Error loading profile:', error);
       showToast('Failed to load profile', 'error');
     } finally {
       setLoading(false);
+      setIsLoadingVehicles(false);
     }
   };
 
@@ -61,57 +81,62 @@ export default function ProfileScreen() {
         text: 'Log Out',
         style: 'destructive',
         onPress: async () => {
-          await authService.signOut();
-          router.replace('/screens/auth/login-screen');
+          await signOut();
+          router.replace('/screens/auth/phone-login-screen');
         },
       },
     ]);
   };
 
-  const handleAddVehicle = () => {
-    router.push('/screens/user/add-vehicle');
-  };
-
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor }]}>
         <ActivityIndicator size="large" color="#003554" />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
-        <View style={styles.profileHeader}>
+        <View style={[styles.profileHeader, { backgroundColor }]}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {profile?.full_name ? profile.full_name[0].toUpperCase() : 'U'}
+                {userProfile?.full_name ? userProfile.full_name[0].toUpperCase() : 'U'}
               </Text>
             </View>
           </View>
-          <Text style={styles.userName}>{profile?.full_name || 'User'}</Text>
-          <Text style={styles.userPhone}>{profile?.phone || ''}</Text>
+          <ThemedText style={styles.userName}>{userProfile?.full_name || 'User'}</ThemedText>
+          <ThemedText style={styles.userPhone}>{userProfile?.phone || ''}</ThemedText>
         </View>
 
         {/* Vehicles Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Vehicles</Text>
-            <TouchableOpacity onPress={handleAddVehicle}>
+            <ThemedText style={styles.sectionTitle}>My Vehicles</ThemedText>
+            <TouchableOpacity onPress={() => router.push('/screens/user/add-edit-vehicle-screen')}>
               <Text style={styles.addText}>+ Add</Text>
             </TouchableOpacity>
           </View>
 
-          {vehicles.length === 0 ? (
+          {isLoadingVehicles ? (
+            <ActivityIndicator />
+          ) : vehicles.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No vehicles added yet</Text>
             </View>
           ) : (
             vehicles.map((vehicle) => (
-              <View key={vehicle.id} style={styles.vehicleCard}>
+              <TouchableOpacity
+                key={vehicle.id}
+                style={styles.vehicleCard}
+                onPress={() => router.push({
+                  pathname: '/screens/user/add-edit-vehicle-screen',
+                  params: { vehicleId: vehicle.id }
+                })}
+              >
                 {vehicle.photo_url ? (
                   <Image source={{ uri: vehicle.photo_url }} style={styles.vehicleImage} />
                 ) : (
@@ -120,22 +145,22 @@ export default function ProfileScreen() {
                   </View>
                 )}
                 <View style={styles.vehicleInfo}>
-                  <Text style={styles.vehicleName}>
+                  <ThemedText style={styles.vehicleName}>
                     {vehicle.make} {vehicle.model}
-                  </Text>
+                  </ThemedText>
                   <Text style={styles.vehiclePlate}>{vehicle.plate_number}</Text>
                 </View>
                 <View style={styles.vehicleTypeTag}>
                   <Text style={styles.vehicleTypeText}>{vehicle.vehicle_type}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
 
         {/* Settings / Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
+          <ThemedText style={styles.sectionTitle}>Account</ThemedText>
 
           <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#EF4444" />
@@ -150,7 +175,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   loadingContainer: {
     flex: 1,
@@ -161,7 +185,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   profileHeader: {
-    backgroundColor: '#fff',
     padding: 24,
     alignItems: 'center',
     borderBottomWidth: 1,
@@ -186,7 +209,6 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
   },
   userPhone: {
     fontSize: 16,
@@ -206,7 +228,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
   },
   addText: {
     color: '#003554',
@@ -215,7 +236,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     padding: 24,
-    backgroundColor: '#fff',
+    backgroundColor: '#fff', // Ideally use themed background but sticking to quick styling
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
@@ -259,7 +280,6 @@ const styles = StyleSheet.create({
   vehicleName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
   },
   vehiclePlate: {
     fontSize: 14,

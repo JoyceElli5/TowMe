@@ -1,252 +1,226 @@
-import { Ionicons } from '@expo/vector-icons';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useToast } from '@/hooks/use-toast';
+import { sendOTP, verifyOTP } from '@/lib/services/authService';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import React, { useRef, useState } from 'react';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    StatusBar,
     StyleSheet,
-    Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 
-import { useToast } from '@/hooks/use-toast';
-import { OtpVerifyFormData, otpVerifySchema, UserRole } from '@/schemas/auth';
-import { authService } from '@/services/auth';
+export default function OTPVerifyScreen() {
+    const params = useLocalSearchParams<{ phone: string }>();
+    // Ensure we handle array or string, though usually string if single param
+    const phone = Array.isArray(params.phone) ? params.phone[0] : (params.phone || '');
 
-export default function OtpVerifyScreen() {
-    const params = useLocalSearchParams<{ phone: string; role: UserRole }>();
-    const phone = params.phone ?? '';
-    const role = params.role ?? 'vehicle_owner';
-
+    const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
+    const [isResending, setIsResending] = useState(false);
     const { showToast } = useToast();
+    const inputRefs = useRef<(TextInput | null)[]>([]);
+    const backgroundColor = useThemeColor({}, 'background');
+    const textColor = useThemeColor({}, 'text');
+    const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
+    const buttonColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
 
-    const {
-        control,
-        handleSubmit,
-        formState: { errors },
-    } = useForm<OtpVerifyFormData>({
-        resolver: zodResolver(otpVerifySchema),
-        defaultValues: {
-            otp: '',
-        },
-    });
+    const handleOtpChange = (value: string, index: number) => {
+        if (value.length > 1) {
+            // Handle paste if needed, but for now just take last char
+            value = value[value.length - 1];
+        }
 
-    const onSubmit = async (data: OtpVerifyFormData) => {
+        const newOtp = [...otp];
+        newOtp[index] = value;
+        setOtp(newOtp);
+
+        // Auto-focus next input
+        if (value && index < 5) {
+            inputRefs.current[index + 1]?.focus();
+        }
+    };
+
+    const handleKeyPress = (key: string, index: number) => {
+        if (key === 'Backspace' && !otp[index] && index > 0) {
+            inputRefs.current[index - 1]?.focus();
+        }
+    };
+
+    const handleVerify = async () => {
+        const code = otp.join('');
+        if (code.length !== 6) {
+            showToast('Please enter the complete 6-digit code', 'error');
+            return;
+        }
+
         setIsLoading(true);
         try {
-            const result = await authService.verifyOtp(phone, data.otp);
-
-            console.log('Verification successful:', result);
-            showToast('Login successful!', 'success');
-
-            // Navigate to appropriate dashboard
-            setTimeout(() => {
-                if (role === 'tow_operator') {
-                    router.replace('/screens/operator/dashboard');
-                } else {
-                    router.replace('/(tabs)');
-                }
-            }, 500);
-        } catch (error) {
-            console.error('Verification error:', error);
-            showToast('Invalid code. Please try again.', 'error');
+            const result = await verifyOTP(phone, code);
+            if (result.success) {
+                showToast('Login successful!', 'success');
+                router.replace('/(tabs)');
+            } else {
+                showToast(result.error || 'Invalid OTP code', 'error');
+                setOtp(['', '', '', '', '', '']);
+                inputRefs.current[0]?.focus();
+            }
+        } catch (error: any) {
+            showToast(error.message || 'An error occurred', 'error');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleBackPress = () => {
-        router.back();
+    const handleResend = async () => {
+        setIsResending(true);
+        try {
+            const result = await sendOTP(phone);
+            if (result.success) {
+                showToast('OTP resent successfully!', 'success');
+                setOtp(['', '', '', '', '', '']);
+                inputRefs.current[0]?.focus();
+            } else {
+                showToast(result.error || 'Failed to resend OTP', 'error');
+            }
+        } catch (error: any) {
+            showToast(error.message || 'An error occurred', 'error');
+        } finally {
+            setIsResending(false);
+        }
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <ThemedView style={styles.container}>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.keyboardView}
             >
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Back Button */}
+                    <ThemedText style={styles.title}>Enter Verification Code</ThemedText>
+                    <ThemedText style={styles.subtitle}>
+                        We sent a 6-digit code to {phone}
+                    </ThemedText>
+
+                    <View style={styles.otpContainer}>
+                        {otp.map((digit, index) => (
+                            <TextInput
+                                key={index}
+                                ref={(ref) => (inputRefs.current[index] = ref)}
+                                style={[
+                                    styles.otpInput,
+                                    { borderColor, color: textColor },
+                                    digit ? { borderColor: buttonColor } : undefined,
+                                ]}
+                                value={digit}
+                                onChangeText={(value) => handleOtpChange(value, index)}
+                                onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+                                keyboardType="number-pad"
+                                maxLength={1}
+                                selectTextOnFocus
+                            />
+                        ))}
+                    </View>
+
                     <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={handleBackPress}
-                        accessibilityLabel="Go back"
-                        accessibilityRole="button"
+                        style={[
+                            styles.button,
+                            { backgroundColor: buttonColor },
+                            otp.join('').length !== 6 && styles.buttonDisabled,
+                        ]}
+                        onPress={handleVerify}
+                        disabled={isLoading || otp.join('').length !== 6}
                     >
-                        <Ionicons name="arrow-back" size={22} color="#111827" />
+                        {isLoading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <ThemedText style={styles.buttonText}>Verify</ThemedText>
+                        )}
                     </TouchableOpacity>
 
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <Text style={styles.title}>Verify Phone</Text>
-                        <Text style={styles.subtitle}>
-                            Enter the 6-digit code sent to {phone}
-                        </Text>
-                    </View>
-
-                    {/* Form */}
-                    <View style={styles.form}>
-                        {/* OTP Input */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Verification Code</Text>
-                            <Controller
-                                control={control}
-                                name="otp"
-                                render={({ field: { onChange, onBlur, value } }) => (
-                                    <TextInput
-                                        style={[styles.input, errors.otp && styles.inputError]}
-                                        placeholder="123456"
-                                        placeholderTextColor="#9ca3af"
-                                        keyboardType="number-pad"
-                                        maxLength={6}
-                                        autoCapitalize="none"
-                                        autoComplete="sms-otp"
-                                        onBlur={onBlur}
-                                        onChangeText={onChange}
-                                        value={value}
-                                        accessibilityLabel="OTP input"
-                                    />
-                                )}
-                            />
-                            {errors.otp && (
-                                <Text style={styles.errorText}>{errors.otp.message}</Text>
-                            )}
-                        </View>
-
-                        {/* Verify Button */}
-                        <TouchableOpacity
-                            style={[styles.loginButton, isLoading && styles.buttonDisabled]}
-                            onPress={handleSubmit(onSubmit)}
-                            disabled={isLoading}
-                            accessibilityLabel="Verify Code"
-                            accessibilityRole="button"
-                        >
-                            {isLoading ? (
-                                <View style={styles.loadingContainer}>
-                                    <ActivityIndicator color="#fff" size="small" />
-                                    <Text style={[styles.loginButtonText, { marginLeft: 12 }]}>Verifying...</Text>
-                                </View>
-                            ) : (
-                                <Text style={styles.loginButtonText}>Verify Code</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                        style={styles.resendButton}
+                        onPress={handleResend}
+                        disabled={isResending}
+                    >
+                        {isResending ? (
+                            <ActivityIndicator size="small" />
+                        ) : (
+                            <ThemedText style={styles.resendText}>Resend Code</ThemedText>
+                        )}
+                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
-        </View>
+        </ThemedView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#ffffff',
     },
     keyboardView: {
         flex: 1,
     },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 60,
-        paddingBottom: 40,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#f9fafb',
-        alignItems: 'center',
+        padding: 24,
         justifyContent: 'center',
-        marginBottom: 32,
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-    },
-    header: {
-        marginBottom: 32,
     },
     title: {
         fontSize: 32,
-        fontFamily: 'Gilroy-SemiBold',
-        color: '#111827',
         marginBottom: 8,
+        textAlign: 'center',
     },
     subtitle: {
         fontSize: 16,
-        fontFamily: 'Gilroy-Regular',
-        color: '#6b7280',
-        lineHeight: 24,
-    },
-    form: {
         marginBottom: 32,
-    },
-    inputGroup: {
-        marginBottom: 20,
-    },
-    label: {
-        fontSize: 14,
-        fontFamily: 'Gilroy-Medium',
-        color: '#374151',
-        marginBottom: 8,
-    },
-    input: {
-        height: 56,
-        borderWidth: 1.5,
-        borderColor: '#e5e7eb',
-        borderRadius: 28,
-        paddingHorizontal: 20,
-        fontSize: 24,
-        color: '#111827',
-        backgroundColor: '#ffffff',
-        fontFamily: 'Gilroy-SemiBold',
         textAlign: 'center',
-        letterSpacing: 8,
-    },
-    inputError: {
-        borderColor: '#ef4444',
-    },
-    errorText: {
-        color: '#ef4444',
-        fontSize: 13,
-        fontFamily: 'Gilroy-Regular',
-        marginTop: 6,
-    },
-    loginButton: {
-        height: 56,
-        backgroundColor: '#003554',
-        borderRadius: 28,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#003554',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        elevation: 6,
-    },
-    buttonDisabled: {
         opacity: 0.7,
     },
-    loginButtonText: {
-        color: '#ffffff',
-        fontSize: 16,
-        fontFamily: 'Gilroy-SemiBold',
-    },
-    loadingContainer: {
+    otpContainer: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 32,
+        gap: 12,
+    },
+    otpInput: {
+        flex: 1,
+        height: 64,
+        borderWidth: 2,
+        borderRadius: 12,
+        textAlign: 'center',
+        fontSize: 24,
+    },
+    button: {
+        height: 56,
+        borderRadius: 12,
         alignItems: 'center',
         justifyContent: 'center',
+        marginBottom: 16,
+    },
+    buttonDisabled: {
+        opacity: 0.5,
+    },
+    buttonText: {
+        color: '#fff',
+        fontSize: 16,
+    },
+    resendButton: {
+        alignItems: 'center',
+        padding: 16,
+    },
+    resendText: {
+        fontSize: 14,
+        opacity: 0.7,
     },
 });

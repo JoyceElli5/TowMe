@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
+=======
+
+
+import React from 'react';
+>>>>>>> cbc282c1d8a4358d3e1ed68048650fdafbee5a78
 import {
   ActivityIndicator,
   FlatList,
