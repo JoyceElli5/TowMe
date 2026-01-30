@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CheckmarkCircle01Icon, PhoneIcon } from 'hugeicons-react-native';
 
 export default function ArrivedAtPickupScreen() {
   const handleStartTowing = () => {
@@ -28,7 +29,7 @@ export default function ArrivedAtPickupScreen() {
       <View style={styles.content}>
         {/* Success Icon */}
         <View style={styles.iconContainer}>
-          <Text style={styles.checkIcon}>✓</Text>
+          <CheckmarkCircle01Icon size={64} color="#10B981" strokeWidth={2} />
         </View>
 
         <Text style={styles.title}>You&apos;ve Arrived!</Text>
@@ -46,7 +47,7 @@ export default function ArrivedAtPickupScreen() {
             <Text style={styles.vehicleInfo}>Toyota Corolla • Silver</Text>
           </View>
           <TouchableOpacity style={styles.callButton}>
-            <Text style={styles.callIcon}>📞</Text>
+            <PhoneIcon size={20} color="#10B981" strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
@@ -56,21 +57,21 @@ export default function ArrivedAtPickupScreen() {
           
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
-              <Text style={styles.checkboxText}>✓</Text>
+              <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
             </View>
             <Text style={styles.checkText}>Confirm vehicle identity</Text>
           </View>
           
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
-              <Text style={styles.checkboxText}>✓</Text>
+              <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
             </View>
             <Text style={styles.checkText}>Secure vehicle on tow truck</Text>
           </View>
           
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
-              <Text style={styles.checkboxText}>✓</Text>
+              <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
             </View>
             <Text style={styles.checkText}>Confirm destination with customer</Text>
           </View>

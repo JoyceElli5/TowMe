@@ -5,7 +5,6 @@
  * Shows operator details and ETA.
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import {
@@ -16,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CheckmarkCircle01Icon, StarIcon, Car01Icon } from 'hugeicons-react-native';
 
 export default function OperatorFoundScreen() {
   const handleTrack = () => {
@@ -29,7 +29,7 @@ export default function OperatorFoundScreen() {
       <View style={styles.content}>
         {/* Success Icon */}
         <View style={styles.iconContainer}>
-          <Text style={styles.checkIcon}>✓</Text>
+          <CheckmarkCircle01Icon size={64} color="#10B981" strokeWidth={2} />
         </View>
 
         <Text style={styles.title}>Operator Found!</Text>
@@ -45,7 +45,7 @@ export default function OperatorFoundScreen() {
           <View style={styles.operatorInfo}>
             <Text style={styles.operatorName}>John Doe</Text>
             <View style={styles.ratingRow}>
-              <Ionicons name="star" size={14} color="#F59E0B" />
+              <StarIcon size={14} color="#F59E0B" strokeWidth={2} />
               <Text style={styles.rating}>4.8</Text>
               <Text style={styles.trips}>(256 trips)</Text>
             </View>
@@ -59,7 +59,7 @@ export default function OperatorFoundScreen() {
         {/* Vehicle Info */}
         <View style={styles.vehicleCard}>
           <View style={styles.vehicleIconContainer}>
-            <Ionicons name="car-sport" size={32} color="#003554" />
+            <Car01Icon size={32} color="#003554" strokeWidth={2} />
           </View>
           <View style={styles.vehicleInfo}>
             <Text style={styles.vehicleName}>Toyota Hilux</Text>
