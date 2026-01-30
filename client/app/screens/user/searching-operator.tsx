@@ -6,8 +6,8 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useEffect } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
   StatusBar,
   StyleSheet,
@@ -18,16 +18,49 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PulseLoader from '@/components/pulse-loader';
+import { subscribeToRequest, unsubscribe } from '@/lib/services/realtimeService';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function SearchingOperatorScreen() {
-  // Simulate finding an operator after 3 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace('/screens/user/operator-found');
-    }, 3000);
+  const params = useLocalSearchParams<{ requestId?: string }>();
+  const requestId = params.requestId;
+  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
-    return () => clearTimeout(timer);
-  }, []);
+  // Subscribe to request changes
+  useEffect(() => {
+    if (!requestId) {
+      // Fallback to old behavior if no requestId
+      const timer = setTimeout(() => {
+        router.replace('/screens/user/operator-found');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+
+    const subscription = subscribeToRequest(requestId, (payload) => {
+      console.log('Request update:', payload);
+      
+      if (payload.eventType === 'UPDATE' && payload.new) {
+        const status = payload.new.status;
+        
+        if (status === 'accepted') {
+          router.replace({
+            pathname: '/screens/user/operator-found',
+            params: { requestId },
+          });
+        } else if (status === 'cancelled') {
+          router.back();
+        }
+      }
+    });
+
+    setChannel(subscription);
+
+    return () => {
+      if (subscription) {
+        unsubscribe(subscription);
+      }
+    };
+  }, [requestId]);
 
   const handleCancel = () => {
     router.back();
