@@ -19,36 +19,46 @@ import {
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { UserIcon, Menu01Icon } from 'hugeicons-react-native';
 
-import { 
-  getPendingRequests, 
-  toggleOperatorOnlineStatus, 
-  getCurrentUser,
-  ApiError,
-  type User,
-} from '@/lib/api';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useToast } from '@/hooks/use-toast';
+import { getCurrentUser } from '@/lib/api';
+import { toggleOperatorOnlineStatus } from '@/lib/api/users';
+import { getPendingRequests } from '@/lib/api/requests';
 
 export default function OperatorDashboardScreen() {
+  const { showToast } = useToast();
+  const backgroundColor = useThemeColor({}, 'background');
+  const textColor = useThemeColor({}, 'text');
+  const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
+  const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+  
   const [isOnline, setIsOnline] = useState(false);
   const [earnings] = useState(1250.00);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+  const [tripsToday] = useState(12);
+  const [rating] = useState(4.9);
 
   // Fetch current user on mount
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const user = await getCurrentUser();
-        setCurrentUser(user);
         if (user) {
-          setIsOnline(user.isOnline);
+          setCurrentUser({ id: user.id });
+          setIsOnline(user.isOnline || false);
         }
       } catch (error) {
         console.error('Failed to fetch current user:', error);
+        showToast('Please log in to continue', 'error');
       }
     };
     fetchUser();
-  }, []);
+  }, [showToast]);
 
   // Poll for pending requests when online
   useEffect(() => {
@@ -59,7 +69,7 @@ export default function OperatorDashboardScreen() {
         const requests = await getPendingRequests();
         
         // If there are pending requests, navigate to incoming request screen
-        if (requests.length > 0) {
+        if (requests && requests.length > 0) {
           router.push({
             pathname: '/screens/operator/incoming-request',
             params: { requestId: requests[0].id },
@@ -67,6 +77,7 @@ export default function OperatorDashboardScreen() {
         }
       } catch (error) {
         console.error('Failed to fetch pending requests:', error);
+        // Don't show error toast on every poll - only log it
       }
     };
 
@@ -81,29 +92,28 @@ export default function OperatorDashboardScreen() {
   // Handle online status toggle
   const handleOnlineToggle = useCallback(async (value: boolean) => {
     if (!currentUser) {
-      Alert.alert('Error', 'Please log in to go online');
+      showToast('Please log in to go online', 'error');
       return;
     }
 
     setIsLoadingStatus(true);
     try {
-      const result = await toggleOperatorOnlineStatus(currentUser.id, value);
-      setIsOnline(result.isOnline);
-    } catch (error) {
+      await toggleOperatorOnlineStatus(currentUser.id, value);
+      setIsOnline(value);
+      showToast(value ? 'You are now online' : 'You are now offline', 'success');
+    } catch (error: any) {
       console.error('Failed to toggle online status:', error);
-      if (error instanceof ApiError) {
-        Alert.alert('Error', error.message || 'Could not update status');
-      } else {
-        Alert.alert('Error', 'An unexpected error occurred');
-      }
+      showToast(error.message || 'Could not update status', 'error');
+      // Revert the toggle on error
+      setIsOnline(!value);
     } finally {
       setIsLoadingStatus(false);
     }
-  }, [currentUser]);
+  }, [currentUser, showToast]);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+    <ThemedView style={[styles.container, { backgroundColor }]}>
+      <StatusBar barStyle={backgroundColor === '#151718' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
       {/* Map Background */}
       <MapView
@@ -122,64 +132,69 @@ export default function OperatorDashboardScreen() {
       <SafeAreaView style={styles.overlay}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.profileButton}>
-            <Text style={styles.profileIcon}>👤</Text>
-          </View>
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusLabel}>
+          <TouchableOpacity 
+            style={[styles.profileButton, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}
+            onPress={() => router.push('/screens/operator/profile')}
+          >
+            <UserIcon size={20} color={tintColor} strokeWidth={2} />
+          </TouchableOpacity>
+          <View style={[styles.statusContainer, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}>
+            <ThemedText style={styles.statusLabel}>
               {isOnline ? 'You\'re Online' : 'You\'re Offline'}
-            </Text>
+            </ThemedText>
             <Switch
               value={isOnline}
               onValueChange={handleOnlineToggle}
               disabled={isLoadingStatus}
               trackColor={{ false: '#e5e7eb', true: '#bae6fd' }}
-              thumbColor={isOnline ? '#003554' : '#9ca3af'}
+              thumbColor={isOnline ? tintColor : '#9ca3af'}
             />
           </View>
-          <TouchableOpacity style={styles.menuButton}>
-            <Text style={styles.menuIcon}>☰</Text>
+          <TouchableOpacity 
+            style={[styles.menuButton, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}
+            onPress={() => router.push('/screens/operator/profile')}
+          >
+            <Menu01Icon size={20} color={tintColor} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
         {/* Stats Card */}
-        <View style={styles.statsCard}>
+        <ThemedView style={[styles.statsCard, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>12</Text>
-            <Text style={styles.statLabel}>Trips Today</Text>
+            <ThemedText style={[styles.statValue, { color: tintColor }]}>{tripsToday}</ThemedText>
+            <ThemedText style={styles.statLabel}>Trips Today</ThemedText>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: borderColor }]} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>4.9</Text>
-            <Text style={styles.statLabel}>Rating</Text>
+            <ThemedText style={[styles.statValue, { color: tintColor }]}>{rating}</ThemedText>
+            <ThemedText style={styles.statLabel}>Rating</ThemedText>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: borderColor }]} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>GH₵ {earnings.toFixed(0)}</Text>
-            <Text style={styles.statLabel}>Earnings</Text>
+            <ThemedText style={[styles.statValue, { color: tintColor }]}>GH₵ {earnings.toFixed(0)}</ThemedText>
+            <ThemedText style={styles.statLabel}>Earnings</ThemedText>
           </View>
-        </View>
+        </ThemedView>
       </SafeAreaView>
 
       {/* Bottom Card */}
-      <View style={styles.bottomCard}>
-        <Text style={styles.bottomTitle}>
+      <ThemedView style={[styles.bottomCard, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}>
+        <ThemedText style={styles.bottomTitle}>
           {isOnline ? 'Waiting for requests...' : 'Go online to receive requests'}
-        </Text>
+        </ThemedText>
         {isOnline && (
-          <View style={styles.pulseContainer}>
-            <View style={styles.pulse} />
+          <View style={[styles.pulseContainer, { backgroundColor: '#bae6fd' }]}>
+            <View style={[styles.pulse, { backgroundColor: tintColor }]} />
           </View>
         )}
-      </View>
-    </View>
+      </ThemedView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
   },
   map: {
     flex: 1,
@@ -210,9 +225,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  profileIcon: {
-    fontSize: 20,
-  },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -230,7 +242,7 @@ const styles = StyleSheet.create({
   statusLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    fontFamily: 'Gilroy-SemiBold',
   },
   menuButton: {
     width: 44,
@@ -244,9 +256,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  menuIcon: {
-    fontSize: 20,
   },
   statsCard: {
     flexDirection: 'row',
@@ -269,16 +278,15 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#003554',
     marginBottom: 4,
+    fontFamily: 'Gilroy-SemiBold',
   },
   statLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    fontFamily: 'Gilroy-Regular',
   },
   statDivider: {
     width: 1,
-    backgroundColor: '#e5e7eb',
   },
   bottomCard: {
     position: 'absolute',
@@ -301,8 +309,8 @@ const styles = StyleSheet.create({
   bottomTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
     marginBottom: 16,
+    fontFamily: 'Gilroy-SemiBold',
   },
   pulseContainer: {
     width: 60,
