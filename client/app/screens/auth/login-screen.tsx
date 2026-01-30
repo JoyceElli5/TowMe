@@ -55,6 +55,7 @@ export default function LoginScreen() {
       // Navigate to appropriate dashboard based on user role from API response
       setTimeout(() => {
         if (user.role === 'tow_operator') {
+          // Check if operator profile is complete
           router.replace('/screens/operator/dashboard');
         } else {
           router.replace('/(tabs)');

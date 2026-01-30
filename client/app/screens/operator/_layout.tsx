@@ -9,6 +9,7 @@ import { Stack } from 'expo-router';
 export default function OperatorScreensLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="profile-setup-screen" />
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="incoming-request" />
       <Stack.Screen name="navigation-to-pickup" />
