@@ -1,24 +1,23 @@
-import React, { useState, useRef } from 'react';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Fonts } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useToast } from '@/hooks/use-toast';
+import { getCurrentUser, sendOTP, verifyOTP } from '@/lib/services/authService';
+import { isProfileComplete } from '@/lib/services/operatorService';
+import { supabase } from '@/lib/supabase';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useRef, useState } from 'react';
 import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useToast } from '@/hooks/use-toast';
-import { verifyOTP, sendOTP } from '@/lib/services/authService';
-import { useThemeColor } from '@/hooks/use-theme-color';
-import { Fonts } from '@/constants/theme';
-import { isProfileComplete, getVerificationStatus } from '@/lib/services/operatorService';
-import { getCurrentUser } from '@/lib/services/authService';
-import { supabase } from '@/lib/supabase';
 
 type UserRole = 'vehicle_owner' | 'tow_operator';
 
@@ -38,7 +37,7 @@ export default function OTPVerifyScreen() {
 
   const handleOtpChange = (value: string, index: number) => {
     if (value.length > 1) return; // Only allow single digit
-    
+
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
@@ -67,7 +66,7 @@ export default function OTPVerifyScreen() {
       const result = await verifyOTP(phone, code, role);
       if (result.success) {
         showToast('Login successful!', 'success');
-        
+
         // Check user role and profile completion
         const user = await getCurrentUser();
         if (user) {
@@ -85,22 +84,22 @@ export default function OTPVerifyScreen() {
               router.replace('/screens/operator/profile-setup-screen');
               return;
             }
-            
+
             // Check verification status
             const { data: operatorData } = await supabase
               .from('users')
               .select('verification_status')
               .eq('id', user.id)
               .single();
-            
+
             const verificationStatus = operatorData?.verification_status;
-            
+
             if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
               router.replace('/screens/operator/verification-pending');
             } else if (verificationStatus === 'rejected') {
               router.replace('/screens/operator/verification-rejected');
             } else if (verificationStatus === 'approved') {
-              router.replace('/screens/operator/dashboard');
+              router.replace('/operator/(tabs)/dashboard');
             } else {
               router.replace('/screens/operator/profile-setup-screen');
             }

@@ -1,144 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Image,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
-import { router } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
+import { DocumentUpload } from '@/components/document-upload';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useToast } from '@/hooks/use-toast';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { Fonts } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useToast } from '@/hooks/use-toast';
+import { getCurrentUser } from '@/lib/services/authService';
 import {
-  updateOperatorProfile,
   getOperatorProfile,
+  updateOperatorProfile,
   type OperatorProfileData,
 } from '@/lib/services/operatorService';
 import { uploadOperatorDocument } from '@/lib/services/operatorStorageService';
-import { getCurrentUser } from '@/lib/services/authService';
-import { Camera01Icon, Document01Icon, CreditCardIcon } from 'hugeicons-react-native';
-
-interface DocumentUploadProps {
-  label: string;
-  value: string | null;
-  onUpload: (uri: string) => Promise<void>;
-  onRemove?: () => void;
-  documentType: 'ghana_card' | 'drivers_license' | 'operator_photo' | 'vehicle_registration' | 'insurance';
-  allowCamera?: boolean;
-}
-
-function DocumentUpload({
-  label,
-  value,
-  onUpload,
-  onRemove,
-  documentType,
-  allowCamera = true,
-}: DocumentUploadProps) {
-  const { showToast } = useToast();
-  const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
-  const buttonColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
-
-  const handlePickImage = async (useCamera: boolean) => {
-    try {
-      if (useCamera) {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') {
-          showToast('Camera permission is required', 'error');
-          return;
-        }
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-          showToast('Permission to access photos is required', 'error');
-          return;
-        }
-      }
-
-      const result = useCamera
-        ? await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.8,
-          })
-        : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.8,
-          });
-
-      if (!result.canceled && result.assets[0]) {
-        await onUpload(result.assets[0].uri);
-      }
-    } catch (error: any) {
-      showToast('Failed to pick image', 'error');
-    }
-  };
-
-  return (
-    <View style={styles.documentSection}>
-      <ThemedText style={styles.documentLabel}>{label}</ThemedText>
-      {value ? (
-        <View style={styles.documentPreview}>
-          <Image source={{ uri: value }} style={styles.documentImage} />
-          <TouchableOpacity
-            style={[styles.removeButton, { backgroundColor: '#ef4444' }]}
-            onPress={onRemove}
-          >
-            <ThemedText style={styles.removeButtonText}>Remove</ThemedText>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.uploadButtons}>
-          {allowCamera && (
-            <TouchableOpacity
-              style={[styles.uploadButton, { borderColor, backgroundColor: buttonColor }]}
-              onPress={() => handlePickImage(true)}
-            >
-              <Camera01Icon size={20} color="#fff" strokeWidth={2} />
-              <ThemedText style={styles.uploadButtonText}>Take Photo</ThemedText>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[styles.uploadButton, { borderColor }]}
-            onPress={() => handlePickImage(false)}
-          >
-            <Document01Icon size={20} color={buttonColor} strokeWidth={2} />
-            <ThemedText style={[styles.uploadButtonText, { color: buttonColor }]}>
-              Choose from Gallery
-            </ThemedText>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-}
 
 export default function OperatorProfileSetupScreen() {
   const [ghanaCardNumber, setGhanaCardNumber] = useState('');
   const [ghanaCardPhoto, setGhanaCardPhoto] = useState<string | null>(null);
   const [ghanaCardPhotoUri, setGhanaCardPhotoUri] = useState<string | null>(null);
-  
+
   const [driversLicenseNumber, setDriversLicenseNumber] = useState('');
   const [driversLicensePhoto, setDriversLicensePhoto] = useState<string | null>(null);
   const [driversLicensePhotoUri, setDriversLicensePhotoUri] = useState<string | null>(null);
-  
+
   const [operatorPhoto, setOperatorPhoto] = useState<string | null>(null);
   const [operatorPhotoUri, setOperatorPhotoUri] = useState<string | null>(null);
-  
+
   const [vehicleRegistrationNumber, setVehicleRegistrationNumber] = useState('');
   const [vehicleRegistrationPhoto, setVehicleRegistrationPhoto] = useState<string | null>(null);
   const [vehicleRegistrationPhotoUri, setVehicleRegistrationPhotoUri] = useState<string | null>(null);
-  
+
   const [insurancePolicyNumber, setInsurancePolicyNumber] = useState('');
   const [insurancePhoto, setInsurancePhoto] = useState<string | null>(null);
   const [insurancePhotoUri, setInsurancePhotoUri] = useState<string | null>(null);
@@ -305,7 +194,7 @@ export default function OperatorProfileSetupScreen() {
 
       await updateOperatorProfile(user.id, profileData);
       showToast('Profile saved successfully! Your profile is under review.', 'success');
-      
+
       // Navigate to operator dashboard
       router.replace('/screens/operator/dashboard');
     } catch (error: any) {
@@ -504,55 +393,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: Fonts.regular,
   },
-  documentSection: {
-    marginBottom: 16,
-  },
-  documentLabel: {
-    fontSize: 14,
-    fontFamily: Fonts.medium,
-    marginBottom: 8,
-  },
-  documentPreview: {
-    marginTop: 8,
-  },
-  documentImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  uploadButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  uploadButton: {
-    flex: 1,
-    height: 48,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  uploadButtonText: {
-    fontSize: 14,
-    fontFamily: Fonts.medium,
-    color: '#fff',
-  },
-  removeButton: {
-    height: 40,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  removeButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: Fonts.medium,
-  },
+
   saveButton: {
     height: 56,
     borderRadius: 12,
