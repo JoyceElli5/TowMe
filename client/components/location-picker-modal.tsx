@@ -2,22 +2,22 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import {
-    geocode,
-    getCurrentLocationWithAddress,
-    reverseGeocode,
-    type Coordinates,
+  geocode,
+  getCurrentLocationWithAddress,
+  reverseGeocode,
+  type Coordinates,
 } from '@/lib/services/locationService';
 import { CheckmarkCircle01Icon, Location01Icon } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';

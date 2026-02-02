@@ -221,3 +221,63 @@ export async function incrementUserTrips(userId: string): Promise<void> {
       .eq('id', userId);
   }
 }
+
+/**
+ * Update operator location
+ */
+export async function updateOperatorLocation(
+  operatorId: string,
+  location: { latitude: number; longitude: number; heading: number | null }
+): Promise<void> {
+  const supabase = getSupabaseAdmin();
+
+  // Upsert location in operator_locations table
+  const { error } = await supabase
+    .from('operator_locations')
+    .upsert({
+      operator_id: operatorId,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      heading: location.heading,
+      timestamp: new Date().toISOString(),
+    }, {
+      onConflict: 'operator_id',
+    });
+
+  if (error) {
+    logger.error('Error updating operator location:', error);
+    throw createError.internal('Failed to update operator location');
+  }
+}
+
+/**
+ * Get latest operator location
+ */
+export async function getOperatorLocation(operatorId: string): Promise<{
+  latitude: number;
+  longitude: number;
+  heading: number | null;
+  timestamp: string;
+} | null> {
+  const supabase = getSupabaseAdmin();
+
+  const { data, error } = await supabase
+    .from('operator_locations')
+    .select('latitude, longitude, heading, timestamp')
+    .eq('operator_id', operatorId)
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    // Location not found - return null (not an error, operator may not have started tracking)
+    return null;
+  }
+
+  return {
+    latitude: parseFloat(data.latitude.toString()),
+    longitude: parseFloat(data.longitude.toString()),
+    heading: data.heading ? parseFloat(data.heading.toString()) : null,
+    timestamp: data.timestamp,
+  };
+}

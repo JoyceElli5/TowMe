@@ -250,7 +250,7 @@ async function seed() {
 
         const vehicleType = randomElement(VEHICLE_TYPES);
         const distanceKm = calculateDistance(pickup.lat, pickup.lng, destination.lat, destination.lng);
-        const estimatedPrice = calculateEstimatedPrice(distanceKm, vehicleType);
+        const estimatedPrice = await calculateEstimatedPrice(distanceKm, vehicleType);
         const user = randomElement(vehicleOwners);
         const operator = statusInfo.status !== 'pending' ? randomElement(operators) : null;
 
@@ -269,6 +269,10 @@ async function seed() {
           completedAt = new Date(startedAt!.getTime() + randomBetween(15, 60) * 60000);
         }
 
+        const finalPrice = statusInfo.status === 'completed' 
+          ? await calculateFinalPrice(distanceKm, vehicleType) 
+          : null;
+
         requests.push({
           id: uuidv4(),
           user_id: user.id,
@@ -281,7 +285,7 @@ async function seed() {
           destination_lng: destination.lng,
           vehicle_type: vehicleType,
           estimated_price: estimatedPrice,
-          final_price: statusInfo.status === 'completed' ? calculateFinalPrice(distanceKm, vehicleType) : null,
+          final_price: finalPrice,
           distance_km: distanceKm,
           status: statusInfo.status,
           cancellation_reason: statusInfo.status === 'cancelled' ? randomElement(['Changed mind', 'Found alternative', 'Emergency resolved', 'No available operator']) : null,
