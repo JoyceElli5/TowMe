@@ -74,6 +74,29 @@ export function subscribeToNotifications(
 }
 
 /**
+ * Subscribe to pending requests for operators
+ */
+export function subscribeToPendingRequests(
+  callback: (payload: any) => void
+): RealtimeChannel {
+  const channel = supabase
+    .channel('pending_requests')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'towing_requests',
+        filter: 'status=eq.pending',
+      },
+      callback
+    )
+    .subscribe();
+
+  return channel;
+}
+
+/**
  * Unsubscribe from a channel
  */
 export function unsubscribe(channel: RealtimeChannel): void {

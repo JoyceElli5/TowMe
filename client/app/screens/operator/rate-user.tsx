@@ -1,13 +1,15 @@
 /**
- * Rate User Screen (Placeholder)
+ * Rate User Screen
  * 
  * Allows operator to rate the customer after trip completion.
  * Features a star rating system and optional comment.
  */
 
-import { router } from 'expo-router';
-import React, { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -17,19 +19,91 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getRequestById, createRating, type TowingRequest } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+
 export default function RateUserScreen() {
+  const params = useLocalSearchParams<{ requestId: string }>();
+  const { showToast } = useToast();
+  
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    // Submit rating (mock)
-    console.log('Rating submitted:', { rating, comment });
-    router.replace('/screens/operator/dashboard');
+  useEffect(() => {
+    const fetchRequest = async () => {
+      if (!params.requestId) {
+        Alert.alert('Error', 'Request ID is missing');
+        router.back();
+        return;
+      }
+
+      try {
+        const requestData = await getRequestById(params.requestId);
+        setRequest(requestData);
+      } catch (error) {
+        console.error('Failed to fetch request:', error);
+        Alert.alert('Error', 'Failed to load request details');
+        router.back();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRequest();
+  }, [params.requestId]);
+
+  const handleSubmit = async () => {
+    if (!request || !request.userId || rating === 0) {
+      showToast('Please select a rating', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createRating({
+        requestId: request.id,
+        toUserId: request.userId,
+        rating,
+        comment: comment || undefined,
+      });
+      showToast('Rating submitted successfully!', 'success');
+      router.replace('/screens/operator/dashboard');
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      showToast('Failed to submit rating', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSkip = () => {
     router.replace('/screens/operator/dashboard');
   };
+
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  if (isLoading || !request) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -39,9 +113,9 @@ export default function RateUserScreen() {
         {/* Customer Avatar */}
         <View style={styles.avatarContainer}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>SK</Text>
+            <Text style={styles.avatarText}>{getUserInitials(request.user?.fullName)}</Text>
           </View>
-          <Text style={styles.customerName}>Sarah Kofi</Text>
+          <Text style={styles.customerName}>{request.user?.fullName || 'Unknown User'}</Text>
           <Text style={styles.subtitle}>How was your customer?</Text>
         </View>
 
@@ -90,12 +164,16 @@ export default function RateUserScreen() {
 
         {/* Submit Button */}
         <TouchableOpacity
-          style={[styles.submitButton, rating === 0 && styles.buttonDisabled]}
+          style={[styles.submitButton, (rating === 0 || isSubmitting) && styles.buttonDisabled]}
           onPress={handleSubmit}
-          disabled={rating === 0}
+          disabled={rating === 0 || isSubmitting}
           activeOpacity={0.8}
         >
-          <Text style={styles.submitButtonText}>Submit Rating</Text>
+          {isSubmitting ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.submitButtonText}>Submit Rating</Text>
+          )}
         </TouchableOpacity>
 
         {/* Skip Button */}
@@ -212,6 +290,16 @@ const styles = StyleSheet.create({
   skipButtonText: {
     fontSize: 16,
     fontWeight: '500',
+    color: '#6b7280',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
     color: '#6b7280',
   },
 });

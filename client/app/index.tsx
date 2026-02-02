@@ -38,8 +38,27 @@ export default function IndexScreen() {
                 const profileComplete = await isProfileComplete(user.id);
                 if (!profileComplete) {
                   router.replace('/screens/operator/profile-setup-screen');
-                } else {
+                  return;
+                }
+                
+                // Check verification status
+                const { data: operatorData } = await supabase
+                  .from('users')
+                  .select('verification_status')
+                  .eq('id', user.id)
+                  .single();
+                
+                const verificationStatus = operatorData?.verification_status;
+                
+                if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
+                  router.replace('/screens/operator/verification-pending');
+                } else if (verificationStatus === 'rejected') {
+                  router.replace('/screens/operator/verification-rejected');
+                } else if (verificationStatus === 'approved') {
                   router.replace('/screens/operator/dashboard');
+                } else {
+                  // Default to profile setup if status is unclear
+                  router.replace('/screens/operator/profile-setup-screen');
                 }
               } else {
                 // Regular user - go to tabs

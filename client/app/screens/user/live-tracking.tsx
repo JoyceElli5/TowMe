@@ -6,37 +6,154 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Platform,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Linking,
+    Platform,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ThemedText } from '@/components/themed-text';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useToast } from '@/hooks/use-toast';
+import { ApiError, trackRequest, type TowingRequest } from '@/lib/api';
+
 export default function LiveTrackingScreen() {
-  const [eta, setEta] = useState(8);
+  const params = useLocalSearchParams<{ requestId?: string }>();
+  const requestId = params.requestId;
+  const { showToast } = useToast();
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [operatorLocation, setOperatorLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    heading: number | null;
+    timestamp: string;
+  } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [mapRegion, setMapRegion] = useState<Region | null>(null);
+  const [eta, setEta] = useState<number | null>(null);
 
-  // Simulate ETA countdown
+  const backgroundColor = useThemeColor({}, 'background');
+
+  const loadTrackingData = React.useCallback(async () => {
+    if (!requestId) return;
+
+    try {
+      const trackingData = await trackRequest(requestId);
+      setRequest(trackingData.request);
+      setOperatorLocation(trackingData.operatorLocation);
+
+      // Update map region to show both user and operator
+      if (trackingData.operatorLocation) {
+        const centerLat = (trackingData.request.pickupLat + trackingData.operatorLocation.latitude) / 2;
+        const centerLng = (trackingData.request.pickupLng + trackingData.operatorLocation.longitude) / 2;
+        const latDelta = Math.abs(trackingData.request.pickupLat - trackingData.operatorLocation.latitude) * 2.5;
+        const lngDelta = Math.abs(trackingData.request.pickupLng - trackingData.operatorLocation.longitude) * 2.5;
+
+        setMapRegion({
+          latitude: centerLat,
+          longitude: centerLng,
+          latitudeDelta: Math.max(latDelta, 0.01),
+          longitudeDelta: Math.max(lngDelta, 0.01),
+        });
+
+        // Calculate ETA based on distance (rough estimate: 1km = 2 minutes)
+        const distance = Math.sqrt(
+          Math.pow(trackingData.request.pickupLat - trackingData.operatorLocation.latitude, 2) +
+          Math.pow(trackingData.request.pickupLng - trackingData.operatorLocation.longitude, 2)
+        ) * 111; // Convert to km
+        setEta(Math.ceil(distance * 2));
+      } else {
+        // Default to pickup location
+        setMapRegion({
+          latitude: trackingData.request.pickupLat,
+          longitude: trackingData.request.pickupLng,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        });
+      }
+
+      // Check if trip is completed
+      if (trackingData.request.status === 'completed') {
+        router.replace({
+          pathname: '/screens/user/trip-completed',
+          params: { requestId },
+        });
+      }
+    } catch (error) {
+      console.error('Error loading tracking data:', error);
+      if (error instanceof ApiError) {
+        showToast(error.message, 'error');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [requestId, showToast]);
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setEta(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          router.replace('/screens/user/trip-completed');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 3000); // Speed up for demo
+    if (requestId) {
+      loadTrackingData();
+      const interval = setInterval(() => {
+        loadTrackingData();
+      }, 5000); // Update every 5 seconds
 
-    return () => clearInterval(timer);
-  }, []);
+      return () => clearInterval(interval);
+    } else {
+      showToast('Request ID not found', 'error');
+      router.back();
+    }
+  }, [requestId, loadTrackingData, showToast]);
+
+  const handleCall = () => {
+    if (request?.operator?.phone) {
+      Linking.openURL(`tel:${request.operator.phone}`);
+    } else {
+      showToast('Operator phone number not available', 'error');
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  if (isLoading && !request) {
+    return (
+      <View style={[styles.container, { backgroundColor }]}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+          <ThemedText style={styles.loadingText}>Loading tracking data...</ThemedText>
+        </View>
+      </View>
+    );
+  }
+
+  if (!request || !request.operator) {
+    return (
+      <View style={[styles.container, { backgroundColor }]}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+        <View style={styles.loadingContainer}>
+          <ThemedText style={styles.errorText}>Tracking information not available</ThemedText>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -46,30 +163,52 @@ export default function LiveTrackingScreen() {
       <MapView
         style={styles.map}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={{
-          latitude: 5.6037,
-          longitude: -0.1870,
+        region={mapRegion || {
+          latitude: request.pickupLat,
+          longitude: request.pickupLng,
           latitudeDelta: 0.02,
           longitudeDelta: 0.02,
         }}
+        showsUserLocation
       >
         {/* Operator Marker */}
-        <Marker
-          coordinate={{ latitude: 5.6050, longitude: -0.1860 }}
-          title="Tow Operator"
-        >
-          <View style={styles.markerContainer}>
-            <Ionicons name="car-sport" size={24} color="#003554" />
-          </View>
-        </Marker>
+        {operatorLocation && (
+          <Marker
+            coordinate={{
+              latitude: operatorLocation.latitude,
+              longitude: operatorLocation.longitude,
+            }}
+            title="Tow Operator"
+          >
+            <View style={styles.markerContainer}>
+              <Ionicons name="car-sport" size={24} color="#003554" />
+            </View>
+          </Marker>
+        )}
 
-        {/* User Location Marker */}
+        {/* Pickup Location Marker */}
         <Marker
-          coordinate={{ latitude: 5.6037, longitude: -0.1870 }}
-          title="Your Location"
+          coordinate={{
+            latitude: request.pickupLat,
+            longitude: request.pickupLng,
+          }}
+          title="Pickup Location"
         >
           <View style={styles.userMarker}>
             <View style={styles.userMarkerInner} />
+          </View>
+        </Marker>
+
+        {/* Destination Marker */}
+        <Marker
+          coordinate={{
+            latitude: request.destinationLat,
+            longitude: request.destinationLng,
+          }}
+          title="Destination"
+        >
+          <View style={styles.destinationMarker}>
+            <Ionicons name="location" size={20} color="#10B981" />
           </View>
         </Marker>
       </MapView>
@@ -77,29 +216,35 @@ export default function LiveTrackingScreen() {
       {/* Status Card */}
       <SafeAreaView style={styles.statusCard}>
         <View style={styles.statusHeader}>
-          <Text style={styles.statusTitle}>Operator En Route</Text>
-          <View style={styles.etaBadge}>
-            <Text style={styles.etaValue}>{eta}</Text>
-            <Text style={styles.etaLabel}>min</Text>
-          </View>
+          <ThemedText style={styles.statusTitle}>Operator En Route</ThemedText>
+          {eta !== null && (
+            <View style={styles.etaBadge}>
+              <Text style={styles.etaValue}>{eta}</Text>
+              <Text style={styles.etaLabel}>min</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.operatorInfo}>
           <View style={styles.operatorAvatar}>
-            <Text style={styles.avatarText}>JD</Text>
+            <Text style={styles.avatarText}>{getInitials(request.operator.fullName)}</Text>
           </View>
           <View style={styles.operatorDetails}>
-            <Text style={styles.operatorName}>John Doe</Text>
-            <Text style={styles.vehicleInfo}>Toyota Hilux • GR-1234-21</Text>
+            <ThemedText style={styles.operatorName}>{request.operator.fullName}</ThemedText>
+            <ThemedText style={styles.vehicleInfo}>
+              {request.vehicleType.charAt(0).toUpperCase() + request.vehicleType.slice(1)} • {request.distanceKm?.toFixed(1) || '0'} km
+            </ThemedText>
           </View>
-          <TouchableOpacity style={styles.callButton}>
+          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
             <Ionicons name="call" size={20} color="#10B981" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${((8 - eta) / 8) * 100}%` }]} />
-        </View>
+        {eta !== null && (
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, ((eta / (eta + 1)) * 100)))}%` }]} />
+          </View>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -136,6 +281,44 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: '#003554',
+  },
+  destinationMarker: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  backButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#003554',
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   statusCard: {
     position: 'absolute',

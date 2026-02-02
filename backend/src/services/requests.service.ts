@@ -8,6 +8,7 @@ import { calculateDistance } from '../utils/distance.calculator';
 import logger from '../utils/logger';
 import { calculateEstimatedPrice, calculateFinalPrice } from '../utils/price.calculator';
 import { incrementUserTrips } from './users.service';
+import * as matchingService from './matching.service';
 
 /**
  * Create a new towing request
@@ -38,8 +39,8 @@ export async function createRequest(
     data.destinationLng
   );
 
-  // Calculate estimated price
-  const estimatedPrice = calculateEstimatedPrice(distanceKm, data.vehicleType);
+  // Calculate estimated price (now async - fetches from database)
+  const estimatedPrice = await calculateEstimatedPrice(distanceKm, data.vehicleType);
 
   // Create request
   const { data: request, error } = await supabase
@@ -65,6 +66,22 @@ export async function createRequest(
     logger.error('Error creating request:', error);
     throw createError.internal('Failed to create request');
   }
+
+  // Attempt to automatically assign an operator
+  // This runs asynchronously and doesn't block the request creation
+  // If no operator is available, request remains in 'pending' status
+  matchingService.autoAssignOperator(request.id, data.pickupLat, data.pickupLng)
+    .then((match) => {
+      if (match) {
+        logger.info(`Auto-assigned operator ${match.operatorId} to request ${request.id}`);
+      } else {
+        logger.info(`No operator available for request ${request.id}, keeping as pending`);
+      }
+    })
+    .catch((error) => {
+      // Don't fail request creation if matching fails
+      logger.error('Error in auto-assignment:', error);
+    });
 
   return request;
 }
@@ -432,7 +449,7 @@ export async function completeRequest(
   }
 
   // Calculate final price (could include additional charges in future)
-  const finalPrice = calculateFinalPrice(request.distance_km, request.vehicle_type);
+  const finalPrice = await calculateFinalPrice(request.distance_km, request.vehicle_type);
 
   const { data: updatedRequest, error } = await supabase
     .from('towing_requests')
