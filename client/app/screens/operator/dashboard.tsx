@@ -23,11 +23,14 @@ import { UserIcon, Menu01Icon } from 'hugeicons-react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import OperatorMenuModal from '@/components/operator-menu-modal';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
 import { getCurrentUser } from '@/lib/api';
 import { toggleOperatorOnlineStatus } from '@/lib/api/users';
-import { getPendingRequests } from '@/lib/api/requests';
+import { getPendingRequests, getOperatorRequests } from '@/lib/api/requests';
+import { subscribeToPendingRequests, unsubscribe } from '@/lib/services/realtimeService';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function OperatorDashboardScreen() {
   const { showToast } = useToast();
@@ -37,13 +40,14 @@ export default function OperatorDashboardScreen() {
   const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
   
   const [isOnline, setIsOnline] = useState(false);
-  const [earnings] = useState(1250.00);
+  const [earnings, setEarnings] = useState(0);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
-  const [tripsToday] = useState(12);
-  const [rating] = useState(4.9);
+  const [tripsToday, setTripsToday] = useState(0);
+  const [rating, setRating] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
 
-  // Fetch current user on mount
+  // Fetch current user and stats on mount
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -51,6 +55,32 @@ export default function OperatorDashboardScreen() {
         if (user) {
           setCurrentUser({ id: user.id });
           setIsOnline(user.isOnline || false);
+          setRating(user.averageRating || 0);
+
+          // Fetch today's trips and earnings
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const tripsResponse = await getOperatorRequests(user.id, {
+            status: 'completed',
+            limit: 100,
+          });
+
+          if (tripsResponse.data) {
+            // Filter trips from today
+            const todayTrips = tripsResponse.data.filter((trip) => {
+              const tripDate = new Date(trip.completedAt || trip.createdAt);
+              return tripDate >= today;
+            });
+
+            setTripsToday(todayTrips.length);
+
+            // Calculate total earnings from all completed trips
+            const totalEarnings = tripsResponse.data.reduce((sum, trip) => {
+              return sum + (trip.finalPrice || trip.estimatedPrice || 0);
+            }, 0);
+            setEarnings(totalEarnings);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch current user:', error);
@@ -60,9 +90,12 @@ export default function OperatorDashboardScreen() {
     fetchUser();
   }, [showToast]);
 
-  // Poll for pending requests when online
+  // Real-time subscription for pending requests when online
   useEffect(() => {
     if (!isOnline || !currentUser) return;
+
+    let channel: RealtimeChannel | null = null;
+    let backupInterval: NodeJS.Timeout | null = null;
 
     const fetchPendingRequests = async () => {
       try {
@@ -81,12 +114,34 @@ export default function OperatorDashboardScreen() {
       }
     };
 
-    // Fetch immediately
+    // Initial fetch
     fetchPendingRequests();
 
-    // Poll every 10 seconds
-    const interval = setInterval(fetchPendingRequests, 10000);
-    return () => clearInterval(interval);
+    // Set up real-time subscription
+    try {
+      channel = subscribeToPendingRequests((payload) => {
+        console.log('New pending request received:', payload.eventType);
+        if (payload.eventType === 'INSERT') {
+          fetchPendingRequests();
+        }
+      });
+    } catch (error) {
+      console.error('Error setting up real-time subscription:', error);
+      // Fallback to polling if real-time fails
+      backupInterval = setInterval(fetchPendingRequests, 15000); // 15 seconds
+    }
+
+    // Backup polling (less frequent)
+    backupInterval = setInterval(fetchPendingRequests, 30000); // 30 seconds
+
+    return () => {
+      if (channel) {
+        unsubscribe(channel);
+      }
+      if (backupInterval) {
+        clearInterval(backupInterval);
+      }
+    };
   }, [isOnline, currentUser]);
 
   // Handle online status toggle
@@ -152,7 +207,7 @@ export default function OperatorDashboardScreen() {
           </View>
           <TouchableOpacity 
             style={[styles.menuButton, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}
-            onPress={() => router.push('/screens/operator/profile')}
+            onPress={() => setShowMenu(true)}
           >
             <Menu01Icon size={20} color={tintColor} strokeWidth={2} />
           </TouchableOpacity>
@@ -188,6 +243,9 @@ export default function OperatorDashboardScreen() {
           </View>
         )}
       </ThemedView>
+
+      {/* Menu Modal */}
+      <OperatorMenuModal visible={showMenu} onClose={() => setShowMenu(false)} />
     </ThemedView>
   );
 }

@@ -9,10 +9,6 @@
  * - Toast notifications for errors
  */
 
-
-
-
-
 /**
  * HomeScreen (User Dashboard)
  *
@@ -22,28 +18,29 @@
  * - Proper layering (MapView stays behind UI)
  */
 
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetView } from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
 import {
     UserCircleIcon
 } from 'hugeicons-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    Linking,
     Platform,
     StatusBar,
     StyleSheet,
-    Text,
     TouchableOpacity,
     View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import MapView, { PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AddressInputCard from '@/components/address-input-card';
 import LocationPickerModal from '@/components/location-picker-modal';
 import PriceEstimatorCard from '@/components/price-estimator-card';
 import PrimaryButton from '@/components/primary-button';
+import { ThemedText } from '@/components/themed-text';
 import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
 
 import { useToast } from '@/hooks/use-toast';
@@ -57,12 +54,15 @@ import {
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 
+import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
 import {
     calculateDistance,
     getCurrentLocationWithAddress,
     type Coordinates,
 } from '@/lib/services/locationService';
 import { calculateEstimatedPrice } from '@/lib/services/pricingService';
+import { subscribeToUserRequests, unsubscribe } from '@/lib/services/realtimeService';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function HomeScreen() {
   const { showToast } = useToast();
@@ -72,7 +72,8 @@ export default function HomeScreen() {
   const placeOrderSheetRef = useRef<BottomSheet>(null);
   const activeSessionSheetRef = useRef<BottomSheet>(null);
 
-  const placeOrderSnapPoints = useMemo(() => ['12%', '45%', '85%'], []);
+  // Adjusted snap points to better fit content (15% collapsed, 60% half, 90% full)
+  const placeOrderSnapPoints = useMemo(() => ['15%', '60%', '90%'], []);
   const activeSessionSnapPoints = useMemo(() => ['15%', '50%'], []);
 
   const [pickupAddress, setPickupAddress] = useState('');
@@ -94,7 +95,9 @@ export default function HomeScreen() {
   const [showPickupPicker, setShowPickupPicker] = useState(false);
   const [showDestinationPicker, setShowDestinationPicker] = useState(false);
 
-  const [mapRegion] = useState<Region>({
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+
+  const [mapRegion, setMapRegion] = useState<Region>({
     latitude: 5.6037,
     longitude: -0.187,
     latitudeDelta: 0.0922,
@@ -121,6 +124,61 @@ export default function HomeScreen() {
   }, []);
 
   /**
+   * Update map region to fit both pickup and destination
+   */
+  useEffect(() => {
+    if (pickupCoords && destinationCoords) {
+      const minLat = Math.min(pickupCoords.lat, destinationCoords.lat);
+      const maxLat = Math.max(pickupCoords.lat, destinationCoords.lat);
+      const minLng = Math.min(pickupCoords.lng, destinationCoords.lng);
+      const maxLng = Math.max(pickupCoords.lng, destinationCoords.lng);
+
+      const latDelta = (maxLat - minLat) * 1.5; // Add 50% padding
+      const lngDelta = (maxLng - minLng) * 1.5;
+
+      setMapRegion({
+        latitude: (minLat + maxLat) / 2,
+        longitude: (minLng + maxLng) / 2,
+        latitudeDelta: Math.max(latDelta, 0.01),
+        longitudeDelta: Math.max(lngDelta, 0.01),
+      });
+    } else if (pickupCoords) {
+      // If only pickup is selected, center on pickup
+      setMapRegion({
+        latitude: pickupCoords.lat,
+        longitude: pickupCoords.lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+    }
+  }, [pickupCoords, destinationCoords]);
+
+  // Fetch route when both locations are selected
+  useEffect(() => {
+    if (pickupCoords && destinationCoords) {
+      const fetchRoute = async () => {
+        try {
+          const route = await getRoute(
+            { latitude: pickupCoords.lat, longitude: pickupCoords.lng },
+            { latitude: destinationCoords.lat, longitude: destinationCoords.lng }
+          );
+          setRoutePoints(route.points);
+        } catch (error) {
+          console.error('Error fetching route:', error);
+          // Fallback to straight line
+          setRoutePoints([
+            { latitude: pickupCoords.lat, longitude: pickupCoords.lng },
+            { latitude: destinationCoords.lat, longitude: destinationCoords.lng },
+          ]);
+        }
+      };
+      fetchRoute();
+    } else {
+      setRoutePoints([]);
+    }
+  }, [pickupCoords, destinationCoords]);
+
+  /**
    * Price calculation
    */
   useEffect(() => {
@@ -145,55 +203,114 @@ export default function HomeScreen() {
   }, [selectedVehicle, pickupCoords, destinationCoords]);
 
   /**
-   * Load active request session
+   * Load active request session - optimized to use single API call and real-time updates
    */
   useEffect(() => {
+    let mounted = true;
+    let channel: RealtimeChannel | null = null;
+
     const loadSession = async () => {
       try {
         const user = await getCurrentUser();
-        if (!user) return;
+        if (!user || !mounted) return;
 
-        const statuses: ('pending' | 'accepted' | 'in_progress')[] = [
+        // Single API call to get all active requests (pending, accepted, in_progress)
+        // Using status filter with OR logic - get the first active one
+        const response = await getUserRequests(user.id, {
+          limit: 10, // Get more to find active ones
+        });
+
+        if (!mounted) return;
+
+        // Find the first active request
+        const activeStatuses: ('pending' | 'accepted' | 'in_progress')[] = [
           'pending',
           'accepted',
           'in_progress',
         ];
 
-        for (const status of statuses) {
-          const response = await getUserRequests(user.id, {
-            status,
-            limit: 1,
-          });
+        const activeReq = response.data?.find((req) =>
+          activeStatuses.includes(req.status as any)
+        );
 
-          if (response.data?.length) {
-            setActiveRequest(response.data[0]);
-            activeSessionSheetRef.current?.snapToIndex(1);
-            return;
-          }
+        if (activeReq) {
+          setActiveRequest(activeReq);
+          activeSessionSheetRef.current?.snapToIndex(1);
+        } else {
+          setActiveRequest(null);
         }
-
-        setActiveRequest(null);
-      } catch (err) {
-        if (err instanceof ApiError) {
-          showToast(err.message, 'error');
+      } catch (error) {
+        if (!mounted) return;
+        if (error instanceof ApiError) {
+          console.error('Error loading session:', error.message);
+          // Don't show toast for every error, only log it
         }
       }
     };
 
+    // Initial load
     loadSession();
-    const interval = setInterval(loadSession, 10000);
 
-    return () => clearInterval(interval);
+    // Set up real-time subscription instead of polling
+    let fallbackInterval: NodeJS.Timeout | null = null;
+    
+    const setupRealtime = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user || !mounted) return;
+
+        channel = subscribeToUserRequests(user.id, (payload) => {
+          if (!mounted) return;
+
+          console.log('Request update received:', payload.eventType);
+
+          // Reload session when request changes
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
+            loadSession();
+          }
+        });
+      } catch (error) {
+        console.error('Error setting up real-time subscription:', error);
+        // Fallback to polling if real-time fails (but with longer interval)
+        if (mounted) {
+          fallbackInterval = setInterval(loadSession, 30000); // 30 seconds instead of 10
+        }
+      }
+    };
+
+    setupRealtime();
+
+    // Fallback: Poll every 60 seconds as backup (much less frequent than before)
+    const backupInterval = setInterval(() => {
+      if (mounted) {
+        loadSession();
+      }
+    }, 60000);
+
+    return () => {
+      mounted = false;
+      if (channel) {
+        unsubscribe(channel);
+      }
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+      }
+      clearInterval(backupInterval);
+    };
   }, [showToast]);
 
   /**
-   * Location selection handlers
+   * Location selection handlers with delayed snap to ensure smooth transition
    */
   const handlePickupSelect = useCallback(
     (address: string, coords: Coordinates) => {
       setPickupAddress(address);
       setPickupCoords(coords);
-      placeOrderSheetRef.current?.snapToIndex(1);
+      
+      // Delay snap to ensure modal closes smoothly first
+      setTimeout(() => {
+        placeOrderSheetRef.current?.snapToIndex(1);
+      }, 400);
     },
     []
   );
@@ -202,7 +319,11 @@ export default function HomeScreen() {
     (address: string, coords: Coordinates) => {
       setDestinationAddress(address);
       setDestinationCoords(coords);
-      placeOrderSheetRef.current?.snapToIndex(1);
+      
+      // Delay snap and maybe expand further if we have both addresses
+      setTimeout(() => {
+        placeOrderSheetRef.current?.snapToIndex(1);
+      }, 400);
     },
     []
   );
@@ -219,6 +340,29 @@ export default function HomeScreen() {
       !selectedVehicle
     ) {
       showToast('Please fill in all fields', 'error');
+      return;
+    }
+
+    // Check if user already has an active request
+    if (activeRequest) {
+      showToast('You already have an active request. Please complete or cancel it first.', 'error');
+      // Optionally navigate to the active request
+      if (activeRequest.status === 'pending') {
+        router.push({
+          pathname: '/screens/user/searching-operator',
+          params: { requestId: activeRequest.id },
+        });
+      } else if (activeRequest.status === 'accepted') {
+        router.push({
+          pathname: '/screens/user/operator-found',
+          params: { requestId: activeRequest.id },
+        });
+      } else if (activeRequest.status === 'in_progress') {
+        router.push({
+          pathname: '/screens/user/live-tracking',
+          params: { requestId: activeRequest.id },
+        });
+      }
       return;
     }
 
@@ -241,8 +385,28 @@ export default function HomeScreen() {
         pathname: '/screens/user/searching-operator',
         params: { requestId: request.id },
       });
-    } catch (err) {
-      showToast('Request failed. Try again.', 'error');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        // Handle 409 Conflict specifically
+        if (error.message.includes('already have an active request') || error.message.includes('Conflict')) {
+          showToast('You already have an active request. Please complete or cancel it first.', 'error');
+          // Reload active session to show it
+          const user = await getCurrentUser();
+          if (user) {
+            const response = await getUserRequests(user.id, { limit: 10 });
+            const activeStatuses: ('pending' | 'accepted' | 'in_progress')[] = ['pending', 'accepted', 'in_progress'];
+            const activeReq = response.data?.find((req) => activeStatuses.includes(req.status as any));
+            if (activeReq) {
+              setActiveRequest(activeReq);
+              activeSessionSheetRef.current?.snapToIndex(1);
+            }
+          }
+        } else {
+          showToast(error.message || 'Request failed. Try again.', 'error');
+        }
+      } else {
+        showToast('Request failed. Try again.', 'error');
+      }
     } finally {
       setIsRequesting(false);
     }
@@ -252,6 +416,7 @@ export default function HomeScreen() {
     pickupAddress,
     destinationAddress,
     selectedVehicle,
+    activeRequest,
     showToast,
   ]);
 
@@ -278,11 +443,14 @@ export default function HomeScreen() {
         title="Select Destination"
       />
 
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <StatusBar translucent />
 
         {/* Profile Button */}
-        <TouchableOpacity style={styles.profileButton}>
+        <TouchableOpacity 
+          style={styles.profileButton}
+          onPress={() => router.push('/(tabs)/profile')}
+        >
           <UserCircleIcon size={32} />
         </TouchableOpacity>
 
@@ -291,24 +459,65 @@ export default function HomeScreen() {
           <MapView
             style={styles.map}
             provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-            initialRegion={mapRegion}
+            region={mapRegion}
             showsUserLocation
-          />
-        </View>
-
-        {/* BottomSheet */}
-        {!hasActiveSession && (
-          <BottomSheet
-            ref={placeOrderSheetRef}
-            index={1}
-            snapPoints={placeOrderSnapPoints}
-            enablePanDownToClose={false}
-            keyboardBehavior="interactive"
-            keyboardBlurBehavior="restore"
-            backgroundStyle={styles.bottomSheetBackground}
           >
-            <BottomSheetView style={styles.sheetContent}>
-              <Text style={styles.headerTitle}>Request a Tow</Text>
+            {/* Pickup Marker */}
+            {pickupCoords && (
+              <Marker
+                coordinate={{
+                  latitude: pickupCoords.lat,
+                  longitude: pickupCoords.lng,
+                }}
+                title="Pickup Location"
+                pinColor="#3B82F6"
+              />
+            )}
+
+            {/* Destination Marker */}
+            {destinationCoords && (
+              <Marker
+                coordinate={{
+                  latitude: destinationCoords.lat,
+                  longitude: destinationCoords.lng,
+                }}
+                title="Destination"
+                pinColor="#10B981"
+              />
+            )}
+
+            {/* Route Polyline */}
+            {routePoints.length > 0 && (
+              <Polyline
+                coordinates={routePoints}
+                strokeColor="#003554"
+                strokeWidth={5}
+                lineCap="round"
+                lineJoin="round"
+              />
+            )}
+          </MapView>
+        </View>
+      </SafeAreaView>
+
+      {/* BottomSheet - Outside SafeAreaView for proper positioning */}
+      {!hasActiveSession ? (
+        <BottomSheet
+          ref={placeOrderSheetRef}
+          index={1}
+          snapPoints={placeOrderSnapPoints}
+          enablePanDownToClose={false}
+          keyboardBehavior="interactive"
+          keyboardBlurBehavior="restore"
+          backgroundStyle={[styles.bottomSheetBackground, { backgroundColor }]}
+          handleIndicatorStyle={styles.handleIndicator}
+        >
+          <BottomSheetView style={styles.sheetContent}>
+            <BottomSheetScrollView 
+              contentContainerStyle={styles.scrollContentContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              <ThemedText style={styles.headerTitle}>Request a Tow</ThemedText>
 
               <AddressInputCard
                 type="pickup"
@@ -340,10 +549,102 @@ export default function HomeScreen() {
                 disabled={!pickupCoords || !destinationCoords}
                 onPress={handleRequestPress}
               />
-            </BottomSheetView>
-          </BottomSheet>
-        )}
-      </SafeAreaView>
+            </BottomSheetScrollView>
+          </BottomSheetView>
+        </BottomSheet>
+      ) : (
+        <BottomSheet
+          ref={activeSessionSheetRef}
+          index={1}
+          snapPoints={activeSessionSnapPoints}
+          enablePanDownToClose={false}
+          backgroundStyle={[styles.bottomSheetBackground, { backgroundColor }]}
+          handleIndicatorStyle={styles.handleIndicator}
+        >
+          <BottomSheetView style={styles.sheetContent}>
+            <BottomSheetScrollView 
+              contentContainerStyle={styles.scrollContentContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              <ThemedText style={styles.headerTitle}>
+                {activeRequest?.status === 'pending' && 'Searching for Operator'}
+                {activeRequest?.status === 'accepted' && 'Operator Found'}
+                {activeRequest?.status === 'in_progress' && 'Trip in Progress'}
+              </ThemedText>
+
+              {activeRequest && (
+                <>
+                  <View style={styles.sessionInfo}>
+                    <ThemedText style={styles.sessionLabel}>From</ThemedText>
+                    <ThemedText style={styles.sessionValue}>{activeRequest.pickupAddress}</ThemedText>
+                  </View>
+
+                  <View style={styles.sessionInfo}>
+                    <ThemedText style={styles.sessionLabel}>To</ThemedText>
+                    <ThemedText style={styles.sessionValue}>{activeRequest.destinationAddress}</ThemedText>
+                  </View>
+
+                  {activeRequest.operator && (
+                    <View style={styles.operatorInfo}>
+                      <ThemedText style={styles.sessionLabel}>Operator</ThemedText>
+                      <ThemedText style={styles.sessionValue}>{activeRequest.operator.fullName}</ThemedText>
+                      {activeRequest.operator.phone && (
+                        <TouchableOpacity
+                          style={styles.callOperatorButton}
+                          onPress={() => {
+                            Linking.openURL(`tel:${activeRequest.operator?.phone}`).catch(() => {
+                              showToast('Unable to make phone call', 'error');
+                            });
+                          }}
+                        >
+                          <ThemedText style={styles.callOperatorText}>
+                            📞 {activeRequest.operator.phone}
+                          </ThemedText>
+                        </TouchableOpacity>
+                      )}
+                      {activeRequest.operator.averageRating && (
+                        <ThemedText style={styles.operatorRating}>
+                          ⭐ {activeRequest.operator.averageRating.toFixed(1)} rating
+                        </ThemedText>
+                      )}
+                    </View>
+                  )}
+
+                  <View style={styles.sessionActions}>
+                    {activeRequest.status === 'pending' && (
+                      <PrimaryButton
+                        label="View Status"
+                        onPress={() => router.push({
+                          pathname: '/screens/user/searching-operator',
+                          params: { requestId: activeRequest.id },
+                        })}
+                      />
+                    )}
+                    {activeRequest.status === 'accepted' && (
+                      <PrimaryButton
+                        label="Track Operator"
+                        onPress={() => router.push({
+                          pathname: '/screens/user/operator-found',
+                          params: { requestId: activeRequest.id },
+                        })}
+                      />
+                    )}
+                    {activeRequest.status === 'in_progress' && (
+                      <PrimaryButton
+                        label="Live Tracking"
+                        onPress={() => router.push({
+                          pathname: '/screens/user/live-tracking',
+                          params: { requestId: activeRequest.id },
+                        })}
+                      />
+                    )}
+                  </View>
+                </>
+              )}
+            </BottomSheetScrollView>
+          </BottomSheetView>
+        </BottomSheet>
+      )}
     </GestureHandlerRootView>
   );
 }
@@ -370,17 +671,80 @@ const styles = StyleSheet.create({
   bottomSheetBackground: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+
+  handleIndicator: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#9ca3af',
   },
 
   sheetContent: {
     flex: 1,
+  },
+
+  scrollContentContainer: {
     padding: 20,
     gap: 16,
+    paddingBottom: 40,
   },
 
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
+    marginBottom: 4,
+  },
+
+  sessionInfo: {
+    marginBottom: 16,
+  },
+
+  sessionLabel: {
+    fontSize: 14,
+    opacity: 0.6,
+    marginBottom: 4,
+  },
+
+  sessionValue: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+
+  operatorInfo: {
+    marginBottom: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+
+  callOperatorButton: {
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#dcfce7',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+
+  callOperatorText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+
+  operatorRating: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+
+  sessionActions: {
+    marginTop: 8,
   },
 });

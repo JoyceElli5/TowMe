@@ -168,3 +168,34 @@ export async function toggleOnlineStatus(req: AuthenticatedRequest, res: Respons
     message: `You are now ${user.is_online ? 'online' : 'offline'}`,
   });
 }
+
+/**
+ * PATCH /api/operators/:id/location
+ */
+export async function updateOperatorLocation(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
+  const { id } = req.params;
+
+  if (req.user.id !== id) {
+    res.status(403).json({ success: false, error: 'Cannot update other operators' });
+    return;
+  }
+
+  const { latitude, longitude, heading } = req.body;
+
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    res.status(400).json({ success: false, error: 'latitude and longitude are required numbers' });
+    return;
+  }
+
+  await usersService.updateOperatorLocation(id, { latitude, longitude, heading: heading || null });
+
+  res.json({
+    success: true,
+    message: 'Location updated successfully',
+  });
+}

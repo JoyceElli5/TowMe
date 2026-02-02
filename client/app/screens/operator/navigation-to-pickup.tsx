@@ -1,14 +1,17 @@
 /**
- * Navigation to Pickup Screen (Placeholder)
+ * Navigation to Pickup Screen
  * 
  * Shows navigation to the pickup location.
- * Displays map and directions to customer.
+ * Displays map and directions to customer with real-time location tracking.
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Linking,
   Platform,
   StatusBar,
   StyleSheet,
@@ -16,13 +19,188 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getRequestById, startRequest, type TowingRequest } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
+import { startLocationTracking, getCurrentOperatorLocation, type OperatorLocation } from '@/lib/services/operatorLocationService';
+import { getCurrentUser } from '@/lib/api';
+import { calculateDistance } from '@/lib/services/locationService';
+
 export default function NavigationToPickupScreen() {
-  const handleArrived = () => {
-    router.replace('/screens/operator/arrived-at-pickup');
+  const params = useLocalSearchParams<{ requestId: string }>();
+  const { showToast } = useToast();
+  
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [operatorLocation, setOperatorLocation] = useState<OperatorLocation | null>(null);
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+  const [mapRegion, setMapRegion] = useState<Region | null>(null);
+  const [distance, setDistance] = useState<number>(0);
+  const [eta, setEta] = useState<number>(0);
+  const [isStarting, setIsStarting] = useState(false);
+
+  // Fetch request details
+  useEffect(() => {
+    const fetchRequest = async () => {
+      if (!params.requestId) {
+        Alert.alert('Error', 'Request ID is missing');
+        router.back();
+        return;
+      }
+
+      try {
+        const requestData = await getRequestById(params.requestId);
+        setRequest(requestData);
+        
+        // Set initial map region
+        if (requestData.pickupLat && requestData.pickupLng) {
+          setMapRegion({
+            latitude: requestData.pickupLat,
+            longitude: requestData.pickupLng,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch request:', error);
+        Alert.alert('Error', 'Failed to load request details');
+        router.back();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRequest();
+  }, [params.requestId]);
+
+  // Start location tracking
+  useEffect(() => {
+    let stopTracking: (() => void) | null = null;
+
+    const initTracking = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user) return;
+
+        // Get initial location
+        const initialLocation = await getCurrentOperatorLocation();
+        if (initialLocation) {
+          setOperatorLocation(initialLocation);
+        }
+
+        // Start continuous tracking
+        stopTracking = await startLocationTracking(user.id, (location) => {
+          setOperatorLocation(location);
+        });
+      } catch (error) {
+        console.error('Error starting location tracking:', error);
+        showToast('Location tracking failed', 'error');
+      }
+    };
+
+    initTracking();
+
+    return () => {
+      if (stopTracking) {
+        stopTracking();
+      }
+    };
+  }, []);
+
+  // Update route when operator location or request changes
+  useEffect(() => {
+    if (!operatorLocation || !request) return;
+
+    const updateRoute = async () => {
+      try {
+        const route = await getRoute(
+          { latitude: operatorLocation.latitude, longitude: operatorLocation.longitude },
+          { latitude: request.pickupLat, longitude: request.pickupLng }
+        );
+        setRoutePoints(route.points);
+
+        // Calculate distance and ETA
+        const dist = calculateDistance(
+          operatorLocation.latitude,
+          operatorLocation.longitude,
+          request.pickupLat,
+          request.pickupLng
+        );
+        setDistance(dist / 1000); // Convert to km
+        setEta(Math.max(1, Math.round((dist / 1000) * 2.5))); // ~2.5 min per km
+
+        // Update map region to show both operator and pickup
+        const allCoords = [
+          { latitude: operatorLocation.latitude, longitude: operatorLocation.longitude },
+          { latitude: request.pickupLat, longitude: request.pickupLng },
+        ];
+        const minLat = Math.min(...allCoords.map(c => c.latitude));
+        const maxLat = Math.max(...allCoords.map(c => c.latitude));
+        const minLng = Math.min(...allCoords.map(c => c.longitude));
+        const maxLng = Math.max(...allCoords.map(c => c.longitude));
+
+        setMapRegion({
+          latitude: (minLat + maxLat) / 2,
+          longitude: (minLng + maxLng) / 2,
+          latitudeDelta: Math.max((maxLat - minLat) * 1.5, 0.01),
+          longitudeDelta: Math.max((maxLng - minLng) * 1.5, 0.01),
+        });
+      } catch (error) {
+        console.error('Error updating route:', error);
+      }
+    };
+
+    updateRoute();
+  }, [operatorLocation, request]);
+
+  const handleArrived = async () => {
+    if (!params.requestId) return;
+
+    setIsStarting(true);
+    try {
+      await startRequest(params.requestId);
+      router.replace({
+        pathname: '/screens/operator/arrived-at-pickup',
+        params: { requestId: params.requestId },
+      });
+    } catch (error) {
+      console.error('Failed to start request:', error);
+      showToast('Failed to mark as arrived', 'error');
+    } finally {
+      setIsStarting(false);
+    }
   };
+
+  const handleCall = () => {
+    if (request?.user?.phone) {
+      Linking.openURL(`tel:${request.user.phone}`);
+    }
+  };
+
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  if (isLoading || !request) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+          <Text style={styles.loadingText}>Loading navigation...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -32,22 +210,41 @@ export default function NavigationToPickupScreen() {
       <MapView
         style={styles.map}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={{
-          latitude: 5.6037,
-          longitude: -0.1870,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        }}
+        region={mapRegion || undefined}
+        showsUserLocation
       >
-        {/* Customer Location Marker */}
+        {/* Pickup Location Marker */}
         <Marker
-          coordinate={{ latitude: 5.6037, longitude: -0.1870 }}
-          title="Customer Location"
+          coordinate={{ latitude: request.pickupLat, longitude: request.pickupLng }}
+          title="Pickup Location"
         >
           <View style={styles.customerMarker}>
             <Ionicons name="location" size={24} color="#3B82F6" />
           </View>
         </Marker>
+
+        {/* Operator Location Marker */}
+        {operatorLocation && (
+          <Marker
+            coordinate={{ latitude: operatorLocation.latitude, longitude: operatorLocation.longitude }}
+            title="Your Location"
+          >
+            <View style={styles.operatorMarker}>
+              <Ionicons name="car" size={20} color="#10B981" />
+            </View>
+          </Marker>
+        )}
+
+        {/* Route Polyline */}
+        {routePoints.length > 0 && (
+          <Polyline
+            coordinates={routePoints}
+            strokeColor="#003554"
+            strokeWidth={5}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
       </MapView>
 
       {/* Navigation Header */}
@@ -56,8 +253,8 @@ export default function NavigationToPickupScreen() {
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <View style={styles.navInfo}>
-          <Text style={styles.navDistance}>2.5 km</Text>
-          <Text style={styles.navEta}>8 min</Text>
+          <Text style={styles.navDistance}>{distance.toFixed(1)} km</Text>
+          <Text style={styles.navEta}>~{eta} min</Text>
         </View>
       </SafeAreaView>
 
@@ -65,23 +262,28 @@ export default function NavigationToPickupScreen() {
       <View style={styles.bottomCard}>
         <View style={styles.customerInfo}>
           <View style={styles.customerAvatar}>
-            <Text style={styles.avatarText}>SK</Text>
+            <Text style={styles.avatarText}>{getUserInitials(request.user?.fullName)}</Text>
           </View>
           <View style={styles.customerDetails}>
-            <Text style={styles.customerName}>Sarah Kofi</Text>
-            <Text style={styles.pickupAddress}>Ring Road Central, Accra</Text>
+            <Text style={styles.customerName}>{request.user?.fullName || 'Unknown User'}</Text>
+            <Text style={styles.pickupAddress}>{request.pickupAddress || 'Loading...'}</Text>
           </View>
-          <TouchableOpacity style={styles.callButton}>
+          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
             <Ionicons name="call" size={20} color="#10B981" />
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity
-          style={styles.arrivedButton}
+          style={[styles.arrivedButton, isStarting && styles.buttonDisabled]}
           onPress={handleArrived}
           activeOpacity={0.8}
+          disabled={isStarting}
         >
-          <Text style={styles.arrivedButtonText}>I&apos;ve Arrived</Text>
+          {isStarting ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.arrivedButtonText}>I&apos;ve Arrived</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -227,5 +429,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  operatorMarker: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 });
