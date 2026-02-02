@@ -1,15 +1,15 @@
 /**
- * Trip Completed (Operator) Screen (Placeholder)
+ * Trip Completed (Operator) Screen
  * 
  * Shows trip completion summary for operator.
  * Displays earnings and prompts for user rating.
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -18,19 +18,68 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useReceiptDownload } from '@/hooks/use-receipt-download';
+import { getRequestById, type TowingRequest } from '@/lib/api';
 
 export default function TripCompletedOperatorScreen() {
-  const params = useLocalSearchParams<{ requestId?: string }>();
-  const requestId = params.requestId || '';
-  const { isDownloading, handleDownloadReceipt } = useReceiptDownload();
+  const params = useLocalSearchParams<{ requestId: string }>();
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRequest = async () => {
+      if (!params.requestId) {
+        Alert.alert('Error', 'Request ID is missing');
+        router.back();
+        return;
+      }
+
+      try {
+        const requestData = await getRequestById(params.requestId);
+        setRequest(requestData);
+      } catch (error) {
+        console.error('Failed to fetch request:', error);
+        Alert.alert('Error', 'Failed to load trip details');
+        router.back();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRequest();
+  }, [params.requestId]);
 
   const handleRate = () => {
-    router.push('/screens/operator/rate-user');
+    if (params.requestId) {
+      router.push({
+        pathname: '/screens/operator/rate-user',
+        params: { requestId: params.requestId },
+      });
+    }
   };
 
   const handleDone = () => {
     router.replace('/screens/operator/dashboard');
+  };
+
+  if (isLoading || !request) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Calculate duration in minutes
+  const getDuration = () => {
+    if (!request.startedAt || !request.completedAt) return 'N/A';
+    const start = new Date(request.startedAt).getTime();
+    const end = new Date(request.completedAt).getTime();
+    const minutes = Math.round((end - start) / 60000);
+    return `${minutes} min`;
   };
 
   return (
@@ -51,7 +100,7 @@ export default function TripCompletedOperatorScreen() {
         {/* Earnings Card */}
         <View style={styles.earningsCard}>
           <Text style={styles.earningsLabel}>Your Earnings</Text>
-          <Text style={styles.earningsValue}>GH₵ 150.00</Text>
+          <Text style={styles.earningsValue}>GH₵ {(request.finalPrice || request.estimatedPrice).toFixed(2)}</Text>
           <Text style={styles.earningsNote}>Will be added to your balance</Text>
         </View>
 
@@ -59,15 +108,15 @@ export default function TripCompletedOperatorScreen() {
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Customer</Text>
-            <Text style={styles.summaryValue}>Sarah Kofi</Text>
+            <Text style={styles.summaryValue}>{request.user?.fullName || 'Unknown User'}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Distance</Text>
-            <Text style={styles.summaryValue}>10.2 km</Text>
+            <Text style={styles.summaryValue}>{request.distanceKm?.toFixed(1) || '0.0'} km</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Duration</Text>
-            <Text style={styles.summaryValue}>25 min</Text>
+            <Text style={styles.summaryValue}>{getDuration()}</Text>
           </View>
         </View>
 
@@ -237,6 +286,16 @@ const styles = StyleSheet.create({
   doneButtonText: {
     fontSize: 16,
     fontWeight: '500',
+    color: '#6b7280',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
     color: '#6b7280',
   },
 });
