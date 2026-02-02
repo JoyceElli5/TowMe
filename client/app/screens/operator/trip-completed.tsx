@@ -120,6 +120,23 @@ export default function TripCompletedOperatorScreen() {
           </View>
         </View>
 
+        {/* Download Receipt Button */}
+        <TouchableOpacity
+          style={styles.downloadButton}
+          onPress={() => handleDownloadReceipt(requestId)}
+          disabled={isDownloading}
+          activeOpacity={0.8}
+        >
+          {isDownloading ? (
+            <ActivityIndicator color="#003554" size="small" />
+          ) : (
+            <>
+              <Ionicons name="download-outline" size={20} color="#003554" />
+              <Text style={styles.downloadButtonText}>Download Receipt</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
         {/* Rate Button */}
         <TouchableOpacity
           style={styles.rateButton}
@@ -224,6 +241,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
+  },
+  downloadButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#ffffff',
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#003554',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  downloadButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#003554',
   },
   rateButton: {
     width: '100%',

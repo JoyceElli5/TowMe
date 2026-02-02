@@ -6,13 +6,10 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -216,7 +213,7 @@ export default function TripCompletedScreen() {
         {/* Download Receipt Button */}
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={handleDownloadReceipt}
+          onPress={() => handleDownloadReceipt(requestId)}
           disabled={isDownloading}
           activeOpacity={0.8}
         >
