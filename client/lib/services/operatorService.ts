@@ -111,3 +111,29 @@ export async function isProfileComplete(userId: string): Promise<boolean> {
   }
 }
 
+/**
+ * Check if operator is verified (approved)
+ */
+export async function isOperatorVerified(userId: string): Promise<boolean> {
+  try {
+    const profile = await getOperatorProfile(userId);
+    return profile?.verification_status === 'approved';
+  } catch (error) {
+    console.error('Error checking operator verification:', error);
+    return false;
+  }
+}
+
+/**
+ * Get operator verification status
+ */
+export async function getVerificationStatus(userId: string): Promise<'pending' | 'under_review' | 'approved' | 'rejected' | null> {
+  try {
+    const profile = await getOperatorProfile(userId);
+    return profile?.verification_status || null;
+  } catch (error) {
+    console.error('Error getting verification status:', error);
+    return null;
+  }
+}
+

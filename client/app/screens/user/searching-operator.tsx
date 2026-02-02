@@ -18,6 +18,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PulseLoader from '@/components/pulse-loader';
+import { useToast } from '@/hooks/use-toast';
+import { ApiError, cancelRequest } from '@/lib/api';
 import { subscribeToRequest, unsubscribe } from '@/lib/services/realtimeService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -25,6 +27,8 @@ export default function SearchingOperatorScreen() {
   const params = useLocalSearchParams<{ requestId?: string }>();
   const requestId = params.requestId;
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
+  const { showToast } = useToast();
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Subscribe to request changes
   useEffect(() => {
@@ -62,8 +66,27 @@ export default function SearchingOperatorScreen() {
     };
   }, [requestId]);
 
-  const handleCancel = () => {
-    router.back();
+  const handleCancel = async () => {
+    if (!requestId) {
+      router.back();
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      await cancelRequest(requestId, 'Cancelled by user');
+      showToast('Request cancelled successfully', 'success');
+      router.replace('/screens/user/home-screen');
+    } catch (error) {
+      console.error('Cancel request error:', error);
+      if (error instanceof ApiError) {
+        showToast(error.message || 'Failed to cancel request', 'error');
+      } else {
+        showToast('Failed to cancel request', 'error');
+      }
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   return (
@@ -84,12 +107,15 @@ export default function SearchingOperatorScreen() {
 
         {/* Cancel Button */}
         <TouchableOpacity
-          style={styles.cancelButton}
+          style={[styles.cancelButton, isCancelling && styles.cancelButtonDisabled]}
           onPress={handleCancel}
           activeOpacity={0.7}
+          disabled={isCancelling}
         >
           <Ionicons name="close-circle-outline" size={20} color="#ef4444" style={styles.cancelIcon} />
-          <Text style={styles.cancelButtonText}>Cancel Request</Text>
+          <Text style={styles.cancelButtonText}>
+            {isCancelling ? 'Cancelling...' : 'Cancel Request'}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -143,5 +169,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Gilroy-SemiBold',
     color: '#ef4444',
+  },
+  cancelButtonDisabled: {
+    opacity: 0.5,
   },
 });
