@@ -23,18 +23,19 @@
  */
 
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+
 import { router } from 'expo-router';
 import {
-    UserCircleIcon
+  UserCircleIcon
 } from 'hugeicons-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Platform,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import MapView, { PROVIDER_GOOGLE, Region } from 'react-native-maps';
@@ -48,19 +49,19 @@ import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
 
 import { useToast } from '@/hooks/use-toast';
 import {
-    ApiError,
-    createRequest,
-    getCurrentUser,
-    getUserRequests,
-    type TowingRequest,
+  ApiError,
+  createRequest,
+  getCurrentUser,
+  getUserRequests,
+  type TowingRequest,
 } from '@/lib/api';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 import {
-    calculateDistance,
-    getCurrentLocationWithAddress,
-    type Coordinates,
+  calculateDistance,
+  getCurrentLocationWithAddress,
+  type Coordinates,
 } from '@/lib/services/locationService';
 import { calculateEstimatedPrice } from '@/lib/services/pricingService';
 
@@ -281,6 +282,14 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar translucent />
 
+        {/* Back Button */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          backButton
+        </TouchableOpacity>
+
         {/* Profile Button */}
         <TouchableOpacity style={styles.profileButton}>
           <UserCircleIcon size={32} />
@@ -343,6 +352,57 @@ export default function HomeScreen() {
             </BottomSheetView>
           </BottomSheet>
         )}
+
+        {/* Active Session BottomSheet */}
+        {hasActiveSession && activeRequest && (
+          <BottomSheet
+            ref={activeSessionSheetRef}
+            index={1}
+            snapPoints={activeSessionSnapPoints}
+            enablePanDownToClose={false}
+            backgroundStyle={styles.bottomSheetBackground}
+          >
+            <BottomSheetView style={styles.sheetContent}>
+              <View style={styles.activeSessionHeader}>
+                <Text style={styles.headerTitle}>
+                  {activeRequest.status === 'pending' ? 'Looking for Drivers...' :
+                    activeRequest.status === 'accepted' ? 'Driver on the way' :
+                      'Trip in Progress'}
+                </Text>
+                <View style={[styles.statusBadge,
+                activeRequest.status === 'pending' ? styles.statusPending :
+                  activeRequest.status === 'accepted' ? styles.statusAccepted :
+                    styles.statusInProgress
+                ]}>
+                  <Text style={styles.statusText}>{activeRequest.status.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.tripDetails}>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Pickup</Text>
+                  <Text style={styles.detailValue} numberOfLines={1}>{activeRequest.pickup_address}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Destination</Text>
+                  <Text style={styles.detailValue} numberOfLines={1}>{activeRequest.dest_address}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Est. Price</Text>
+                  <Text style={styles.detailValue}>GH₵ {activeRequest.estimated_cost}</Text>
+                </View>
+              </View>
+
+              {activeRequest.status === 'pending' && (
+                <View style={styles.loadingWrapper}>
+                  <Text style={styles.loadingText}>Connecting you to nearby tow trucks...</Text>
+                </View>
+              )}
+            </BottomSheetView>
+          </BottomSheet>
+        )}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -360,11 +420,34 @@ const styles = StyleSheet.create({
 
   map: { flex: 1 },
 
+  backButton: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    zIndex: 20,
+    backgroundColor: 'white',
+    padding: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
   profileButton: {
     position: 'absolute',
     top: 60,
     right: 20,
     zIndex: 20,
+    backgroundColor: 'white',
+    padding: 4,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 
   bottomSheetBackground: {
@@ -382,5 +465,64 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
+  },
+
+  // Active Session Styles
+  activeSessionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  statusPending: {
+    backgroundColor: '#FFF4E5',
+  },
+  statusAccepted: {
+    backgroundColor: '#E6FFFA',
+  },
+  statusInProgress: {
+    backgroundColor: '#EBF8FF',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 10,
+  },
+  tripDetails: {
+    gap: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    maxWidth: '70%',
+  },
+  loadingWrapper: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontStyle: 'italic',
   },
 });
