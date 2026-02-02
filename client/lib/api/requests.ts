@@ -195,3 +195,8 @@ export async function getPriceEstimate(
   }
   throw new Error(response.error || 'Failed to get price estimate');
 }
+
+export async function downloadReceipt(requestId: string): Promise<string> {
+  const response = await api.getRaw(`/requests/${requestId}/receipt`);
+  return response;
+}

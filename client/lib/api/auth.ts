@@ -127,3 +127,7 @@ export async function forgotPassword(email: string): Promise<void> {
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
   await api.post('/auth/reset-password', { token, newPassword });
 }
+
+export async function verifyEmail(token: string): Promise<void> {
+  await api.post('/auth/verify-email', { token });
+}
