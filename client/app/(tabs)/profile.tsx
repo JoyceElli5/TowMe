@@ -28,12 +28,11 @@ import {
   Mail01Icon,
   Moon01Icon,
   Notification01Icon,
-  SmartPhone01Icon,
   Sun01Icon,
-  UserBlock01Icon,
-  Wallet01Icon
+  UserBlock01Icon
 } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
@@ -53,7 +52,7 @@ import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { ApiError, getCurrentUser, logout, updateUserAvatar, type User } from '@/lib/api';
+import { ApiError, getCurrentUser, getUserRequests, logout, updateUserAvatar, type TowingRequest, type User } from '@/lib/api';
 import { getCurrentUser as getAuthUser } from '@/lib/services/authService';
 import { getUserVehicles, type UserVehicle } from '@/lib/services/vehicleService';
 
@@ -126,10 +125,16 @@ export default function ProfileScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [vehicles, setVehicles] = useState<UserVehicle[]>([]);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
+  const [tripHistory, setTripHistory] = useState<TowingRequest[]>([]);
+  const [isLoadingTrips, setIsLoadingTrips] = useState(false);
+  
+  // Notification preferences
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [smsAlerts, setSmsAlerts] = useState(true);
+  const [emailUpdates, setEmailUpdates] = useState(false);
   
   // All hooks must be called before any conditional returns
   const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
   const statsBg = useThemeColor({ light: '#F9FAFB', dark: '#1F2937' }, 'background');
   const dividerColor = useThemeColor({ light: '#E5E7EB', dark: '#374151' }, 'background');
   const iconColor = useThemeColor({}, 'icon');
@@ -138,7 +143,15 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadUser();
     loadVehicles();
+    loadTripHistory();
   }, []);
+
+  // Refresh vehicles when screen comes into focus (e.g., after adding/editing)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadVehicles();
+    }, [])
+  );
 
   const loadVehicles = async () => {
     try {
@@ -152,6 +165,24 @@ export default function ProfileScreen() {
       console.error('Error loading vehicles:', error);
     } finally {
       setIsLoadingVehicles(false);
+    }
+  };
+
+  const loadTripHistory = async () => {
+    try {
+      const user = await getCurrentUser();
+      if (user) {
+        setIsLoadingTrips(true);
+        const response = await getUserRequests(user.id, {
+          status: 'completed',
+          limit: 10,
+        });
+        setTripHistory(response.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading trip history:', error);
+    } finally {
+      setIsLoadingTrips(false);
     }
   };
 
@@ -213,15 +244,14 @@ export default function ProfileScreen() {
         setIsUploading(true);
         const imageUri = result.assets[0].uri;
         
-        // In a real app, you would upload the image to a storage service (e.g., Supabase Storage)
-        // and get a URL back. For now, we'll use the local URI as a placeholder
-        // TODO: Implement actual image upload to Supabase Storage or similar
-        
         if (currentUser) {
           try {
-            // For now, we'll just update with a placeholder URL
-            // In production, upload to Supabase Storage first
-            await updateUserAvatar(currentUser.id, imageUri);
+            // Upload image to Supabase Storage first
+            const { uploadProfilePhoto } = await import('@/lib/services/storageService');
+            const photoUrl = await uploadProfilePhoto(currentUser.id, imageUri);
+            
+            // Update user profile with the photo URL
+            await updateUserAvatar(currentUser.id, photoUrl);
             await loadUser();
             showToast('Profile picture updated', 'success');
           } catch (error) {
@@ -318,9 +348,9 @@ export default function ProfileScreen() {
             <View style={[styles.statDivider, { backgroundColor: dividerColor }]} />
             <View style={styles.statItem}>
               {currentUser?.isVerified ? (
-                <CheckmarkCircle01Icon size={24} color={useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint')} strokeWidth={2} />
+                <CheckmarkCircle01Icon size={24} color={tintColor} strokeWidth={2} />
               ) : (
-                <AlertCircleIcon size={24} color={useThemeColor({}, 'icon')} strokeWidth={2} />
+                <AlertCircleIcon size={24} color={iconColor} strokeWidth={2} />
               )}
               <ThemedText style={styles.statLabel}>Verified</ThemedText>
             </View>
@@ -391,6 +421,56 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Trip History */}
+        <SectionHeader title="Trip History" />
+        <View style={styles.settingsCard}>
+          {isLoadingTrips ? (
+            <View style={styles.vehicleLoading}>
+              <ActivityIndicator size="small" />
+            </View>
+          ) : tripHistory.length === 0 ? (
+            <ThemedView style={styles.emptyVehicles}>
+              <ThemedText style={styles.emptyVehiclesText}>No completed trips yet</ThemedText>
+              <ThemedText style={styles.emptyVehiclesSubtext}>
+                Your completed trips will appear here
+              </ThemedText>
+            </ThemedView>
+          ) : (
+            tripHistory.map((trip) => (
+              <TouchableOpacity
+                key={trip.id}
+                style={styles.tripItem}
+                onPress={() => {
+                  router.push({
+                    pathname: '/screens/user/trip-completed',
+                    params: { requestId: trip.id },
+                  });
+                }}
+              >
+                <View style={styles.tripItemContent}>
+                  <View style={[styles.tripIconContainer, { backgroundColor: dividerColor }]}>
+                    <Car01Icon size={20} color={tintColor} strokeWidth={2} />
+                  </View>
+                  <View style={styles.tripInfo}>
+                    <ThemedText style={styles.tripRoute}>
+                      {trip.pickupAddress.split(',')[0]} → {trip.destinationAddress.split(',')[0]}
+                    </ThemedText>
+                    <ThemedText style={styles.tripDetails}>
+                      {trip.distanceKm?.toFixed(1) || '0'} km • GH₵ {(trip.finalPrice || trip.estimatedPrice || 0).toFixed(2)}
+                    </ThemedText>
+                    {trip.completedAt && (
+                      <ThemedText style={styles.tripDate}>
+                        {new Date(trip.completedAt).toLocaleDateString()}
+                      </ThemedText>
+                    )}
+                  </View>
+                </View>
+                <ArrowRight01Icon size={20} color={iconColor} strokeWidth={2} />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
         {/* Appearance */}
         <SectionHeader title="Appearance" />
         <View style={styles.settingsCard}>
@@ -413,25 +493,40 @@ export default function ProfileScreen() {
             icon={Notification01Icon}
             iconColor="#3B82F6"
             title="Push Notifications"
+            subtitle="Receive push notifications about your trips"
             showArrow={false}
             showSwitch
-            switchValue={true}
+            switchValue={pushNotifications}
+            onSwitchChange={(value) => {
+              setPushNotifications(value);
+              showToast(value ? 'Push notifications enabled' : 'Push notifications disabled', 'success');
+            }}
           />
           <SettingItem
             icon={Chatting01Icon}
             iconColor="#10B981"
             title="SMS Alerts"
+            subtitle="Get SMS updates about your requests"
             showArrow={false}
             showSwitch
-            switchValue={true}
+            switchValue={smsAlerts}
+            onSwitchChange={(value) => {
+              setSmsAlerts(value);
+              showToast(value ? 'SMS alerts enabled' : 'SMS alerts disabled', 'success');
+            }}
           />
           <SettingItem
             icon={Mail01Icon}
             iconColor="#F59E0B"
             title="Email Updates"
+            subtitle="Receive email notifications and updates"
             showArrow={false}
             showSwitch
-            switchValue={false}
+            switchValue={emailUpdates}
+            onSwitchChange={(value) => {
+              setEmailUpdates(value);
+              showToast(value ? 'Email updates enabled' : 'Email updates disabled', 'success');
+            }}
           />
         </View>
 
@@ -441,20 +536,9 @@ export default function ProfileScreen() {
           <SettingItem
             icon={CreditCardIcon}
             iconColor="#8B5CF6"
-            title="Bank Account"
-            subtitle="•••• 4532"
-          />
-          <SettingItem
-            icon={SmartPhone01Icon}
-            iconColor="#EC4899"
-            title="Mobile Money"
-            subtitle="024 ••• ••89"
-          />
-          <SettingItem
-            icon={Wallet01Icon}
-            iconColor="#10B981"
-            title="Default Withdrawal"
-            subtitle="Mobile Money"
+            title="Payment Methods"
+            subtitle="Manage your payment methods"
+            onPress={() => router.push('/screens/user/payment-methods-screen')}
           />
         </View>
 
@@ -465,16 +549,20 @@ export default function ProfileScreen() {
             icon={Location01Icon}
             iconColor="#EF4444"
             title="Share Location"
-            subtitle="Only when online"
+            subtitle="Location is shared with operators during active trips"
             showArrow={false}
             showSwitch
             switchValue={true}
+            onSwitchChange={() => {
+              showToast('Location sharing is required for active trips', 'info');
+            }}
           />
           <SettingItem
             icon={UserBlock01Icon}
             iconColor="#6B7280"
             title="Blocked Users"
-            subtitle="2 users blocked"
+            subtitle="Manage blocked users"
+            onPress={() => router.push('/screens/user/blocked-users-screen')}
           />
         </View>
 
@@ -485,16 +573,22 @@ export default function ProfileScreen() {
             icon={HeadsetIcon}
             iconColor="#3B82F6"
             title="Contact Support"
+            subtitle="Get help from our support team"
+            onPress={() => router.push('/screens/user/contact-support-screen')}
           />
           <SettingItem
             icon={HelpCircleIcon}
             iconColor="#F59E0B"
             title="FAQs"
+            subtitle="Frequently asked questions"
+            onPress={() => router.push('/screens/user/faqs-screen')}
           />
           <SettingItem
             icon={LegalDocument01Icon}
             iconColor="#6B7280"
             title="Terms & Conditions"
+            subtitle="Read our terms of service"
+            onPress={() => router.push('/screens/user/terms-screen')}
           />
         </View>
 
@@ -754,5 +848,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 16,
+  },
+  tripItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  tripItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  tripIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  tripInfo: {
+    flex: 1,
+  },
+  tripRoute: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  tripDetails: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  tripDate: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 4,
   },
 });

@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { verifyOTP, sendOTP } from '@/lib/services/authService';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Fonts } from '@/constants/theme';
-import { isProfileComplete } from '@/lib/services/operatorService';
+import { isProfileComplete, getVerificationStatus } from '@/lib/services/operatorService';
 import { getCurrentUser } from '@/lib/services/authService';
 import { supabase } from '@/lib/supabase';
 
@@ -83,8 +83,26 @@ export default function OTPVerifyScreen() {
             const profileComplete = await isProfileComplete(user.id);
             if (!profileComplete) {
               router.replace('/screens/operator/profile-setup-screen');
-            } else {
+              return;
+            }
+            
+            // Check verification status
+            const { data: operatorData } = await supabase
+              .from('users')
+              .select('verification_status')
+              .eq('id', user.id)
+              .single();
+            
+            const verificationStatus = operatorData?.verification_status;
+            
+            if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
+              router.replace('/screens/operator/verification-pending');
+            } else if (verificationStatus === 'rejected') {
+              router.replace('/screens/operator/verification-rejected');
+            } else if (verificationStatus === 'approved') {
               router.replace('/screens/operator/dashboard');
+            } else {
+              router.replace('/screens/operator/profile-setup-screen');
             }
           } else {
             // Regular user - go to tabs

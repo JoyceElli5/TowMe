@@ -7,7 +7,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   StatusBar,
@@ -18,19 +18,145 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useReceiptDownload } from '@/hooks/use-receipt-download';
+import { ThemedText } from '@/components/themed-text';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useToast } from '@/hooks/use-toast';
+import { API_BASE_URL, ApiError, getAccessToken, getRequestById, type TowingRequest } from '@/lib/api';
 
 export default function TripCompletedScreen() {
   const params = useLocalSearchParams<{ requestId?: string }>();
   const requestId = params.requestId || '';
-  const { isDownloading, handleDownloadReceipt } = useReceiptDownload();
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { showToast } = useToast();
+  const backgroundColor = useThemeColor({}, 'background');
+
+  useEffect(() => {
+    if (requestId) {
+      loadRequest();
+    } else {
+      showToast('Request ID not found', 'error');
+      router.back();
+    }
+  }, [requestId]);
+
+  const loadRequest = async () => {
+    if (!requestId) return;
+
+    try {
+      setIsLoading(true);
+      const data = await getRequestById(requestId);
+      setRequest(data);
+    } catch (error) {
+      console.error('Error loading request:', error);
+      if (error instanceof ApiError) {
+        showToast(error.message, 'error');
+      } else {
+        showToast('Failed to load trip details', 'error');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleRate = () => {
-    router.push('/screens/user/rating');
+    if (requestId) {
+      router.push({
+        pathname: '/screens/user/rating',
+        params: { requestId },
+      });
+    }
   };
 
   const handleHome = () => {
     router.replace('/screens/user/home-screen');
+  };
+
+  const handleDownloadReceipt = async () => {
+    if (!requestId) {
+      showToast('Request ID not found', 'error');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`${API_BASE_URL}/requests/${requestId}/receipt`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download receipt');
+      }
+
+      const receiptText = await response.text();
+      
+      // Save to file system
+      const fileUri = `${FileSystem.documentDirectory}receipt-${requestId}.txt`;
+      await FileSystem.writeAsStringAsync(fileUri, receiptText, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/plain',
+          dialogTitle: 'Save Receipt',
+        });
+        showToast('Receipt downloaded successfully', 'success');
+      } else {
+        Alert.alert('Receipt Saved', `Receipt saved to: ${fileUri}`);
+        showToast('Receipt saved to device', 'success');
+      }
+    } catch (error) {
+      console.error('Receipt download error:', error);
+      showToast('Failed to download receipt', 'error');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor }]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+          <ThemedText style={styles.loadingText}>Loading trip details...</ThemedText>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!request) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor }]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={styles.loadingContainer}>
+          <ThemedText style={styles.errorText}>Trip information not available</ThemedText>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Calculate duration if we have start and completion times
+  const getDuration = () => {
+    if (request.startedAt && request.completedAt) {
+      const start = new Date(request.startedAt).getTime();
+      const end = new Date(request.completedAt).getTime();
+      const minutes = Math.floor((end - start) / 60000);
+      return `${minutes} min`;
+    }
+    // Fallback estimate based on distance
+    return `~${Math.ceil((request.distanceKm || 0) * 2)} min`;
   };
 
   return (
@@ -43,42 +169,44 @@ export default function TripCompletedScreen() {
           <Ionicons name="checkmark-circle" size={64} color="#10B981" />
         </View>
 
-        <Text style={styles.title}>Trip Completed!</Text>
-        <Text style={styles.subtitle}>
+        <ThemedText style={styles.title}>Trip Completed!</ThemedText>
+        <ThemedText style={styles.subtitle}>
           Your vehicle has been successfully towed to the destination
-        </Text>
+        </ThemedText>
 
         {/* Trip Summary Card */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Trip Summary</Text>
+          <ThemedText style={styles.summaryTitle}>Trip Summary</ThemedText>
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>From</Text>
-            <Text style={styles.summaryValue}>Ring Road Central, Accra</Text>
+            <ThemedText style={styles.summaryLabel}>From</ThemedText>
+            <ThemedText style={styles.summaryValue}>{request.pickupAddress}</ThemedText>
           </View>
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>To</Text>
-            <Text style={styles.summaryValue}>Accra Mall, Accra</Text>
+            <ThemedText style={styles.summaryLabel}>To</ThemedText>
+            <ThemedText style={styles.summaryValue}>{request.destinationAddress}</ThemedText>
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Distance</Text>
-            <Text style={styles.summaryValue}>10.2 km</Text>
+            <ThemedText style={styles.summaryLabel}>Distance</ThemedText>
+            <ThemedText style={styles.summaryValue}>{request.distanceKm?.toFixed(1) || '0'} km</ThemedText>
           </View>
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Duration</Text>
-            <Text style={styles.summaryValue}>25 min</Text>
+            <ThemedText style={styles.summaryLabel}>Duration</ThemedText>
+            <ThemedText style={styles.summaryValue}>{getDuration()}</ThemedText>
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Amount</Text>
-            <Text style={styles.totalValue}>GH₵ 150.00</Text>
+            <ThemedText style={styles.totalLabel}>Total Amount</ThemedText>
+            <ThemedText style={styles.totalValue}>
+              GH₵ {(request.finalPrice || request.estimatedPrice || 0).toFixed(2)}
+            </ThemedText>
           </View>
         </View>
 
@@ -251,5 +379,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#6b7280',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  backButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#003554',
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

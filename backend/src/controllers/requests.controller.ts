@@ -6,6 +6,7 @@
 import { Response } from 'express';
 import * as requestsService from '../services/requests.service';
 import * as receiptService from '../services/receipt.service';
+import * as usersService from '../services/users.service';
 import type { AuthenticatedRequest } from '../types/api.types';
 import type { RequestStatus, VehicleType } from '../types/database.types';
 
@@ -203,18 +204,18 @@ export async function trackRequest(req: AuthenticatedRequest, res: Response): Pr
   const { id } = req.params;
   const request = await requestsService.getRequestWithDetails(id);
 
-  // In a real implementation, this would include real-time location data
+  // Get real-time operator location if operator is assigned
+  let operatorLocation = null;
+  if (request.operator?.id) {
+    const location = await usersService.getOperatorLocation(request.operator.id);
+    operatorLocation = location;
+  }
+
   res.json({
     success: true,
     data: {
       request,
-      // Placeholder for operator location
-      operatorLocation: request.operator ? {
-        latitude: 5.6050,
-        longitude: -0.1860,
-        heading: 180,
-        timestamp: new Date().toISOString(),
-      } : null,
+      operatorLocation,
     },
   });
 }
