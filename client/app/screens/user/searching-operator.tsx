@@ -6,8 +6,8 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useEffect } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
   StatusBar,
   StyleSheet,
@@ -18,19 +18,75 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PulseLoader from '@/components/pulse-loader';
+import { useToast } from '@/hooks/use-toast';
+import { ApiError, cancelRequest } from '@/lib/api';
+import { subscribeToRequest, unsubscribe } from '@/lib/services/realtimeService';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function SearchingOperatorScreen() {
-  // Simulate finding an operator after 3 seconds
+  const params = useLocalSearchParams<{ requestId?: string }>();
+  const requestId = params.requestId;
+  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
+  const { showToast } = useToast();
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Subscribe to request changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace('/screens/user/operator-found');
-    }, 3000);
+    if (!requestId) {
+      // Fallback to old behavior if no requestId
+      const timer = setTimeout(() => {
+        router.replace('/screens/user/operator-found');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
 
-    return () => clearTimeout(timer);
-  }, []);
+    const subscription = subscribeToRequest(requestId, (payload) => {
+      console.log('Request update:', payload);
+      
+      if (payload.eventType === 'UPDATE' && payload.new) {
+        const status = payload.new.status;
+        
+        if (status === 'accepted') {
+          router.replace({
+            pathname: '/screens/user/operator-found',
+            params: { requestId },
+          });
+        } else if (status === 'cancelled') {
+          router.back();
+        }
+      }
+    });
 
-  const handleCancel = () => {
-    router.back();
+    setChannel(subscription);
+
+    return () => {
+      if (subscription) {
+        unsubscribe(subscription);
+      }
+    };
+  }, [requestId]);
+
+  const handleCancel = async () => {
+    if (!requestId) {
+      router.back();
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      await cancelRequest(requestId, 'Cancelled by user');
+      showToast('Request cancelled successfully', 'success');
+      router.replace('/screens/user/home-screen');
+    } catch (error) {
+      console.error('Cancel request error:', error);
+      if (error instanceof ApiError) {
+        showToast(error.message || 'Failed to cancel request', 'error');
+      } else {
+        showToast('Failed to cancel request', 'error');
+      }
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   return (
@@ -51,12 +107,15 @@ export default function SearchingOperatorScreen() {
 
         {/* Cancel Button */}
         <TouchableOpacity
-          style={styles.cancelButton}
+          style={[styles.cancelButton, isCancelling && styles.cancelButtonDisabled]}
           onPress={handleCancel}
           activeOpacity={0.7}
+          disabled={isCancelling}
         >
           <Ionicons name="close-circle-outline" size={20} color="#ef4444" style={styles.cancelIcon} />
-          <Text style={styles.cancelButtonText}>Cancel Request</Text>
+          <Text style={styles.cancelButtonText}>
+            {isCancelling ? 'Cancelling...' : 'Cancel Request'}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -110,5 +169,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Gilroy-SemiBold',
     color: '#ef4444',
+  },
+  cancelButtonDisabled: {
+    opacity: 0.5,
   },
 });

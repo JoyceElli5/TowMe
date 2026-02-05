@@ -26,7 +26,7 @@ export default function RoleSelectionScreen() {
     setIsLoading(true);
     try {
       router.push({
-        pathname: '/screens/auth/login-screen',
+        pathname: '/screens/auth/auth-method-screen',
         params: { role: selectedRole },
       });
     } catch {

@@ -49,13 +49,14 @@ export default function LoginScreen() {
       });
 
       console.log('Login successful:', user);
-      
+
       showToast('Login successful!', 'success');
-      
+
       // Navigate to appropriate dashboard based on user role from API response
       setTimeout(() => {
         if (user.role === 'tow_operator') {
-          router.replace('/screens/operator/dashboard');
+          // Check if operator profile is complete
+          router.replace('/operator/(tabs)/dashboard');
         } else {
           router.replace('/(tabs)');
         }
@@ -186,10 +187,10 @@ export default function LoginScreen() {
                   accessibilityRole="button"
                   accessibilityHint={showPassword ? 'Password is currently visible' : 'Password is currently hidden'}
                 >
-                  <Ionicons 
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
-                    size={22} 
-                    color="#6b7280" 
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color="#6b7280"
                   />
                 </TouchableOpacity>
               </View>

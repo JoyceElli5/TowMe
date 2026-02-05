@@ -1,13 +1,16 @@
 /**
- * Arrived at Pickup Screen (Placeholder)
+ * Arrived at Pickup Screen
  * 
  * Displayed when operator arrives at pickup location.
  * Allows operator to confirm vehicle loading and start towing.
  */
 
-import { router } from 'expo-router';
-import React from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Linking,
   StatusBar,
   StyleSheet,
   Text,
@@ -15,11 +18,83 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CheckmarkCircle01Icon } from 'hugeicons-react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+import { getRequestById, type TowingRequest } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+
+const formatVehicleType = (vehicleType?: string): string => {
+  if (!vehicleType) return 'Unknown';
+  return vehicleType.charAt(0).toUpperCase() + vehicleType.slice(1);
+};
 
 export default function ArrivedAtPickupScreen() {
+  const params = useLocalSearchParams<{ requestId: string }>();
+  const { showToast } = useToast();
+  
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRequest = async () => {
+      if (!params.requestId) {
+        Alert.alert('Error', 'Request ID is missing');
+        router.back();
+        return;
+      }
+
+      try {
+        const requestData = await getRequestById(params.requestId);
+        setRequest(requestData);
+      } catch (error) {
+        console.error('Failed to fetch request:', error);
+        Alert.alert('Error', 'Failed to load request details');
+        router.back();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRequest();
+  }, [params.requestId]);
+
   const handleStartTowing = () => {
-    router.replace('/screens/operator/towing-in-progress');
+    if (params.requestId) {
+      router.replace({
+        pathname: '/screens/operator/towing-in-progress',
+        params: { requestId: params.requestId },
+      });
+    }
   };
+
+  const handleCall = () => {
+    if (request?.user?.phone) {
+      Linking.openURL(`tel:${request.user.phone}`);
+    }
+  };
+
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  if (isLoading || !request) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -28,7 +103,7 @@ export default function ArrivedAtPickupScreen() {
       <View style={styles.content}>
         {/* Success Icon */}
         <View style={styles.iconContainer}>
-          <Text style={styles.checkIcon}>✓</Text>
+          <CheckmarkCircle01Icon size={64} color="#10B981" strokeWidth={2} />
         </View>
 
         <Text style={styles.title}>You&apos;ve Arrived!</Text>
@@ -39,14 +114,14 @@ export default function ArrivedAtPickupScreen() {
         {/* Customer Card */}
         <View style={styles.customerCard}>
           <View style={styles.customerAvatar}>
-            <Text style={styles.avatarText}>SK</Text>
+            <Text style={styles.avatarText}>{getUserInitials(request.user?.fullName)}</Text>
           </View>
           <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>Sarah Kofi</Text>
-            <Text style={styles.vehicleInfo}>Toyota Corolla • Silver</Text>
+            <Text style={styles.customerName}>{request.user?.fullName || 'Unknown User'}</Text>
+            <Text style={styles.vehicleInfo}>{formatVehicleType(request.vehicleType)}</Text>
           </View>
-          <TouchableOpacity style={styles.callButton}>
-            <Text style={styles.callIcon}>📞</Text>
+          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
+            <Ionicons name="call" size={20} color="#10B981" />
           </TouchableOpacity>
         </View>
 
@@ -56,21 +131,21 @@ export default function ArrivedAtPickupScreen() {
           
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
-              <Text style={styles.checkboxText}>✓</Text>
+              <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
             </View>
             <Text style={styles.checkText}>Confirm vehicle identity</Text>
           </View>
           
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
-              <Text style={styles.checkboxText}>✓</Text>
+              <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
             </View>
             <Text style={styles.checkText}>Secure vehicle on tow truck</Text>
           </View>
           
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
-              <Text style={styles.checkboxText}>✓</Text>
+              <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
             </View>
             <Text style={styles.checkText}>Confirm destination with customer</Text>
           </View>
@@ -229,5 +304,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
   },
 });
