@@ -28,8 +28,8 @@ const TAB_CONFIG: Record<string, TabConfig> = {
     name: 'Home',
     Icon: Home01Icon,
   },
-  history: {
-    name: 'History',
+  earnings: {
+    name: 'Earnings',
     Icon: TransactionIcon,
   },
   messages: {
@@ -57,7 +57,7 @@ function TabItem({
   const scale = useSharedValue(1);
   const config = TAB_CONFIG[routeName] || TAB_CONFIG.index;
   const Icon = config.Icon;
-  
+
   // Theme colors - using dark blue (#003554) for active state
   const activeColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
   const inactiveColor = useThemeColor({}, 'icon');
