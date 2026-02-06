@@ -19,9 +19,15 @@ export default function OperatorTabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="history"
+                name="earnings"
                 options={{
-                    title: 'History',
+                    title: 'Earnings',
+                }}
+            />
+            <Tabs.Screen
+                name="notifications"
+                options={{
+                    title: 'Activity',
                 }}
             />
             <Tabs.Screen
