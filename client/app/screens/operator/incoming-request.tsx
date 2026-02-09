@@ -218,7 +218,7 @@ export default function IncomingRequestScreen() {
             disabled={isAccepting}
           >
             {isAccepting ? (
-              <View style={styles.loadingContainer}>
+              <View style={styles.buttonLoadingContainer}>
                 <ActivityIndicator color="#ffffff" size="small" />
                 <Text style={[styles.acceptButtonText, { marginLeft: 12 }]}>Accepting...</Text>
               </View>
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.7,
   },
-  loadingContainer: {
+  buttonLoadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

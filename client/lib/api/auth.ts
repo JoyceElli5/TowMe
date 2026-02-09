@@ -83,7 +83,15 @@ export async function logout(): Promise<void> {
   try {
     await api.post('/auth/logout');
   } finally {
+    // Clear backend JWT tokens
     await clearTokens();
+    // Also clear Supabase session so both auth systems are fully signed out
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      await supabase.auth.signOut();
+    } catch {
+      // Non-fatal — backend tokens are already cleared
+    }
   }
 }
 

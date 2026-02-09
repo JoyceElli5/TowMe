@@ -53,7 +53,6 @@ import { useTheme } from '@/contexts/theme-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, getCurrentUser, getUserRequests, logout, updateUserAvatar, type TowingRequest, type User } from '@/lib/api';
-import { getCurrentUser as getAuthUser } from '@/lib/services/authService';
 import { getUserVehicles, type UserVehicle } from '@/lib/services/vehicleService';
 
 interface SettingItemProps {
@@ -155,10 +154,10 @@ export default function ProfileScreen() {
 
   const loadVehicles = async () => {
     try {
-      const authUser = await getAuthUser();
-      if (authUser) {
+      const user = await getCurrentUser();
+      if (user) {
         setIsLoadingVehicles(true);
-        const userVehicles = await getUserVehicles(authUser.id);
+        const userVehicles = await getUserVehicles(user.id);
         setVehicles(userVehicles);
       }
     } catch (error) {
@@ -208,6 +207,10 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Sign out of Supabase (clears Supabase + backend tokens)
+              const { signOut } = await import('@/lib/services/authService');
+              await signOut();
+              // Also hit the backend logout endpoint
               await logout();
               router.replace('/screens/auth/login-screen');
               showToast('Logged out successfully', 'success');
@@ -234,7 +237,7 @@ export default function ProfileScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,

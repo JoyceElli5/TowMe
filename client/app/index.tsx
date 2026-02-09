@@ -1,5 +1,5 @@
 import { ThemedView } from '@/components/themed-view';
-import { getCurrentSession, getCurrentUser } from '@/lib/services/authService';
+import { bridgeAuthSession, getCurrentSession, getCurrentUser } from '@/lib/services/authService';
 import { isProfileComplete } from '@/lib/services/operatorService';
 import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
@@ -14,6 +14,11 @@ export default function IndexScreen() {
         console.log('Auth check - Session:', session ? 'exists' : 'none');
         
         if (session && session.user) {
+          // Bridge Supabase session → backend JWT tokens
+          // This ensures all API calls have valid backend tokens
+          const bridged = await bridgeAuthSession();
+          console.log('Auth check - Bridge:', bridged ? 'success' : 'failed');
+
           // Check user role and profile completion
           const user = await getCurrentUser();
           console.log('Auth check - User:', user ? user.id : 'none');
@@ -55,7 +60,7 @@ export default function IndexScreen() {
                 } else if (verificationStatus === 'rejected') {
                   router.replace('/screens/operator/verification-rejected');
                 } else if (verificationStatus === 'approved') {
-                  router.replace('/screens/operator/dashboard');
+                  router.replace('/operator/(tabs)/dashboard');
                 } else {
                   // Default to profile setup if status is unclear
                   router.replace('/screens/operator/profile-setup-screen');

@@ -1,10 +1,59 @@
 import { supabase } from '@/lib/supabase';
+import { API_BASE_URL, setAccessToken, setRefreshToken, clearTokens } from '@/lib/api/client';
 import type { User } from '@supabase/supabase-js';
 
 export interface PhoneAuthResult {
   success: boolean;
   error?: string;
   user?: User;
+}
+
+/**
+ * Bridge Supabase auth session to backend JWT tokens.
+ * After phone OTP login (Supabase), this calls the backend /auth/session
+ * endpoint which validates the Supabase token and returns backend JWT
+ * tokens for all subsequent API calls.
+ *
+ * This is the glue between the two auth systems:
+ *   Supabase (phone OTP) → Backend (JWT for API authorization)
+ */
+export async function bridgeAuthSession(): Promise<boolean> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      console.log('⚠️ No Supabase session to bridge');
+      return false;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/auth/session`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('❌ Bridge auth failed:', response.status);
+      return false;
+    }
+
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      await setAccessToken(result.data.accessToken);
+      if (result.data.refreshToken) {
+        await setRefreshToken(result.data.refreshToken);
+      }
+      console.log('✅ Auth bridged: Supabase → Backend JWT');
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('❌ Error bridging auth session:', error);
+    return false;
+  }
 }
 
 /**
@@ -30,7 +79,7 @@ export async function sendOTP(phone: string): Promise<PhoneAuthResult> {
     
     console.log('Sending OTP to:', formattedPhone);
     
-    const { data, error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithOtp({
       phone: formattedPhone,
       options: {
         channel: 'sms',
@@ -86,6 +135,9 @@ export async function verifyOTP(
     // Create or update user profile in users table
     await createOrUpdateUserProfile(data.user, formattedPhone, role);
 
+    // Bridge to backend JWT so all API calls work immediately
+    await bridgeAuthSession();
+
     return { success: true, user: data.user };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to verify OTP' };
@@ -140,10 +192,12 @@ async function createOrUpdateUserProfile(
 }
 
 /**
- * Sign out current user
+ * Sign out current user — clears both Supabase and backend JWT tokens
  */
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
+  // Also clear backend JWT tokens so API calls stop working
+  await clearTokens();
 }
 
 /**

@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabase';
-import * as FileSystem from 'expo-file-system';
 
 const VEHICLE_PHOTOS_BUCKET = 'vehicle_photos';
 const PROFILE_PHOTOS_BUCKET = 'profile_photos';
 
 /**
  * Upload vehicle photo to Supabase Storage
+ * Uses fetch + blob approach (compatible with Expo SDK 54+)
  */
 export async function uploadVehiclePhoto(
   userId: string,
@@ -16,26 +16,18 @@ export async function uploadVehiclePhoto(
     const timestamp = Date.now();
     const filename = `${userId}/${timestamp}.jpg`;
 
-    // Read file as base64
-    // In expo-file-system v19+, use 'base64' as string
-    const base64 = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: 'base64' as any,
-    });
+    // Read file as blob using fetch (works with Expo SDK 54+)
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
 
-    // For React Native, we need to convert base64 to ArrayBuffer
-    // Convert base64 string to binary string
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+    // Determine content type from the blob or default to jpeg
+    const contentType = blob.type || 'image/jpeg';
 
-    // Upload to Supabase Storage
-    // Supabase Storage accepts ArrayBuffer or Blob
+    // Upload blob directly to Supabase Storage
     const { error } = await supabase.storage
       .from(VEHICLE_PHOTOS_BUCKET)
-      .upload(filename, bytes, {
-        contentType: 'image/jpeg',
+      .upload(filename, blob, {
+        contentType,
         upsert: false,
       });
 
@@ -79,6 +71,7 @@ export async function deleteVehiclePhoto(photoUrl: string): Promise<void> {
 
 /**
  * Upload profile photo to Supabase Storage
+ * Uses fetch + blob approach (compatible with Expo SDK 54+)
  */
 export async function uploadProfilePhoto(
   userId: string,
@@ -89,23 +82,18 @@ export async function uploadProfilePhoto(
     const timestamp = Date.now();
     const filename = `${userId}/${timestamp}.jpg`;
 
-    // Read file as base64
-    const base64 = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: 'base64' as any,
-    });
+    // Read file as blob using fetch (works with Expo SDK 54+)
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
 
-    // Convert base64 string to binary string
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+    // Determine content type from the blob or default to jpeg
+    const contentType = blob.type || 'image/jpeg';
 
-    // Upload to Supabase Storage
+    // Upload blob directly to Supabase Storage
     const { error } = await supabase.storage
       .from(PROFILE_PHOTOS_BUCKET)
-      .upload(filename, bytes, {
-        contentType: 'image/jpeg',
+      .upload(filename, blob, {
+        contentType,
         upsert: true, // Allow overwriting existing profile photos
       });
 

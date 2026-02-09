@@ -29,6 +29,7 @@ import { getOperatorRequests, getPendingRequests } from '@/lib/api/requests';
 import { toggleOperatorOnlineStatus } from '@/lib/api/users';
 import { subscribeToPendingRequests, unsubscribe } from '@/lib/services/realtimeService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function OperatorDashboardScreen() {
   const { showToast } = useToast();
@@ -36,6 +37,7 @@ export default function OperatorDashboardScreen() {
   const textColor = useThemeColor({}, 'text');
   const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
   const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+  const cardBg = useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background');
 
   const [isOnline, setIsOnline] = useState(false);
   const [earnings, setEarnings] = useState(0);
@@ -44,6 +46,7 @@ export default function OperatorDashboardScreen() {
   const [tripsToday, setTripsToday] = useState(0);
   const [rating, setRating] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
+  const [isVerified, setIsVerified] = useState<boolean | null>(null);
 
   // Fetch current user and stats on mount
   useEffect(() => {
@@ -54,6 +57,7 @@ export default function OperatorDashboardScreen() {
           setCurrentUser({ id: user.id });
           setIsOnline(user.isOnline || false);
           setRating(user.averageRating || 0);
+          setIsVerified(user.isVerified ?? false);
 
           // Fetch today's trips and earnings
           const today = new Date();
@@ -149,6 +153,11 @@ export default function OperatorDashboardScreen() {
       return;
     }
 
+    if (!isVerified) {
+      showToast('Your account is pending verification. Please wait for admin approval.', 'error');
+      return;
+    }
+
     setIsLoadingStatus(true);
     try {
       await toggleOperatorOnlineStatus(currentUser.id, value);
@@ -186,25 +195,25 @@ export default function OperatorDashboardScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            style={[styles.profileButton, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}
+            style={[styles.profileButton, { backgroundColor: cardBg }]}
             onPress={() => router.push('/operator/(tabs)/profile')}
           >
             <UserIcon size={20} color={tintColor} strokeWidth={2} />
           </TouchableOpacity>
-          <View style={[styles.statusContainer, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}>
+          <View style={[styles.statusContainer, { backgroundColor: cardBg }]}>
             <ThemedText style={styles.statusLabel}>
-              {isOnline ? 'You\'re Online' : 'You\'re Offline'}
+              {isVerified === false ? 'Not Verified' : isOnline ? 'You\'re Online' : 'You\'re Offline'}
             </ThemedText>
             <Switch
               value={isOnline}
               onValueChange={handleOnlineToggle}
-              disabled={isLoadingStatus}
+              disabled={isLoadingStatus || isVerified === false}
               trackColor={{ false: '#e5e7eb', true: '#bae6fd' }}
               thumbColor={isOnline ? tintColor : '#9ca3af'}
             />
           </View>
           <TouchableOpacity
-            style={[styles.menuButton, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}
+            style={[styles.menuButton, { backgroundColor: cardBg }]}
             onPress={() => setShowMenu(true)}
           >
             <Menu01Icon size={20} color={tintColor} strokeWidth={2} />
@@ -212,7 +221,7 @@ export default function OperatorDashboardScreen() {
         </View>
 
         {/* Stats Card */}
-        <ThemedView style={[styles.statsCard, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}>
+        <ThemedView style={[styles.statsCard, { backgroundColor: cardBg }]}>
           <View style={styles.statItem}>
             <ThemedText style={[styles.statValue, { color: tintColor }]}>{tripsToday}</ThemedText>
             <ThemedText style={styles.statLabel}>Trips Today</ThemedText>
@@ -231,14 +240,28 @@ export default function OperatorDashboardScreen() {
       </SafeAreaView>
 
       {/* Bottom Card */}
-      <ThemedView style={[styles.bottomCard, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}>
-        <ThemedText style={styles.bottomTitle}>
-          {isOnline ? 'Waiting for requests...' : 'Go online to receive requests'}
-        </ThemedText>
-        {isOnline && (
-          <View style={[styles.pulseContainer, { backgroundColor: '#bae6fd' }]}>
-            <View style={[styles.pulse, { backgroundColor: tintColor }]} />
-          </View>
+      <ThemedView style={[styles.bottomCard, { backgroundColor: cardBg }]}>
+        {isVerified === false ? (
+          <>
+            <View style={styles.verificationIcon}>
+              <Ionicons name="shield-checkmark-outline" size={40} color="#F59E0B" />
+            </View>
+            <ThemedText style={styles.bottomTitle}>Awaiting Verification</ThemedText>
+            <ThemedText style={styles.verificationText}>
+              Your documents are being reviewed by our admin team. You'll be notified once approved.
+            </ThemedText>
+          </>
+        ) : (
+          <>
+            <ThemedText style={styles.bottomTitle}>
+              {isOnline ? 'Waiting for requests...' : 'Go online to receive requests'}
+            </ThemedText>
+            {isOnline && (
+              <View style={[styles.pulseContainer, { backgroundColor: '#bae6fd' }]}>
+                <View style={[styles.pulse, { backgroundColor: tintColor }]} />
+              </View>
+            )}
+          </>
         )}
       </ThemedView>
 
@@ -381,5 +404,16 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     backgroundColor: '#003554',
+  },
+  verificationIcon: {
+    marginBottom: 12,
+  },
+  verificationText: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#6b7280',
+    lineHeight: 20,
+    paddingHorizontal: 16,
+    fontFamily: 'Gilroy-Regular',
   },
 });

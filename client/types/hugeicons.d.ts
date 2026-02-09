@@ -6,6 +6,7 @@ declare module 'hugeicons-react-native' {
     size?: number;
     color?: string;
     strokeWidth?: number;
+    opacity?: number;
     style?: ViewStyle | TextStyle;
   }
 
@@ -72,5 +73,14 @@ declare module 'hugeicons-react-native' {
   export const HeadsetIcon: ComponentType<IconProps>;
   export const HelpCircleIcon: ComponentType<IconProps>;
   export const Car01Icon: ComponentType<IconProps>;
+  
+  // Additional icons for operator screens
+  export const Menu01Icon: ComponentType<IconProps>;
+  export const ArrowLeft01Icon: ComponentType<IconProps>;
+  export const Settings01Icon: ComponentType<IconProps>;
+  export const Close01Icon: ComponentType<IconProps>;
+  export const Document01Icon: ComponentType<IconProps>;
+  export const Phone01Icon: ComponentType<IconProps>;
+  export const Flag01Icon: ComponentType<IconProps>;
 }
 

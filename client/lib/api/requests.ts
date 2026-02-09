@@ -42,6 +42,14 @@ export interface TowingRequest {
     avatarUrl: string | null;
     averageRating: number;
   } | null;
+  vehicle?: {
+    make: string;
+    model: string;
+    year: number;
+    color: string;
+    plateNumber: string;
+    towTruckType: string;
+  } | null;
 }
 
 export interface CreateTowingRequestData {

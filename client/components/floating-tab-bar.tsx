@@ -1,7 +1,8 @@
+import { useTabBar } from '@/contexts/tab-bar-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
-import { Home01Icon, Notification01Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
+import { Home01Icon, Notification01Icon, TransactionIcon, UserIcon, Wallet01Icon } from 'hugeicons-react-native';
 import React, { useCallback } from 'react';
 import {
   Platform,
@@ -27,6 +28,18 @@ const TAB_CONFIG: Record<string, TabConfig> = {
   index: {
     name: 'Home',
     Icon: Home01Icon,
+  },
+  dashboard: {
+    name: 'Home',
+    Icon: Home01Icon,
+  },
+  earnings: {
+    name: 'Earnings',
+    Icon: Wallet01Icon,
+  },
+  notifications: {
+    name: 'Activity',
+    Icon: Notification01Icon,
   },
   history: {
     name: 'History',
@@ -130,6 +143,12 @@ export function FloatingTabBar({
   const insets = useSafeAreaInsets();
   const backgroundColor = useThemeColor({ light: 'rgba(255, 255, 255, 0.95)', dark: 'rgba(31, 41, 55, 0.95)' }, 'background');
   const borderColor = useThemeColor({ light: 'rgba(255, 255, 255, 0.8)', dark: 'rgba(55, 65, 81, 0.8)' }, 'background');
+  const { isVisible } = useTabBar();
+
+  // Don't render if not visible
+  if (!isVisible) {
+    return null;
+  }
 
   return (
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -190,7 +209,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     width: '100%',
-    maxWidth: 310,
+    maxWidth: 360,
     // Shadow for depth
     shadowColor: '#000',
     shadowOffset: {
@@ -206,7 +225,7 @@ const styles = StyleSheet.create({
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     position: 'relative',
   },

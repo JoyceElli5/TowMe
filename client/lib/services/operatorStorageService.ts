@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabase';
-import * as FileSystem from 'expo-file-system';
 
 const BUCKET_NAME = 'operator_documents';
 
 /**
  * Upload operator document to Supabase Storage
+ * Uses fetch + blob approach (compatible with Expo SDK 54+)
  */
 export async function uploadOperatorDocument(
   userId: string,
@@ -17,24 +17,18 @@ export async function uploadOperatorDocument(
     const extension = fileUri.split('.').pop() || 'jpg';
     const filename = `${userId}/${documentType}_${timestamp}.${extension}`;
 
-    // Read file as base64
-    const base64 = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: 'base64' as any,
-    });
+    // Read file as blob using fetch (works with Expo SDK 54+)
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
 
-    // Convert base64 to ArrayBuffer for React Native
-    const byteCharacters = atob(base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
+    // Determine content type from the blob or default to jpeg
+    const contentType = blob.type || 'image/jpeg';
 
-    // Upload to Supabase Storage using ArrayBuffer
+    // Upload blob directly to Supabase Storage
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(filename, byteArray, {
-        contentType: 'image/jpeg',
+      .upload(filename, blob, {
+        contentType,
         upsert: false,
       });
 

@@ -4,7 +4,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Fonts } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { getCurrentUser } from '@/lib/services/authService';
+import { getCurrentUser } from '@/lib/api';
 import { getNotifications, markAllNotificationsAsRead, markNotificationAsRead, type Notification } from '@/lib/services/notificationService';
 import {
   CheckmarkCircle01Icon,

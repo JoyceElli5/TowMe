@@ -1,10 +1,13 @@
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { DocumentUpload } from '@/components/document-upload';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { getCurrentUser } from '@/lib/services/authService';
+import { getCurrentUser } from '@/lib/api';
 import {
   getOperatorProfile,
   updateOperatorProfile,
@@ -13,6 +16,7 @@ import {
 import { uploadOperatorDocument } from '@/lib/services/operatorStorageService';
 
 export default function OperatorProfileSetupScreen() {
+  const router = useRouter();
   const [ghanaCardNumber, setGhanaCardNumber] = useState('');
   const [ghanaCardPhoto, setGhanaCardPhoto] = useState<string | null>(null);
   const [ghanaCardPhotoUri, setGhanaCardPhotoUri] = useState<string | null>(null);
@@ -195,8 +199,8 @@ export default function OperatorProfileSetupScreen() {
       await updateOperatorProfile(user.id, profileData);
       showToast('Profile saved successfully! Your profile is under review.', 'success');
 
-      // Navigate to operator dashboard
-      router.replace('/screens/operator/dashboard');
+      // Navigate to verification pending - operator must wait for admin approval
+      router.replace('/screens/operator/verification-pending');
     } catch (error: any) {
       showToast(error.message || 'Failed to save profile', 'error');
     } finally {

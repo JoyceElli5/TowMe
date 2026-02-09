@@ -53,6 +53,7 @@ import {
 } from '@/lib/api';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTabBar } from '@/contexts/tab-bar-context';
 
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
 import {
@@ -66,6 +67,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function HomeScreen() {
   const { showToast } = useToast();
+  const { showTabBar, hideTabBar } = useTabBar();
 
   const backgroundColor = useThemeColor({}, 'background');
 
@@ -122,6 +124,28 @@ export default function HomeScreen() {
 
     detectLocation();
   }, []);
+
+  /**
+   * Hide/show tab bar based on vehicle selection and active session
+   */
+  useEffect(() => {
+    const hasActiveRequest = activeRequest && ['pending', 'accepted', 'in_progress'].includes(activeRequest.status);
+    
+    // Show tab bar if there's an active session (different UI state)
+    // Hide tab bar when vehicle is selected to give more space for the order form
+    if (hasActiveRequest) {
+      showTabBar();
+    } else if (selectedVehicle) {
+      hideTabBar();
+    } else {
+      showTabBar();
+    }
+    
+    // Cleanup: show tab bar when leaving the screen
+    return () => {
+      showTabBar();
+    };
+  }, [selectedVehicle, activeRequest, hideTabBar, showTabBar]);
 
   /**
    * Update map region to fit both pickup and destination
@@ -441,6 +465,7 @@ export default function HomeScreen() {
         onSelect={handleDestinationSelect}
         initialLocation={destinationCoords || undefined}
         title="Select Destination"
+        autoDetectLocation={false}
       />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>

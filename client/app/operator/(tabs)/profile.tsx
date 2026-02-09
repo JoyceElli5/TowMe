@@ -147,7 +147,7 @@ export default function OperatorProfileScreen() {
           </View>
           <ThemedText style={styles.name}>{user?.fullName || profile?.full_name || 'Operator'}</ThemedText>
           <ThemedText style={styles.phone}>{user?.phone || profile?.phone || ''}</ThemedText>
-          {profile?.average_rating && (
+          {profile?.average_rating != null && profile.average_rating > 0 && (
             <View style={styles.ratingContainer}>
               <ThemedText style={styles.rating}>⭐ {profile.average_rating.toFixed(1)}</ThemedText>
             </View>

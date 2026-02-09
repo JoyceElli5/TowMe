@@ -51,7 +51,7 @@ export default function VerificationPendingScreen() {
       setVerificationStatus(status);
 
       if (status === 'approved') {
-        router.replace('/screens/operator/dashboard');
+        router.replace('/operator/(tabs)/dashboard');
       } else if (status === 'rejected') {
         router.replace('/screens/operator/verification-rejected');
       }

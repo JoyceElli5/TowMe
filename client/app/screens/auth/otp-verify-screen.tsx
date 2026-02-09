@@ -3,7 +3,8 @@ import { ThemedView } from '@/components/themed-view';
 import { Fonts } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { getCurrentUser, sendOTP, verifyOTP } from '@/lib/services/authService';
+import { getCurrentUser } from '@/lib/api';
+import { sendOTP, verifyOTP } from '@/lib/services/authService';
 import { isProfileComplete } from '@/lib/services/operatorService';
 import { supabase } from '@/lib/supabase';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -159,7 +160,7 @@ export default function OTPVerifyScreen() {
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
-                ref={(ref) => (inputRefs.current[index] = ref)}
+                ref={(ref) => { inputRefs.current[index] = ref; }}
                 style={[
                   styles.otpInput,
                   { borderColor, color: textColor },

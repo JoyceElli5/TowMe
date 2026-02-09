@@ -2,7 +2,7 @@
  * Custom hook for downloading and sharing receipts
  */
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { Alert } from 'react-native';

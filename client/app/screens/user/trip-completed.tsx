@@ -6,10 +6,13 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -21,7 +24,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { API_BASE_URL, ApiError, getAccessToken, getRequestById, type TowingRequest } from '@/lib/api';
+import { ApiError, getAccessToken, getRequestById, type TowingRequest } from '@/lib/api';
+import { API_BASE_URL } from '@/lib/api/client';
 
 export default function TripCompletedScreen() {
   const params = useLocalSearchParams<{ requestId?: string }>();
@@ -213,7 +217,7 @@ export default function TripCompletedScreen() {
         {/* Download Receipt Button */}
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={() => handleDownloadReceipt(requestId)}
+          onPress={() => handleDownloadReceipt()}
           disabled={isDownloading}
           activeOpacity={0.8}
         >

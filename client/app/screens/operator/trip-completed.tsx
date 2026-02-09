@@ -5,6 +5,7 @@
  * Displays earnings and prompts for user rating.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -18,12 +19,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useReceiptDownload } from '@/hooks/use-receipt-download';
 import { getRequestById, type TowingRequest } from '@/lib/api';
 
 export default function TripCompletedOperatorScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
   const [request, setRequest] = useState<TowingRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { handleDownloadReceipt, isDownloading } = useReceiptDownload();
 
   useEffect(() => {
     const fetchRequest = async () => {
@@ -123,7 +126,7 @@ export default function TripCompletedOperatorScreen() {
         {/* Download Receipt Button */}
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={() => handleDownloadReceipt(requestId)}
+          onPress={() => handleDownloadReceipt(params.requestId)}
           disabled={isDownloading}
           activeOpacity={0.8}
         >
