@@ -7,7 +7,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,16 +21,16 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getRequestById, completeRequest, type TowingRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { completeRequest, getRequestById, type TowingRequest } from '@/lib/api';
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
-import { getCurrentOperatorLocation, type OperatorLocation } from '@/lib/services/operatorLocationService';
 import { calculateDistance } from '@/lib/services/locationService';
+import { getCurrentOperatorLocation, type OperatorLocation } from '@/lib/services/operatorLocationService';
 
 export default function TowingInProgressScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
   const { showToast } = useToast();
-  
+
   const [request, setRequest] = useState<TowingRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [operatorLocation, setOperatorLocation] = useState<OperatorLocation | null>(null);
@@ -53,7 +53,7 @@ export default function TowingInProgressScreen() {
       try {
         const requestData = await getRequestById(params.requestId);
         setRequest(requestData);
-        
+
         // Set initial map region
         if (requestData.destinationLat && requestData.destinationLng) {
           setMapRegion({
@@ -155,6 +155,15 @@ export default function TowingInProgressScreen() {
     }
   };
 
+  const handleMessage = () => {
+    if (params.requestId) {
+      router.push({
+        pathname: '/screens/operator/chat-screen',
+        params: { requestId: params.requestId },
+      });
+    }
+  };
+
   if (isLoading || !request) {
     return (
       <View style={styles.container}>
@@ -214,9 +223,14 @@ export default function TowingInProgressScreen() {
 
       {/* Header */}
       <SafeAreaView style={styles.header}>
-        <View style={styles.statusBadge}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Towing in Progress</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.statusBadge}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Towing in Progress</Text>
+          </View>
+          <TouchableOpacity style={styles.messageButton} onPress={handleMessage}>
+            <Ionicons name="chatbubble-ellipses" size={24} color="#003554" />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -298,6 +312,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -306,6 +327,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     gap: 8,
+  },
+  messageButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statusDot: {
     width: 10,

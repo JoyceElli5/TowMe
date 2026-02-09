@@ -5,7 +5,9 @@
  * Allows operator to confirm vehicle loading and start towing.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { CheckmarkCircle01Icon } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,11 +20,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CheckmarkCircle01Icon } from 'hugeicons-react-native';
-import { Ionicons } from '@expo/vector-icons';
 
-import { getRequestById, type TowingRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { getRequestById, type TowingRequest } from '@/lib/api';
 
 const formatVehicleType = (vehicleType?: string): string => {
   if (!vehicleType) return 'Unknown';
@@ -32,7 +32,7 @@ const formatVehicleType = (vehicleType?: string): string => {
 export default function ArrivedAtPickupScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
   const { showToast } = useToast();
-  
+
   const [request, setRequest] = useState<TowingRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -71,6 +71,15 @@ export default function ArrivedAtPickupScreen() {
   const handleCall = () => {
     if (request?.user?.phone) {
       Linking.openURL(`tel:${request.user.phone}`);
+    }
+  };
+
+  const handleMessage = () => {
+    if (params.requestId) {
+      router.push({
+        pathname: '/screens/operator/chat-screen',
+        params: { requestId: params.requestId },
+      });
     }
   };
 
@@ -120,29 +129,34 @@ export default function ArrivedAtPickupScreen() {
             <Text style={styles.customerName}>{request.user?.fullName || 'Unknown User'}</Text>
             <Text style={styles.vehicleInfo}>{formatVehicleType(request.vehicleType)}</Text>
           </View>
-          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-            <Ionicons name="call" size={20} color="#10B981" />
-          </TouchableOpacity>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={[styles.circularButton, { backgroundColor: '#bae6fd' }]} onPress={handleMessage}>
+              <Ionicons name="chatbubble" size={20} color="#003554" />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.circularButton, { backgroundColor: '#dcfce7' }]} onPress={handleCall}>
+              <Ionicons name="call" size={20} color="#10B981" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Checklist */}
         <View style={styles.checklist}>
           <Text style={styles.checklistTitle}>Before Starting</Text>
-          
+
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
               <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
             </View>
             <Text style={styles.checkText}>Confirm vehicle identity</Text>
           </View>
-          
+
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
               <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
             </View>
             <Text style={styles.checkText}>Secure vehicle on tow truck</Text>
           </View>
-          
+
           <View style={styles.checkItem}>
             <View style={styles.checkbox}>
               <CheckmarkCircle01Icon size={16} color="#10B981" strokeWidth={2} />
@@ -238,11 +252,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  callButton: {
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  circularButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#dcfce7',
     alignItems: 'center',
     justifyContent: 'center',
   },

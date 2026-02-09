@@ -254,6 +254,30 @@ export interface Database {
           completed_at?: string | null;
         };
       };
+      messages: {
+        Row: {
+          id: string;
+          request_id: string;
+          sender_id: string;
+          receiver_id: string;
+          content: string;
+          is_read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          request_id: string;
+          sender_id: string;
+          receiver_id: string;
+          content: string;
+          is_read?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          content?: string;
+          is_read?: boolean;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -281,3 +305,4 @@ export type Inspection = Tables<'inspections'>;
 export type OperatorLocation = Tables<'operator_locations'>;
 export type Notification = Tables<'notifications'>;
 export type Payment = Tables<'payments'>;
+export type Message = Tables<'messages'>;

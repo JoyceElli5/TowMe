@@ -7,7 +7,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,17 +22,16 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getRequestById, startRequest, type TowingRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { getCurrentUser, getRequestById, startRequest, type TowingRequest } from '@/lib/api';
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
-import { startLocationTracking, getCurrentOperatorLocation, type OperatorLocation } from '@/lib/services/operatorLocationService';
-import { getCurrentUser } from '@/lib/api';
 import { calculateDistance } from '@/lib/services/locationService';
+import { getCurrentOperatorLocation, startLocationTracking, type OperatorLocation } from '@/lib/services/operatorLocationService';
 
 export default function NavigationToPickupScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
   const { showToast } = useToast();
-  
+
   const [request, setRequest] = useState<TowingRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [operatorLocation, setOperatorLocation] = useState<OperatorLocation | null>(null);
@@ -54,7 +53,7 @@ export default function NavigationToPickupScreen() {
       try {
         const requestData = await getRequestById(params.requestId);
         setRequest(requestData);
-        
+
         // Set initial map region
         if (requestData.pickupLat && requestData.pickupLng) {
           setMapRegion({
@@ -180,6 +179,15 @@ export default function NavigationToPickupScreen() {
     }
   };
 
+  const handleMessage = () => {
+    if (params.requestId) {
+      router.push({
+        pathname: '/screens/operator/chat-screen',
+        params: { requestId: params.requestId },
+      });
+    }
+  };
+
   const getUserInitials = (name?: string) => {
     if (!name) return 'U';
     return name
@@ -268,9 +276,14 @@ export default function NavigationToPickupScreen() {
             <Text style={styles.customerName}>{request.user?.fullName || 'Unknown User'}</Text>
             <Text style={styles.pickupAddress}>{request.pickupAddress || 'Loading...'}</Text>
           </View>
-          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-            <Ionicons name="call" size={20} color="#10B981" />
-          </TouchableOpacity>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={[styles.circularButton, { backgroundColor: '#bae6fd' }]} onPress={handleMessage}>
+              <Ionicons name="chatbubble" size={20} color="#003554" />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.circularButton, { backgroundColor: '#dcfce7' }]} onPress={handleCall}>
+              <Ionicons name="call" size={20} color="#10B981" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -405,11 +418,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  callButton: {
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  circularButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#dcfce7',
     alignItems: 'center',
     justifyContent: 'center',
   },
