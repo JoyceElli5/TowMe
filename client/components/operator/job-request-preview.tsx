@@ -5,7 +5,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { TowingRequest } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 // Estimated minutes per kilometer
 const MINUTES_PER_KM_ESTIMATE = 2.5;
@@ -27,6 +27,7 @@ export default function JobRequestPreview({
 }: JobRequestPreviewProps) {
     const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
     const backgroundColor = useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background');
+    const locationBgColor = useThemeColor({ light: '#f9fafb', dark: '#374151' }, 'background');
     const errorColor = '#ef4444';
     const successColor = '#22c55e';
 
@@ -75,7 +76,7 @@ export default function JobRequestPreview({
             </View>
 
             {/* Locations */}
-            <View style={styles.locationsContainer}>
+            <View style={[styles.locationsContainer, { backgroundColor: locationBgColor }]}>
                 <View style={styles.locationRow}>
                     <View style={[styles.dot, { backgroundColor: successColor }]} />
                     <ThemedText numberOfLines={1} style={styles.locationText}>{request.pickupAddress}</ThemedText>
@@ -117,6 +118,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: 24,
+        paddingBottom: Platform.OS === 'ios' ? 100 : 90, // Increased to lift buttons above tab bar
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
         shadowOpacity: 0.1,
@@ -181,7 +183,6 @@ const styles = StyleSheet.create({
         fontFamily: 'Gilroy-Regular',
     },
     locationsContainer: {
-        backgroundColor: '#f9fafb',
         borderRadius: 12,
         padding: 12,
         marginBottom: 20,
