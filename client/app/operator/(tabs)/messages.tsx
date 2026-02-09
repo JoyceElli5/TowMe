@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
     FlatList,
@@ -35,7 +36,7 @@ interface ChatItem {
 
 const MOCK_CHATS: ChatItem[] = [
     {
-        id: '1',
+        id: '11111111-1111-1111-1111-111111111111',
         name: 'Kwame Mensah',
         message: 'I am at the shell station near the roundabout.',
         timestamp: '2 min ago',
@@ -45,7 +46,7 @@ const MOCK_CHATS: ChatItem[] = [
         type: 'client'
     },
     {
-        id: '2',
+        id: '22222222-2222-2222-2222-222222222222',
         name: 'TowMe Support',
         message: 'Your verification documents have been approved.',
         timestamp: '10:30 AM',
@@ -55,7 +56,7 @@ const MOCK_CHATS: ChatItem[] = [
         type: 'support'
     },
     {
-        id: '3',
+        id: '33333333-3333-3333-3333-333333333333',
         name: 'Ama Serwaa',
         message: 'Thanks for the quick service!',
         timestamp: 'Yesterday',
@@ -65,7 +66,7 @@ const MOCK_CHATS: ChatItem[] = [
         type: 'client'
     },
     {
-        id: '4',
+        id: '44444444-4444-4444-4444-444444444444',
         name: 'Joseph Osei',
         message: 'Is it possible to pay with cash?',
         timestamp: 'Yesterday',
@@ -96,7 +97,13 @@ export default function OperatorMessagesScreen() {
     );
 
     const renderItem = ({ item }: { item: ChatItem }) => (
-        <TouchableOpacity style={[styles.chatItem, { backgroundColor: cardBg }]}>
+        <TouchableOpacity
+            style={[styles.chatItem, { backgroundColor: cardBg }]}
+            onPress={() => router.push({
+                pathname: '/screens/operator/chat-screen',
+                params: { requestId: item.id } // In a real app, this would be a conversation or request ID
+            })}
+        >
             <View style={styles.avatarContainer}>
                 {item.type === 'support' ? (
                     <View style={[styles.avatarPlaceholder, { backgroundColor: '#003554' }]}>

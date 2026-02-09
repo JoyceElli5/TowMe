@@ -20,6 +20,7 @@ export default function OperatorScreensLayout() {
       <Stack.Screen name="towing-in-progress" />
       <Stack.Screen name="trip-completed" />
       <Stack.Screen name="rate-user" />
+      <Stack.Screen name="chat-screen" />
     </Stack>
   );
 }

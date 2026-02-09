@@ -97,7 +97,7 @@ export async function calculateEstimatedPrice(
   vehicleType: VehicleType
 ): Promise<number> {
   const pricing = await getPricingForVehicleType(vehicleType);
-  
+
   if (!pricing) {
     logger.error(`No pricing found for vehicle type: ${vehicleType}`);
     throw new Error(`Pricing not available for vehicle type: ${vehicleType}`);
@@ -105,10 +105,10 @@ export async function calculateEstimatedPrice(
 
   // Calculate: base_fee + (per_km_fee * distance)
   const calculatedPrice = pricing.base_fee + pricing.per_km_fee * distanceKm;
-  
+
   // Apply minimum fee
   const finalPrice = Math.max(calculatedPrice, pricing.min_fee);
-  
+
   // Round to 2 decimal places
   return Math.round(finalPrice * 100) / 100;
 }
@@ -149,7 +149,7 @@ export async function getPriceBreakdown(
   additionalCharges: number = 0
 ): Promise<PriceBreakdown> {
   const pricing = await getPricingForVehicleType(vehicleType);
-  
+
   if (!pricing) {
     throw new Error(`Pricing not available for vehicle type: ${vehicleType}`);
   }
@@ -183,4 +183,21 @@ export function clearPricingCache(): void {
  */
 export function formatPrice(amount: number): string {
   return `${CURRENCY_SYMBOL}${amount.toFixed(2)}`;
+}
+
+/**
+ * Get multiplier for vehicle type
+ * Returns a relative multiplier (not used in direct price calculation but for reference)
+ */
+export function getVehicleMultiplier(vehicleType: VehicleType): number {
+  const multipliers: Record<VehicleType, number> = {
+    car: 1.0,
+    saloon: 1.1,
+    suv: 1.5,
+    van: 1.8,
+    truck: 2.5,
+    motorcycle: 0.8,
+    others: 2.0
+  };
+  return multipliers[vehicleType] || 1.0;
 }

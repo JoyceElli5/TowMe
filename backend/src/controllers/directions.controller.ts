@@ -3,10 +3,10 @@
  * Handles Google Directions API requests
  */
 
+import axios from 'axios';
 import { Response } from 'express';
 import type { AuthenticatedRequest } from '../types/api.types';
-import axios from 'axios';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 
 const GOOGLE_DIRECTIONS_API_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || '';
 const GOOGLE_DIRECTIONS_API_URL = 'https://maps.googleapis.com/maps/api/directions/json';
@@ -29,7 +29,7 @@ export async function getRoute(req: AuthenticatedRequest<{}, {}, RouteQuery>, re
       // Return straight line route as fallback
       const [originLat, originLng] = origin.split(',').map(Number);
       const [destLat, destLng] = destination.split(',').map(Number);
-      
+
       res.json({
         success: true,
         data: {
@@ -63,11 +63,11 @@ export async function getRoute(req: AuthenticatedRequest<{}, {}, RouteQuery>, re
     // Parse the route
     const route = response.data.routes[0];
     const leg = route.legs[0];
-    
+
     // Extract polyline points
     const points: Array<{ latitude: number; longitude: number }> = [];
     const overviewPolyline = route.overview_polyline.points;
-    
+
     // Decode polyline (simplified - you might want to use a library like @mapbox/polyline)
     // For now, we'll extract the start and end points and key waypoints
     const steps = leg.steps;
@@ -78,7 +78,7 @@ export async function getRoute(req: AuthenticatedRequest<{}, {}, RouteQuery>, re
         longitude: startLocation.lng,
       });
     }
-    
+
     // Add end location
     const endLocation = leg.end_location;
     points.push({
@@ -96,11 +96,11 @@ export async function getRoute(req: AuthenticatedRequest<{}, {}, RouteQuery>, re
     });
   } catch (error: any) {
     logger.error('Error fetching directions:', error);
-    
+
     // Fallback to straight line
     const [originLat, originLng] = req.query.origin.split(',').map(Number);
     const [destLat, destLng] = req.query.destination.split(',').map(Number);
-    
+
     res.json({
       success: true,
       data: {
