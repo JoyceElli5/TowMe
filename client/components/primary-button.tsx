@@ -27,6 +27,8 @@ interface PrimaryButtonProps {
   onPress: () => void;
   /** Button variant */
   variant?: 'primary' | 'secondary' | 'outline';
+  /** Optional style override */
+  style?: any;
 }
 
 export default function PrimaryButton({
@@ -36,6 +38,7 @@ export default function PrimaryButton({
   disabled = false,
   onPress,
   variant = 'primary',
+  style,
 }: PrimaryButtonProps) {
   const isDisabled = disabled || isLoading;
 
@@ -66,6 +69,7 @@ export default function PrimaryButton({
       style={[
         ...getButtonStyle(),
         isDisabled && styles.buttonDisabled,
+        style,
       ]}
       onPress={onPress}
       disabled={isDisabled}

@@ -1,3 +1,14 @@
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
 import { DocumentUpload } from '@/components/document-upload';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
