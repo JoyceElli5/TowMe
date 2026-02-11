@@ -22,6 +22,8 @@ import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { ConnectivityBanner } from '@/components/ui/connectivity-banner';
+import { ErrorView } from '@/components/ui/error-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, trackRequest, type TowingRequest } from '@/lib/api';
@@ -40,6 +42,8 @@ export default function LiveTrackingScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [mapRegion, setMapRegion] = useState<Region | null>(null);
   const [eta, setEta] = useState<number | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   const backgroundColor = useThemeColor({}, 'background');
 
@@ -81,6 +85,10 @@ export default function LiveTrackingScreen() {
         });
       }
 
+      // Reset error states
+      setIsError(false);
+      setIsOffline(false);
+
       // Check if trip is completed
       if (trackingData.request.status === 'completed') {
         router.replace({
@@ -91,7 +99,13 @@ export default function LiveTrackingScreen() {
     } catch (error) {
       console.error('Error loading tracking data:', error);
       if (error instanceof ApiError) {
-        showToast(error.message, 'error');
+        if (error.status === 0) {
+          // Network error - show banner instead of toast
+          setIsOffline(true);
+        } else {
+          showToast(error.message, 'error');
+          setIsError(true);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -156,16 +170,29 @@ export default function LiveTrackingScreen() {
     );
   }
 
+  if (isError) {
+    return (
+      <View style={[styles.container, { backgroundColor }]}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+        <ErrorView
+          type="server"
+          onRetry={loadTrackingData}
+          isLoading={isLoading}
+        />
+      </View>
+    );
+  }
+
   if (!request || !request.operator) {
     return (
       <View style={[styles.container, { backgroundColor }]}>
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-        <View style={styles.loadingContainer}>
-          <ThemedText style={styles.errorText}>Tracking information not available</ThemedText>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorView
+          type="not-found"
+          message="Tracking information not available. The request may have been cancelled."
+          onRetry={() => router.back()}
+          retryLabel="Go Back"
+        />
       </View>
     );
   }
@@ -173,6 +200,8 @@ export default function LiveTrackingScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+      <ConnectivityBanner isOffline={isOffline} />
 
       {/* Map */}
       <MapView
