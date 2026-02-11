@@ -18,6 +18,7 @@ import {
 
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, login as loginApi } from '@/lib/api';
+import { signInWithEmail } from '@/lib/supabase';
 import { LoginFormData, loginSchema, UserRole } from '@/schemas/auth';
 
 export default function LoginScreen() {
@@ -50,13 +51,46 @@ export default function LoginScreen() {
 
       console.log('Login successful:', user);
 
+      // Also sign into Supabase Auth so auth.uid() is set for RLS and Storage
+      try {
+        const { error: supabaseError } = await signInWithEmail(
+          data.email,
+          data.password
+        );
+        if (supabaseError) {
+          console.warn('Supabase email sign-in failed:', supabaseError.message);
+        }
+      } catch (supabaseErr: any) {
+        console.warn(
+          'Error signing into Supabase Auth:',
+          supabaseErr?.message || supabaseErr
+        );
+      }
+
       showToast('Login successful!', 'success');
 
       // Navigate to appropriate dashboard based on user role from API response
-      setTimeout(() => {
+      setTimeout(async () => {
         if (user.role === 'tow_operator') {
-          // Check if operator profile is complete
-          router.replace('/operator/(tabs)/dashboard');
+          // Check if operator profile is complete and verified
+          const { isProfileComplete, getVerificationStatus } = await import('@/lib/services/operatorService');
+          
+          const profileComplete = await isProfileComplete(user.id);
+          if (!profileComplete) {
+            router.replace('/screens/operator/profile-setup-screen');
+            return;
+          }
+
+          const verificationStatus = await getVerificationStatus(user.id);
+          if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
+            router.replace('/screens/operator/verification-pending');
+          } else if (verificationStatus === 'rejected') {
+            router.replace('/screens/operator/verification-rejected');
+          } else if (verificationStatus === 'approved') {
+            router.replace('/operator/(tabs)/dashboard');
+          } else {
+            router.replace('/screens/operator/profile-setup-screen');
+          }
         } else {
           router.replace('/(tabs)');
         }

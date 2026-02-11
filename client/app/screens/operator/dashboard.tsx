@@ -6,7 +6,7 @@
  */
 
 import { router } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   Platform,
@@ -25,146 +25,23 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import OperatorMenuModal from '@/components/operator-menu-modal';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useToast } from '@/hooks/use-toast';
-import { getCurrentUser } from '@/lib/api';
-import { toggleOperatorOnlineStatus } from '@/lib/api/users';
-import { getPendingRequests, getOperatorRequests } from '@/lib/api/requests';
-import { subscribeToPendingRequests, unsubscribe } from '@/lib/services/realtimeService';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { useOperatorDashboard } from '@/hooks/use-operator-dashboard';
 
 export default function OperatorDashboardScreen() {
-  const { showToast } = useToast();
   const backgroundColor = useThemeColor({}, 'background');
   const textColor = useThemeColor({}, 'text');
   const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
   const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
   
-  const [isOnline, setIsOnline] = useState(false);
-  const [earnings, setEarnings] = useState(0);
-  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
-  const [tripsToday, setTripsToday] = useState(0);
-  const [rating, setRating] = useState(0);
+  const {
+    isOnline,
+    earnings,
+    tripsToday,
+    rating,
+    isLoadingStatus,
+    handleOnlineToggle,
+  } = useOperatorDashboard();
   const [showMenu, setShowMenu] = useState(false);
-
-  // Fetch current user and stats on mount
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (user) {
-          setCurrentUser({ id: user.id });
-          setIsOnline(user.isOnline || false);
-          setRating(user.averageRating || 0);
-
-          // Fetch today's trips and earnings
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          const tripsResponse = await getOperatorRequests(user.id, {
-            status: 'completed',
-            limit: 100,
-          });
-
-          if (tripsResponse.data) {
-            // Filter trips from today
-            const todayTrips = tripsResponse.data.filter((trip) => {
-              const tripDate = new Date(trip.completedAt || trip.createdAt);
-              return tripDate >= today;
-            });
-
-            setTripsToday(todayTrips.length);
-
-            // Calculate total earnings from all completed trips
-            const totalEarnings = tripsResponse.data.reduce((sum, trip) => {
-              return sum + (trip.finalPrice || trip.estimatedPrice || 0);
-            }, 0);
-            setEarnings(totalEarnings);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch current user:', error);
-        showToast('Please log in to continue', 'error');
-      }
-    };
-    fetchUser();
-  }, [showToast]);
-
-  // Real-time subscription for pending requests when online
-  useEffect(() => {
-    if (!isOnline || !currentUser) return;
-
-    let channel: RealtimeChannel | null = null;
-    let backupInterval: NodeJS.Timeout | null = null;
-
-    const fetchPendingRequests = async () => {
-      try {
-        const requests = await getPendingRequests();
-        
-        // If there are pending requests, navigate to incoming request screen
-        if (requests && requests.length > 0) {
-          router.push({
-            pathname: '/screens/operator/incoming-request',
-            params: { requestId: requests[0].id },
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch pending requests:', error);
-        // Don't show error toast on every poll - only log it
-      }
-    };
-
-    // Initial fetch
-    fetchPendingRequests();
-
-    // Set up real-time subscription
-    try {
-      channel = subscribeToPendingRequests((payload) => {
-        console.log('New pending request received:', payload.eventType);
-        if (payload.eventType === 'INSERT') {
-          fetchPendingRequests();
-        }
-      });
-    } catch (error) {
-      console.error('Error setting up real-time subscription:', error);
-      // Fallback to polling if real-time fails
-      backupInterval = setInterval(fetchPendingRequests, 15000); // 15 seconds
-    }
-
-    // Backup polling (less frequent)
-    backupInterval = setInterval(fetchPendingRequests, 30000); // 30 seconds
-
-    return () => {
-      if (channel) {
-        unsubscribe(channel);
-      }
-      if (backupInterval) {
-        clearInterval(backupInterval);
-      }
-    };
-  }, [isOnline, currentUser]);
-
-  // Handle online status toggle
-  const handleOnlineToggle = useCallback(async (value: boolean) => {
-    if (!currentUser) {
-      showToast('Please log in to go online', 'error');
-      return;
-    }
-
-    setIsLoadingStatus(true);
-    try {
-      await toggleOperatorOnlineStatus(currentUser.id, value);
-      setIsOnline(value);
-      showToast(value ? 'You are now online' : 'You are now offline', 'success');
-    } catch (error: any) {
-      console.error('Failed to toggle online status:', error);
-      showToast(error.message || 'Could not update status', 'error');
-      // Revert the toggle on error
-      setIsOnline(!value);
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  }, [currentUser, showToast]);
 
   return (
     <ThemedView style={[styles.container, { backgroundColor }]}>

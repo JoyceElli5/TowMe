@@ -24,7 +24,7 @@ export default function IndexScreen() {
                 .from('users')
                 .select('role, profile_completed')
                 .eq('id', user.id)
-                .single();
+                .maybeSingle();
 
               if (userError) {
                 console.error('Error fetching user data:', userError);
@@ -33,33 +33,16 @@ export default function IndexScreen() {
                 return;
               }
 
-              if (userData?.role === 'tow_operator') {
-                // Check if operator profile is complete
-                const profileComplete = await isProfileComplete(user.id);
-                if (!profileComplete) {
-                  router.replace('/screens/operator/profile-setup-screen');
-                  return;
-                }
-                
-                // Check verification status
-                const { data: operatorData } = await supabase
-                  .from('users')
-                  .select('verification_status')
-                  .eq('id', user.id)
-                  .single();
-                
-                const verificationStatus = operatorData?.verification_status;
-                
-                if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
-                  router.replace('/screens/operator/verification-pending');
-                } else if (verificationStatus === 'rejected') {
-                  router.replace('/screens/operator/verification-rejected');
-                } else if (verificationStatus === 'approved') {
-                  router.replace('/screens/operator/dashboard');
-                } else {
-                  // Default to profile setup if status is unclear
-                  router.replace('/screens/operator/profile-setup-screen');
-                }
+              if (!userData) {
+                // No row in users table for this auth user yet
+                router.replace('/screens/onboarding/onboarding-screen');
+                return;
+              }
+
+              if (userData.role === 'tow_operator') {
+                // For now, always send operators to their dashboard.
+                // They can complete profile from the Profile tab/settings.
+                router.replace('/operator/(tabs)/dashboard');
               } else {
                 // Regular user - go to tabs
                 router.replace('/(tabs)');

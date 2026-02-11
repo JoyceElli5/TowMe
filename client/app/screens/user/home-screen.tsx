@@ -21,16 +21,16 @@
 import BottomSheet, { BottomSheetScrollView, BottomSheetView } from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
 import {
-  UserCircleIcon
+    UserCircleIcon
 } from 'hugeicons-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Linking,
-  Platform,
-  StatusBar,
-  StyleSheet,
-  TouchableOpacity,
-  View,
+    Linking,
+    Platform,
+    StatusBar,
+    StyleSheet,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
@@ -44,31 +44,23 @@ import { ThemedText } from '@/components/themed-text';
 import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
 
 import { useToast } from '@/hooks/use-toast';
-import {
-  ApiError,
-  createRequest,
-  getCurrentUser,
-  getUserRequests,
-  type TowingRequest,
-} from '@/lib/api';
+import { ApiError, createRequest } from '@/lib/api';
 
+import { useActiveRequest } from '@/hooks/use-active-request';
 import { useThemeColor } from '@/hooks/use-theme-color';
-
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
 import {
-  calculateDistance,
-  getCurrentLocationWithAddress,
-  type Coordinates,
+    calculateDistance,
+    getCurrentLocationWithAddress,
+    type Coordinates,
 } from '@/lib/services/locationService';
 import { calculateEstimatedPrice } from '@/lib/services/pricingService';
-import { subscribeToUserRequests, unsubscribe } from '@/lib/services/realtimeService';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function HomeScreen() {
   const { showToast } = useToast();
 
   const backgroundColor = useThemeColor({}, 'background');
-
+  
   const placeOrderSheetRef = useRef<BottomSheet>(null);
   const activeSessionSheetRef = useRef<BottomSheet>(null);
 
@@ -87,8 +79,7 @@ export default function HomeScreen() {
     useState<VehicleType | null>(null);
 
   const [isRequesting, setIsRequesting] = useState(false);
-
-  const [activeRequest, setActiveRequest] = useState<TowingRequest | null>(null);
+  const { activeRequest } = useActiveRequest();
 
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
 
@@ -188,116 +179,28 @@ export default function HomeScreen() {
         return;
       }
 
-      const distance = calculateDistance(
-        pickupCoords.lat,
-        pickupCoords.lng,
-        destinationCoords.lat,
-        destinationCoords.lng
-      );
+        const distance = calculateDistance(
+          pickupCoords.lat,
+          pickupCoords.lng,
+          destinationCoords.lat,
+          destinationCoords.lng
+        );
 
-      const price = await calculateEstimatedPrice(distance, selectedVehicle);
-      setEstimatedPrice(price);
+        const price = await calculateEstimatedPrice(distance, selectedVehicle);
+        setEstimatedPrice(price);
     };
 
     updatePrice();
   }, [selectedVehicle, pickupCoords, destinationCoords]);
 
   /**
-   * Load active request session - optimized to use single API call and real-time updates
+   * Snap active session sheet when an active request exists
    */
   useEffect(() => {
-    let mounted = true;
-    let channel: RealtimeChannel | null = null;
-
-    const loadSession = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!user || !mounted) return;
-
-        // Single API call to get all active requests (pending, accepted, in_progress)
-        // Using status filter with OR logic - get the first active one
-        const response = await getUserRequests(user.id, {
-          limit: 10, // Get more to find active ones
-        });
-
-        if (!mounted) return;
-
-        // Find the first active request
-        const activeStatuses: ('pending' | 'accepted' | 'in_progress')[] = [
-          'pending',
-          'accepted',
-          'in_progress',
-        ];
-
-        const activeReq = response.data?.find((req) =>
-          activeStatuses.includes(req.status as any)
-        );
-
-        if (activeReq) {
-          setActiveRequest(activeReq);
-          activeSessionSheetRef.current?.snapToIndex(1);
-        } else {
-          setActiveRequest(null);
-        }
-      } catch (error) {
-        if (!mounted) return;
-        if (error instanceof ApiError) {
-          console.error('Error loading session:', error.message);
-          // Don't show toast for every error, only log it
-        }
-      }
-    };
-
-    // Initial load
-    loadSession();
-
-    // Set up real-time subscription instead of polling
-    let fallbackInterval: NodeJS.Timeout | null = null;
-
-    const setupRealtime = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!user || !mounted) return;
-
-        channel = subscribeToUserRequests(user.id, (payload) => {
-          if (!mounted) return;
-
-          console.log('Request update received:', payload.eventType);
-
-          // Reload session when request changes
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-            loadSession();
+    if (activeRequest) {
+            activeSessionSheetRef.current?.snapToIndex(1);
           }
-        });
-      } catch (error) {
-        console.error('Error setting up real-time subscription:', error);
-        // Fallback to polling if real-time fails (but with longer interval)
-        if (mounted) {
-          fallbackInterval = setInterval(loadSession, 30000); // 30 seconds instead of 10
-        }
-      }
-    };
-
-    setupRealtime();
-
-    // Fallback: Poll every 60 seconds as backup (much less frequent than before)
-    const backupInterval = setInterval(() => {
-      if (mounted) {
-        loadSession();
-      }
-    }, 60000);
-
-    return () => {
-      mounted = false;
-      if (channel) {
-        unsubscribe(channel);
-      }
-      if (fallbackInterval) {
-        clearInterval(fallbackInterval);
-      }
-      clearInterval(backupInterval);
-    };
-  }, [showToast]);
+  }, [activeRequest]);
 
   /**
    * Location selection handlers with delayed snap to ensure smooth transition
@@ -309,7 +212,7 @@ export default function HomeScreen() {
 
       // Delay snap to ensure modal closes smoothly first
       setTimeout(() => {
-        placeOrderSheetRef.current?.snapToIndex(1);
+    placeOrderSheetRef.current?.snapToIndex(1);
       }, 400);
     },
     []
@@ -317,12 +220,12 @@ export default function HomeScreen() {
 
   const handleDestinationSelect = useCallback(
     (address: string, coords: Coordinates) => {
-      setDestinationAddress(address);
+    setDestinationAddress(address);
       setDestinationCoords(coords);
 
       // Delay snap and maybe expand further if we have both addresses
       setTimeout(() => {
-        placeOrderSheetRef.current?.snapToIndex(1);
+    placeOrderSheetRef.current?.snapToIndex(1);
       }, 400);
     },
     []
@@ -347,22 +250,22 @@ export default function HomeScreen() {
     if (activeRequest) {
       showToast('You already have an active request. Please complete or cancel it first.', 'error');
       // Optionally navigate to the active request
-      if (activeRequest.status === 'pending') {
-        router.push({
-          pathname: '/screens/user/searching-operator',
-          params: { requestId: activeRequest.id },
-        });
-      } else if (activeRequest.status === 'accepted') {
-        router.push({
-          pathname: '/screens/user/operator-found',
-          params: { requestId: activeRequest.id },
-        });
-      } else if (activeRequest.status === 'in_progress') {
-        router.push({
-          pathname: '/screens/user/live-tracking',
-          params: { requestId: activeRequest.id },
-        });
-      }
+    if (activeRequest.status === 'pending') {
+      router.push({
+        pathname: '/screens/user/searching-operator',
+        params: { requestId: activeRequest.id },
+      });
+    } else if (activeRequest.status === 'accepted') {
+      router.push({
+        pathname: '/screens/user/operator-found',
+        params: { requestId: activeRequest.id },
+      });
+    } else if (activeRequest.status === 'in_progress') {
+      router.push({
+        pathname: '/screens/user/live-tracking',
+        params: { requestId: activeRequest.id },
+      });
+    }
       return;
     }
 
@@ -388,19 +291,15 @@ export default function HomeScreen() {
     } catch (error) {
       if (error instanceof ApiError) {
         // Handle 409 Conflict specifically
-        if (error.message.includes('already have an active request') || error.message.includes('Conflict')) {
-          showToast('You already have an active request. Please complete or cancel it first.', 'error');
-          // Reload active session to show it
-          const user = await getCurrentUser();
-          if (user) {
-            const response = await getUserRequests(user.id, { limit: 10 });
-            const activeStatuses: ('pending' | 'accepted' | 'in_progress')[] = ['pending', 'accepted', 'in_progress'];
-            const activeReq = response.data?.find((req) => activeStatuses.includes(req.status as any));
-            if (activeReq) {
-              setActiveRequest(activeReq);
-              activeSessionSheetRef.current?.snapToIndex(1);
-            }
-          }
+        if (
+          error.message.includes('already have an active request') ||
+          error.message.includes('Conflict')
+        ) {
+          showToast(
+            'You already have an active request. Please complete or cancel it first.',
+            'error',
+          );
+          // Active request hook will refresh state via realtime / polling
         } else {
           showToast(error.message || 'Request failed. Try again.', 'error');
         }
@@ -443,16 +342,16 @@ export default function HomeScreen() {
         title="Select Destination"
       />
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
         <StatusBar translucent />
-
+          
         {/* Profile Button */}
-        <TouchableOpacity
+          <TouchableOpacity
           style={styles.profileButton}
-          onPress={() => router.push('/(tabs)/profile')}
-        >
+            onPress={() => router.push('/(tabs)/profile')}
+          >
           <UserCircleIcon size={32} />
-        </TouchableOpacity>
+          </TouchableOpacity>
 
         {/* Map */}
         <View style={styles.mapContainer}>
@@ -502,16 +401,16 @@ export default function HomeScreen() {
 
       {/* BottomSheet - Outside SafeAreaView for proper positioning */}
       {!hasActiveSession ? (
-        <BottomSheet
-          ref={placeOrderSheetRef}
-          index={1}
-          snapPoints={placeOrderSnapPoints}
-          enablePanDownToClose={false}
+          <BottomSheet
+            ref={placeOrderSheetRef}
+            index={1}
+            snapPoints={placeOrderSnapPoints}
+            enablePanDownToClose={false}
           keyboardBehavior="interactive"
           keyboardBlurBehavior="restore"
           backgroundStyle={[styles.bottomSheetBackground, { backgroundColor }]}
-          handleIndicatorStyle={styles.handleIndicator}
-        >
+            handleIndicatorStyle={styles.handleIndicator}
+          >
           <BottomSheetView style={styles.sheetContent}>
             <BottomSheetScrollView
               contentContainerStyle={styles.scrollContentContainer}
@@ -519,36 +418,36 @@ export default function HomeScreen() {
             >
               <ThemedText style={styles.headerTitle}>Request a Tow</ThemedText>
 
-              <AddressInputCard
-                type="pickup"
-                value={pickupAddress}
+                <AddressInputCard
+                  type="pickup"
+                  value={pickupAddress}
                 placeholder="Pickup location"
                 onPress={() => setShowPickupPicker(true)}
-              />
+                />
 
-              <AddressInputCard
-                type="destination"
-                value={destinationAddress}
+                <AddressInputCard
+                  type="destination"
+                  value={destinationAddress}
                 placeholder="Destination"
                 onPress={() => setShowDestinationPicker(true)}
-              />
+                />
 
-              <VehicleTypeCard
-                selectedType={selectedVehicle}
+                <VehicleTypeCard
+                  selectedType={selectedVehicle}
                 onSelect={setSelectedVehicle}
-              />
+                />
 
-              <PriceEstimatorCard
-                estimatedPrice={estimatedPrice}
-                isCalculating={false}
-              />
+                <PriceEstimatorCard
+                  estimatedPrice={estimatedPrice}
+                  isCalculating={false}
+                />
 
-              <PrimaryButton
-                label="Request Tow Truck"
-                isLoading={isRequesting}
+                <PrimaryButton
+                  label="Request Tow Truck"
+                  isLoading={isRequesting}
                 disabled={!pickupCoords || !destinationCoords}
-                onPress={handleRequestPress}
-              />
+                  onPress={handleRequestPress}
+                />
             </BottomSheetScrollView>
           </BottomSheetView>
         </BottomSheet>
@@ -638,13 +537,13 @@ export default function HomeScreen() {
                         })}
                       />
                     )}
-                  </View>
+              </View>
                 </>
               )}
             </BottomSheetScrollView>
-          </BottomSheetView>
-        </BottomSheet>
-      )}
+            </BottomSheetView>
+          </BottomSheet>
+        )}
     </GestureHandlerRootView>
   );
 }

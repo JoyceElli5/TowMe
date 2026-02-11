@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const VEHICLE_PHOTOS_BUCKET = 'vehicle_photos';
 const PROFILE_PHOTOS_BUCKET = 'profile_photos';

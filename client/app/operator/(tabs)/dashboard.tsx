@@ -213,6 +213,27 @@ export default function OperatorDashboardScreen() {
       return;
     }
 
+    // Check if operator is verified before allowing them to go online
+    if (value) {
+      const { isOperatorVerified, getVerificationStatus } = await import('@/lib/services/operatorService');
+      const verified = await isOperatorVerified(currentUser.id);
+      const verificationStatus = await getVerificationStatus(currentUser.id);
+      
+      if (!verified) {
+        if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
+          showToast('Please complete your profile verification to go online', 'error');
+          router.push('/screens/operator/verification-pending');
+        } else if (verificationStatus === 'rejected') {
+          showToast('Your verification was rejected. Please update your profile', 'error');
+          router.push('/screens/operator/verification-rejected');
+        } else {
+          showToast('Please complete your profile to go online', 'error');
+          router.push('/screens/operator/profile-setup-screen');
+        }
+        return;
+      }
+    }
+
     setIsLoadingStatus(true);
     try {
       await toggleOperatorOnlineStatus(currentUser.id, value);

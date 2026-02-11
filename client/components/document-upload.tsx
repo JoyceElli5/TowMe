@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React from 'react';
-import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Fonts } from '@/constants/theme';
@@ -15,6 +15,7 @@ export interface DocumentUploadProps {
     onRemove?: () => void;
     documentType: 'ghana_card' | 'drivers_license' | 'operator_photo' | 'vehicle_registration' | 'insurance';
     allowCamera?: boolean;
+    isUploading?: boolean;
 }
 
 export function DocumentUpload({
@@ -24,6 +25,7 @@ export function DocumentUpload({
     onRemove,
     documentType,
     allowCamera = true,
+    isUploading = false,
 }: DocumentUploadProps) {
     const { showToast } = useToast();
     const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
@@ -31,39 +33,57 @@ export function DocumentUpload({
 
     const handlePickImage = async (useCamera: boolean) => {
         try {
+            // Request permissions
+            let permissionStatus;
             if (useCamera) {
-                const { status } = await ImagePicker.requestCameraPermissionsAsync();
-                if (status !== 'granted') {
-                    showToast('Camera permission is required', 'error');
+                permissionStatus = await ImagePicker.requestCameraPermissionsAsync();
+                if (permissionStatus.status !== 'granted') {
+                    showToast('Camera permission is required to take photos', 'error');
                     return;
                 }
             } else {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== 'granted') {
+                permissionStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (permissionStatus.status !== 'granted') {
                     showToast('Permission to access photos is required', 'error');
                     return;
                 }
             }
 
-            const result = useCamera
-                ? await ImagePicker.launchCameraAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    allowsEditing: true,
-                    aspect: [4, 3],
-                    quality: 0.8,
-                })
-                : await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    allowsEditing: true,
-                    aspect: [4, 3],
-                    quality: 0.8,
-                });
+            // Launch image picker
+            const pickerOptions = {
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3] as [number, number],
+                quality: 0.8,
+            };
 
-            if (!result.canceled && result.assets[0]) {
-                await onUpload(result.assets[0].uri);
+            const result = useCamera
+                ? await ImagePicker.launchCameraAsync(pickerOptions)
+                : await ImagePicker.launchImageLibraryAsync(pickerOptions);
+
+            // Check result
+            if (result.canceled) {
+                // User cancelled, don't show error
+                return;
             }
+
+            if (!result.assets || result.assets.length === 0) {
+                showToast('No image was selected', 'error');
+                return;
+            }
+
+            const selectedImage = result.assets[0];
+            if (!selectedImage.uri) {
+                showToast('Invalid image selected', 'error');
+                return;
+            }
+
+            // Upload the image
+            await onUpload(selectedImage.uri);
         } catch (error: any) {
-            showToast('Failed to pick image', 'error');
+            console.error('Image picker error:', error);
+            const errorMessage = error?.message || error?.toString() || 'Failed to pick image';
+            showToast(`Error: ${errorMessage}`, 'error');
         }
     };
 
@@ -73,12 +93,20 @@ export function DocumentUpload({
             {value ? (
                 <View style={styles.documentPreview}>
                     <Image source={{ uri: value }} style={styles.documentImage} />
-                    <TouchableOpacity
-                        style={[styles.removeButton, { backgroundColor: '#ef4444' }]}
-                        onPress={onRemove}
-                    >
-                        <ThemedText style={styles.removeButtonText}>Remove</ThemedText>
-                    </TouchableOpacity>
+                    {isUploading && (
+                        <View style={styles.uploadingOverlay}>
+                            <ActivityIndicator size="large" color="#fff" />
+                            <ThemedText style={styles.uploadingText}>Uploading...</ThemedText>
+                        </View>
+                    )}
+                    {!isUploading && (
+                        <TouchableOpacity
+                            style={[styles.removeButton, { backgroundColor: '#ef4444' }]}
+                            onPress={onRemove}
+                        >
+                            <ThemedText style={styles.removeButtonText}>Remove</ThemedText>
+                        </TouchableOpacity>
+                    )}
                 </View>
             ) : (
                 <View style={styles.uploadButtons}>
@@ -117,12 +145,31 @@ const styles = StyleSheet.create({
     },
     documentPreview: {
         marginTop: 8,
+        position: 'relative',
     },
     documentImage: {
         width: '100%',
         height: 200,
         borderRadius: 12,
         marginBottom: 8,
+    },
+    uploadingOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    uploadingText: {
+        color: '#fff',
+        marginTop: 8,
+        fontSize: 14,
+        fontFamily: Fonts.medium,
     },
     uploadButtons: {
         flexDirection: 'row',
