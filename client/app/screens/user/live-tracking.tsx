@@ -9,14 +9,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Linking,
-    Platform,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Linking,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -117,6 +117,21 @@ export default function LiveTrackingScreen() {
       Linking.openURL(`tel:${request.operator.phone}`);
     } else {
       showToast('Operator phone number not available', 'error');
+    }
+  };
+
+  const handleChat = () => {
+    if (request?.id) {
+      router.push({
+        pathname: '/screens/user/chat-screen',
+        params: {
+          requestId: request.id,
+          operatorName: request.operator?.fullName,
+          operatorPhone: request.operator?.phone
+        }
+      });
+    } else {
+      showToast('Request information not available', 'error');
     }
   };
 
@@ -235,6 +250,12 @@ export default function LiveTrackingScreen() {
               {request.vehicleType.charAt(0).toUpperCase() + request.vehicleType.slice(1)} • {request.distanceKm?.toFixed(1) || '0'} km
             </ThemedText>
           </View>
+          <TouchableOpacity
+            style={[styles.chatButton, { backgroundColor: '#eff6ff' }]}
+            onPress={handleChat}
+          >
+            <Ionicons name="chatbubble-ellipses" size={20} color="#3b82f6" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.callButton} onPress={handleCall}>
             <Ionicons name="call" size={20} color="#10B981" />
           </TouchableOpacity>
@@ -405,6 +426,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#dcfce7',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chatButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   progressBar: {
     height: 4,

@@ -5,27 +5,28 @@
  * Shows operator details and ETA.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Car01Icon, CheckmarkCircle01Icon, Phone01Icon, StarIcon, Location01Icon } from 'hugeicons-react-native';
+import { Car01Icon, CheckmarkCircle01Icon, Location01Icon, StarIcon } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    Linking,
-    Image,
+  ActivityIndicator,
+  Image,
+  Linking,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { ApiError, getRequestById, trackRequest, type TowingRequest } from '@/lib/api';
-import { subscribeToRequest, unsubscribe } from '@/lib/services/realtimeService';
+import { ApiError, trackRequest, type TowingRequest } from '@/lib/api';
 import { reverseGeocode } from '@/lib/services/locationService';
+import { subscribeToRequest, unsubscribe } from '@/lib/services/realtimeService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function OperatorFoundScreen() {
@@ -49,15 +50,15 @@ export default function OperatorFoundScreen() {
 
   const loadRequest = React.useCallback(async () => {
     if (!requestId) return;
-    
+
     try {
       setIsLoading(true);
-      
+
       // Use trackRequest to get both request and operator location
       const trackingData = await trackRequest(requestId);
       setRequest(trackingData.request);
       setOperatorLocation(trackingData.operatorLocation);
-      
+
       // Get operator location address if available
       if (trackingData.operatorLocation) {
         try {
@@ -70,7 +71,7 @@ export default function OperatorFoundScreen() {
           console.error('Error getting operator location address:', error);
         }
       }
-      
+
       // Calculate ETA based on operator location if available, otherwise use distance
       if (trackingData.operatorLocation && trackingData.request.pickupLat) {
         // Calculate distance from operator to pickup
@@ -99,15 +100,15 @@ export default function OperatorFoundScreen() {
   useEffect(() => {
     if (requestId) {
       loadRequest();
-      
+
       // Subscribe to real-time updates
       const subscription = subscribeToRequest(requestId, (payload) => {
         console.log('Request update:', payload);
-        
+
         if (payload.eventType === 'UPDATE' && payload.new) {
           // Reload request data when status changes
           loadRequest();
-          
+
           // Navigate to live tracking if trip started
           if (payload.new.status === 'in_progress') {
             router.replace({
@@ -117,16 +118,16 @@ export default function OperatorFoundScreen() {
           }
         }
       });
-      
+
       setChannel(subscription);
-      
+
       // Poll for location updates every 10 seconds
       const locationInterval = setInterval(() => {
         if (request?.operatorId) {
           loadRequest();
         }
       }, 10000);
-      
+
       return () => {
         if (subscription) {
           unsubscribe(subscription);
@@ -145,6 +146,21 @@ export default function OperatorFoundScreen() {
         pathname: '/screens/user/live-tracking',
         params: { requestId },
       });
+    }
+  };
+
+  const handleChat = () => {
+    if (requestId) {
+      router.push({
+        pathname: '/screens/user/chat-screen',
+        params: {
+          requestId,
+          operatorName: request?.operator?.fullName,
+          operatorPhone: request?.operator?.phone
+        }
+      });
+    } else {
+      showToast('Request information not available', 'error');
     }
   };
 
@@ -237,7 +253,7 @@ export default function OperatorFoundScreen() {
               </View>
             )}
           </View>
-          
+
           {/* Operator Details */}
           <View style={styles.operatorDetails}>
             {request.operator.phone && (
@@ -245,12 +261,27 @@ export default function OperatorFoundScreen() {
                 style={styles.detailRow}
                 onPress={handleCall}
               >
-                <Phone01Icon size={20} color="#003554" strokeWidth={2} />
+                <Ionicons name="call-outline" size={20} color="#003554" />
                 <ThemedText style={styles.detailText}>{request.operator.phone}</ThemedText>
-                <ThemedText style={styles.callLabel}>Tap to call</ThemedText>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    style={[styles.smallActionButton, { backgroundColor: '#eff6ff' }]}
+                    onPress={handleChat}
+                  >
+                    <Ionicons name="chatbubble-ellipses" size={18} color="#3b82f6" />
+                    <Text style={[styles.actionLabel, { color: '#3b82f6' }]}>Chat</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.smallActionButton, { backgroundColor: '#dcfce7' }]}
+                    onPress={handleCall}
+                  >
+                    <Ionicons name="call" size={18} color="#10B981" />
+                    <Text style={styles.callLabel}>Call</Text>
+                  </TouchableOpacity>
+                </View>
               </TouchableOpacity>
             )}
-            
+
             {operatorLocation && (
               <View style={styles.detailRow}>
                 <Location01Icon size={20} color="#003554" strokeWidth={2} />
@@ -416,6 +447,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#10B981',
     fontWeight: '600',
+    marginLeft: 4,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  smallActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  actionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   locationInfo: {
     flex: 1,

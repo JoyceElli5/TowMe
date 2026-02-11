@@ -24,6 +24,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+        }}
+      />
+      <Tabs.Screen
         name="messages"
         options={{
           title: 'Messages',
