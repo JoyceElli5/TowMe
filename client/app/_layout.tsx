@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { ThemeProvider, useTheme } from '@/contexts/theme-context';
 import { ToastProvider } from '@/hooks/use-toast';
 
@@ -43,19 +44,21 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <NavigationWrapper>
-        <ToastProvider>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="screens" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-            <Stack.Screen name="operator/(tabs)" options={{ headerShown: false }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </ToastProvider>
-      </NavigationWrapper>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <NavigationWrapper>
+          <ToastProvider>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="screens" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+              <Stack.Screen name="operator/(tabs)" options={{ headerShown: false }} />
+            </Stack>
+            <StatusBar style="auto" />
+          </ToastProvider>
+        </NavigationWrapper>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

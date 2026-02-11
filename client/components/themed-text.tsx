@@ -34,32 +34,35 @@ export function ThemedText({
   );
 }
 
+import { Typography } from '@/constants/theme';
+
 const styles = StyleSheet.create({
   default: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: Typography.sizes.md,
+    lineHeight: Typography.lineHeights.md,
     fontFamily: Fonts.regular,
   },
   defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: Typography.sizes.md,
+    lineHeight: Typography.lineHeights.md,
     fontWeight: '600',
     fontFamily: Fonts.semiBold,
   },
   title: {
-    fontSize: 32,
+    fontSize: Typography.sizes['2xl'],
     fontWeight: 'bold',
-    lineHeight: 32,
+    lineHeight: Typography.lineHeights['2xl'],
     fontFamily: Fonts.semiBold,
   },
   subtitle: {
-    fontSize: 20,
+    fontSize: Typography.sizes.lg,
     fontWeight: 'bold',
+    lineHeight: Typography.lineHeights.lg,
     fontFamily: Fonts.semiBold,
   },
   link: {
-    lineHeight: 30,
-    fontSize: 16,
+    lineHeight: Typography.lineHeights.md,
+    fontSize: Typography.sizes.md,
     color: '#0a7ea4',
     fontFamily: Fonts.medium,
   },
