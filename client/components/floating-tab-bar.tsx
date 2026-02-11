@@ -24,6 +24,7 @@ interface TabConfig {
 }
 
 const TAB_CONFIG: Record<string, TabConfig> = {
+  // User tabs
   index: {
     name: 'Home',
     Icon: Home01Icon,
@@ -43,6 +44,15 @@ const TAB_CONFIG: Record<string, TabConfig> = {
   profile: {
     name: 'Profile',
     Icon: UserIcon,
+  },
+  // Operator tabs
+  dashboard: {
+    name: 'Home',
+    Icon: Home01Icon,
+  },
+  earnings: {
+    name: 'Earnings',
+    Icon: TransactionIcon,
   },
 };
 

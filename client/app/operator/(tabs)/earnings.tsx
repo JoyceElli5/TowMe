@@ -21,6 +21,8 @@ import {
     StyleSheet,
     Text // Explicitly imported
     ,
+
+
     TouchableOpacity,
     View
 } from 'react-native';
@@ -129,7 +131,12 @@ export default function EarningsWalletScreen() {
 
             <View style={styles.mainEarnings}>
                 <ThemedText style={styles.earningsLabel}>Total Earnings ({selectedPeriod})</ThemedText>
-                <ThemedText style={[styles.earningsValue, { color: tintColor }]}>
+                <ThemedText 
+                    style={[styles.earningsValue, { color: tintColor }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                >
                     {/* Calculate dynamically later */}
                     GH₵ 1,240.00
                 </ThemedText>
@@ -164,7 +171,12 @@ export default function EarningsWalletScreen() {
                     {loading ? (
                         <ActivityIndicator color="white" />
                     ) : (
-                        <ThemedText style={styles.walletBalance}>
+                        <ThemedText 
+                            style={styles.walletBalance}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.6}
+                        >
                             {balance?.currency} {balance?.available.toFixed(2)}
                         </ThemedText>
                     )}
@@ -386,6 +398,8 @@ const styles = StyleSheet.create({
         fontSize: 32,
         fontFamily: 'Gilroy-Bold',
         fontWeight: '700',
+        flexShrink: 1,
+        flexWrap: 'wrap',
     },
     divider: {
         height: 1,
@@ -413,6 +427,9 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: 'Gilroy-SemiBold',
         fontWeight: '600',
+        flexShrink: 1,
+        flexWrap: 'wrap',
+        textAlign: 'center',
     },
     walletCard: {
         borderRadius: 24,
@@ -442,6 +459,8 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontFamily: 'Gilroy-Bold',
         fontWeight: '700',
+        flexShrink: 1,
+        flexWrap: 'wrap',
     },
     walletIconContainer: {
         width: 48,

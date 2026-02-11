@@ -41,10 +41,15 @@ export async function getOperatorProfile(userId: string): Promise<OperatorProfil
       .select('*')
       .eq('id', userId)
       .eq('role', 'tow_operator')
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw error;
+    }
+
+    if (!data) {
+      // No operator profile row found for this user
+      return null;
     }
 
     return data as OperatorProfile;
@@ -85,10 +90,50 @@ export async function updateOperatorProfile(
       })
       .eq('id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw error;
+    }
+
+    if (!updatedProfile) {
+      // If update failed, check if we need to create the profile
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user && user.id === userId) {
+        console.log('Profile not found, creating new operator profile...');
+
+        // Ensure we have a phone number (required by DB schema usually)
+        const phone = user.phone || '';
+
+        // Create the profile
+        const { data: newProfile, error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: userId,
+            email: user.email || null,
+            phone: phone,
+            full_name: user.user_metadata?.full_name || phone || 'Tow Operator', // Fallback name
+            role: 'tow_operator',
+            ...data,
+            profile_completed: hasAllRequired,
+            verification_status: hasAllRequired ? 'under_review' : 'pending',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(), // updated_at is usually present
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creating operator profile:', insertError);
+          // If insert fails, throw the original error or a new one
+          throw new Error('Profile not found and failed to create: ' + insertError.message);
+        }
+
+        return newProfile as OperatorProfile;
+      }
+
+      throw new Error('Profile not found or you do not have permission to update it.');
     }
 
     return updatedProfile as OperatorProfile;

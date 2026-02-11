@@ -5,7 +5,7 @@
  */
 
 import { router } from 'expo-router';
-import { AlertCircleIcon, Document01Icon } from 'hugeicons-react-native';
+import { AlertCircleIcon, LegalDocument01Icon } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,8 +20,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getCurrentUser } from '@/lib/api';
-import { getVerificationStatus, getOperatorProfile } from '@/lib/services/operatorService';
-import { supabase } from '@/lib/supabase';
+import { getVerificationStatus } from '@/lib/services/operatorService';
 
 export default function VerificationPendingScreen() {
   const backgroundColor = useThemeColor({}, 'background');
@@ -85,7 +84,7 @@ export default function VerificationPendingScreen() {
       >
         {/* Icon */}
         <View style={[styles.iconContainer, { backgroundColor: `${tintColor}15` }]}>
-          <Document01Icon size={64} color={tintColor} strokeWidth={1.5} />
+          <LegalDocument01Icon size={64} color={tintColor} strokeWidth={1.5} />
         </View>
 
         {/* Title */}

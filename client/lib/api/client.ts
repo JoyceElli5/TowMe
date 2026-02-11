@@ -6,7 +6,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 // API Configuration
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:3001/api';
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.2:3001/api';
 
 // Debug: Log API URL (remove in production)
 if (__DEV__) {
