@@ -15,13 +15,15 @@ import {
 } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Icon mapping for notifications
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
@@ -211,16 +213,17 @@ export default function NotificationsScreen() {
 
       {/* Notifications List */}
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
+        <View style={styles.notificationListContent}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} height={100} borderRadius={16} style={{ marginBottom: 12 }} />
+          ))}
         </View>
       ) : notifications.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <ThemedText style={styles.emptyText}>No notifications</ThemedText>
-          <ThemedText style={styles.emptySubtext}>
-            You&apos;ll see notifications here when you have updates
-          </ThemedText>
-        </View>
+        <EmptyState
+          icon="notifications-outline"
+          title="No notifications"
+          description="You'll see notifications here when you have updates about your requests, payments, or account."
+        />
       ) : (
         <ScrollView
           style={styles.notificationList}
