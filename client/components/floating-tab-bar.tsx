@@ -1,7 +1,7 @@
 import { useThemeColor } from '@/hooks/use-theme-color';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
-import { Home01Icon, Notification01Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
+import { Home01Icon, Message01Icon, Notification01Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
 import React, { useCallback } from 'react';
 import {
   Platform,
@@ -28,13 +28,17 @@ const TAB_CONFIG: Record<string, TabConfig> = {
     name: 'Home',
     Icon: Home01Icon,
   },
-  earnings: {
-    name: 'Earnings',
+  history: {
+    name: 'History',
     Icon: TransactionIcon,
+  },
+  notifications: {
+    name: 'Notifications',
+    Icon: Notification01Icon,
   },
   messages: {
     name: 'Messages',
-    Icon: Notification01Icon,
+    Icon: Message01Icon,
   },
   profile: {
     name: 'Profile',
@@ -190,7 +194,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     width: '100%',
-    maxWidth: 310,
+    maxWidth: 360,
     // Shadow for depth
     shadowColor: '#000',
     shadowOffset: {
