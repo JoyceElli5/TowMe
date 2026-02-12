@@ -39,13 +39,10 @@ import {
     WalletBalance,
     WalletTransaction
 } from '@/lib/api/wallet';
+import { getCurrentUser } from '@/lib/services/authService';
 
 const PERIODS = ['Daily', 'Weekly', 'Monthly'] as const;
 type Period = typeof PERIODS[number];
-
-// Use a hardcoded user ID for now since we don't have auth context easily accessible yet
-// In a real app this would come from useAuth()
-const MOCK_USER_ID = '36398504-646f-45e8-9b96-a23921cf5ad2';
 
 export default function EarningsWalletScreen() {
     const backgroundColor = useThemeColor({}, 'background');
@@ -54,6 +51,7 @@ export default function EarningsWalletScreen() {
     const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
 
     const [selectedPeriod, setSelectedPeriod] = useState<Period>('Weekly');
+    const [operatorId, setOperatorId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [balance, setBalance] = useState<WalletBalance | null>(null);
@@ -62,9 +60,13 @@ export default function EarningsWalletScreen() {
 
     const fetchData = async () => {
         try {
+            if (!operatorId) {
+                return;
+            }
+
             const [balanceData, transactionsData] = await Promise.all([
-                getWalletBalance(MOCK_USER_ID),
-                getWalletTransactions(MOCK_USER_ID, { limit: 10 })
+                getWalletBalance(operatorId),
+                getWalletTransactions(operatorId, { limit: 10 })
             ]);
             setBalance(balanceData);
             setTransactions(transactionsData);
@@ -77,8 +79,24 @@ export default function EarningsWalletScreen() {
     };
 
     useEffect(() => {
+        // Load current operator once on mount
+        const loadOperator = async () => {
+            try {
+                const authUser = await getCurrentUser();
+                if (authUser?.user?.id) {
+                    setOperatorId(authUser.user.id);
+                }
+            } catch (error) {
+                console.error('Failed to load operator for wallet:', error);
+            }
+        };
+
+        loadOperator();
+    }, []);
+
+    useEffect(() => {
         fetchData();
-    }, [selectedPeriod]); // Reload when period changes (dummy for now)
+    }, [selectedPeriod, operatorId]); // Reload when period or operator changes
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -87,7 +105,10 @@ export default function EarningsWalletScreen() {
 
     const handleWithdrawal = async (amount: number, provider: string, phone: string) => {
         try {
-            await requestWithdrawal(MOCK_USER_ID, amount, { provider, phoneNumber: phone });
+            if (!operatorId) {
+                return;
+            }
+            await requestWithdrawal(operatorId, amount, { provider, phoneNumber: phone });
             // Refresh data to show updated balance/transaction
             onRefresh();
         } catch (error) {

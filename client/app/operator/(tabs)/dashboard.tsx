@@ -61,42 +61,6 @@ export default function OperatorDashboardScreen() {
   const [showEarningsModal, setShowEarningsModal] = useState(false);
   const [incomingRequest, setIncomingRequest] = useState<TowingRequest | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
-  const [requestTimeLeft, setRequestTimeLeft] = useState(30);
-
-  // Dev: Simulate Request
-  const simulateRequest = () => {
-    const mockRequest: TowingRequest = {
-      id: 'mock-123',
-      userId: 'user-1',
-      operatorId: null,
-      pickupAddress: 'Tetteh Quarshie Interchange, Accra',
-      pickupLat: 5.6179,
-      pickupLng: -0.1744,
-      destinationAddress: 'Kotoka International Airport, Accra',
-      destinationLat: 5.6037,
-      destinationLng: -0.1691,
-      distanceKm: 5.2,
-      estimatedPrice: 150,
-      finalPrice: null,
-      vehicleType: 'suv',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      completedAt: null,
-      acceptedAt: null,
-      startedAt: null,
-      cancellationReason: null,
-      user: {
-        id: 'user-1',
-        fullName: 'Kwame Mensah',
-        averageRating: 4.8,
-        phone: '+233200000000',
-        avatarUrl: null
-      }
-    };
-    setIncomingRequest(mockRequest);
-    setRequestTimeLeft(30);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
 
   // Fetch current user and stats on mount
   useEffect(() => {
@@ -141,23 +105,6 @@ export default function OperatorDashboardScreen() {
     fetchUser();
   }, [showToast]);
 
-  // Request Timer
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (incomingRequest && requestTimeLeft > 0) {
-      timer = setInterval(() => {
-        setRequestTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleDeclineRequest(); // Auto decline
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [incomingRequest, requestTimeLeft]);
-
   // Real-time subscription for pending requests when online
   useEffect(() => {
     if (!isOnline || !currentUser) return;
@@ -174,7 +121,6 @@ export default function OperatorDashboardScreen() {
 
         if (requests && requests.length > 0) {
           setIncomingRequest(requests[0]);
-          setRequestTimeLeft(30);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
       } catch (error) {
@@ -276,7 +222,7 @@ export default function OperatorDashboardScreen() {
   const handleDeclineRequest = () => {
     setIncomingRequest(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    // Logic to properly reject in backend if needed
+    // TODO: Optionally notify backend about declined request
   };
 
   const handleSOS = () => {
@@ -362,14 +308,7 @@ export default function OperatorDashboardScreen() {
         </View>
 
         {/* Dev: Simulate Request Button */}
-        {__DEV__ && !incomingRequest && (
-          <TouchableOpacity
-            style={{ position: 'absolute', top: 120, right: 20, backgroundColor: 'orange', padding: 8, borderRadius: 8, zIndex: 100 }}
-            onPress={simulateRequest}
-          >
-            <ThemedText style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Simulate Job</ThemedText>
-          </TouchableOpacity>
-        )}
+        {/* (Dev simulate button removed – dashboard now only shows real backend requests) */}
 
         {/* Stats Card - Clickable for Earnings */}
         {!incomingRequest && (
@@ -408,7 +347,6 @@ export default function OperatorDashboardScreen() {
             onAccept={handleAcceptRequest}
             onDecline={handleDeclineRequest}
             isAccepting={isAccepting}
-            timeLeft={requestTimeLeft}
           />
         ) : (
           <ThemedView style={[styles.bottomCard, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}>
