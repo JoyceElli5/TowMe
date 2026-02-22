@@ -1,28 +1,18 @@
-/**
- * useOperatorDashboard
- *
- * Encapsulates operator dashboard data + realtime logic:
- * - Loads current operator (via backend API)
- * - Computes today's trips and total earnings
- * - Subscribes to pending requests in realtime
- * - Exposes online/offline toggle handler
- */
-
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert } from 'react-native';
 
+import { useRealtimeRequests } from '@/hooks/use-realtime-requests';
 import { useToast } from '@/hooks/use-toast';
 import {
+  acceptRequest,
+  ApiError,
   getCurrentUser,
   getOperatorRequests,
-  getPendingRequests,
+  type TowingRequest
 } from '@/lib/api';
 import { toggleOperatorOnlineStatus } from '@/lib/api/users';
-import {
-  subscribeToPendingRequests,
-  unsubscribe,
-} from '@/lib/services/realtimeService';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface OperatorDashboardState {
   isOnline: boolean;
@@ -30,6 +20,10 @@ interface OperatorDashboardState {
   tripsToday: number;
   rating: number;
   isLoadingStatus: boolean;
+  incomingRequest: TowingRequest | null;
+  activeJob: TowingRequest | null;
+  isAccepting: boolean;
+  requestTimeLeft: number;
 }
 
 export function useOperatorDashboard() {
@@ -41,116 +35,110 @@ export function useOperatorDashboard() {
     tripsToday: 0,
     rating: 0,
     isLoadingStatus: false,
+    incomingRequest: null,
+    activeJob: null,
+    isAccepting: false,
+    requestTimeLeft: 30,
   });
 
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch current user and stats on mount
-  useEffect(() => {
-    let mounted = true;
-
-    const fetchUserAndStats = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!user || !mounted) return;
-
-        setCurrentUser({ id: user.id });
-
-        // Base profile info
-        setState((prev) => ({
-          ...prev,
-          isOnline: (user as any).isOnline || false,
-          rating: (user as any).averageRating || 0,
-        }));
-
-        // Fetch today's trips and earnings
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const tripsResponse = await getOperatorRequests(user.id, {
-          status: 'completed',
-          limit: 100,
-        });
-
-        if (!mounted || !tripsResponse.data) return;
-
-        const todayTrips = tripsResponse.data.filter((trip) => {
-          const tripDate = new Date(trip.completedAt || trip.createdAt);
-          return tripDate >= today;
-        });
-
-        const totalEarnings = tripsResponse.data.reduce((sum, trip) => {
-          return sum + (trip.finalPrice || trip.estimatedPrice || 0);
-        }, 0);
-
-        setState((prev) => ({
-          ...prev,
-          tripsToday: todayTrips.length,
-          earnings: totalEarnings,
-        }));
-      } catch (error) {
-        if (!mounted) return;
-        console.error('Failed to load operator dashboard data:', error);
-        showToast('Please log in to continue', 'error');
-      }
-    };
-
-    fetchUserAndStats();
-
-    return () => {
-      mounted = false;
-    };
-  }, [showToast]);
-
-  // Real-time subscription for pending requests when online
-  useEffect(() => {
-    if (!state.isOnline || !currentUser) return;
-
-    let channel: RealtimeChannel | null = null;
-    let backupInterval: NodeJS.Timeout | null = null;
-
-    const fetchPending = async () => {
-      try {
-        const requests = await getPendingRequests();
-        if (requests && requests.length > 0) {
-          router.push({
-            pathname: '/screens/operator/incoming-request',
-            params: { requestId: requests[0].id },
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch pending requests:', error);
-      }
-    };
-
-    // Initial fetch
-    fetchPending();
-
-    // Supabase realtime subscription
+  // Fetch current user and stats
+  const fetchUserAndStats = useCallback(async () => {
     try {
-      channel = subscribeToPendingRequests((payload) => {
-        console.log('New pending request received:', payload.eventType);
-        if (payload.eventType === 'INSERT') {
-          fetchPending();
-        }
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      setCurrentUser({ id: user.id });
+
+      // Base profile info
+      setState((prev) => ({
+        ...prev,
+        isOnline: (user as any).isOnline || false,
+        rating: (user as any).averageRating || 0,
+      }));
+
+      // Fetch today's trips and earnings
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tripsResponse = await getOperatorRequests(user.id, {
+        status: 'completed',
+        limit: 100,
       });
+
+      if (!tripsResponse.data) return;
+
+      const todayTrips = tripsResponse.data.filter((trip) => {
+        const tripDate = new Date(trip.completedAt || trip.createdAt);
+        return tripDate >= today;
+      });
+
+      const totalEarnings = tripsResponse.data.reduce((sum, trip) => {
+        return sum + (trip.finalPrice || trip.estimatedPrice || 0);
+      }, 0);
+
+      setState((prev) => ({
+        ...prev,
+        tripsToday: todayTrips.length,
+        earnings: totalEarnings,
+      }));
+
+      // Fetch active job (accepted or in_progress)
+      const activeJobs = await getOperatorRequests(user.id, {
+        limit: 1,
+      });
+
+      const currentActiveJob = activeJobs.data.find(job =>
+        job.status === 'accepted' || job.status === 'in_progress'
+      );
+
+      if (currentActiveJob) {
+        setState(prev => ({ ...prev, activeJob: currentActiveJob }));
+      }
     } catch (error) {
-      console.error('Error setting up realtime subscription:', error);
-      backupInterval = setInterval(fetchPending, 15000);
+      console.error('Failed to load operator dashboard data:', error);
     }
+  }, []);
 
-    // Backup polling (less frequent)
-    backupInterval = backupInterval ?? setInterval(fetchPending, 30000);
+  useEffect(() => {
+    fetchUserAndStats();
+  }, [fetchUserAndStats]);
 
+  // Request Timer Logic
+  useEffect(() => {
+    if (state.incomingRequest && state.requestTimeLeft > 0) {
+      timerRef.current = setInterval(() => {
+        setState((prev) => {
+          if (prev.requestTimeLeft <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            return { ...prev, incomingRequest: null, requestTimeLeft: 0 };
+          }
+          return { ...prev, requestTimeLeft: prev.requestTimeLeft - 1 };
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
     return () => {
-      if (channel) {
-        unsubscribe(channel);
-      }
-      if (backupInterval) {
-        clearInterval(backupInterval);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [state.isOnline, currentUser]);
+  }, [state.incomingRequest, state.requestTimeLeft]);
+
+  const { pendingRequests } = useRealtimeRequests();
+
+  // Watch for new requests from the shared hook
+  useEffect(() => {
+    if (state.isOnline && !state.incomingRequest && pendingRequests.length > 0) {
+      setState(prev => ({
+        ...prev,
+        incomingRequest: pendingRequests[0],
+        requestTimeLeft: 30
+      }));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [state.isOnline, state.incomingRequest, pendingRequests]);
 
   const handleOnlineToggle = useCallback(
     async (value: boolean) => {
@@ -159,31 +147,104 @@ export function useOperatorDashboard() {
         return;
       }
 
+      if (value) {
+        const { isOperatorVerified, getVerificationStatus } = await import('@/lib/services/operatorService');
+        const verified = await isOperatorVerified(currentUser.id);
+        const verificationStatus = await getVerificationStatus(currentUser.id);
+
+        if (!verified) {
+          if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
+            showToast('Please complete your profile verification to go online', 'error');
+            router.push('/screens/operator/verification-pending');
+          } else if (verificationStatus === 'rejected') {
+            showToast('Your verification was rejected. Please update your profile', 'error');
+            router.push('/screens/operator/verification-rejected');
+          } else {
+            showToast('Please complete your profile to go online', 'error');
+            router.push('/screens/operator/profile-setup-screen');
+          }
+          return;
+        }
+      }
+
       setState((prev) => ({ ...prev, isLoadingStatus: true }));
 
       try {
         await toggleOperatorOnlineStatus(currentUser.id, value);
         setState((prev) => ({ ...prev, isOnline: value }));
-        showToast(
-          value ? 'You are now online' : 'You are now offline',
-          'success',
-        );
+        showToast(value ? 'You are now online' : 'You are now offline', 'success');
+        Haptics.selectionAsync();
       } catch (error: any) {
         console.error('Failed to toggle online status:', error);
         showToast(error?.message || 'Could not update status', 'error');
-        // Revert on error
         setState((prev) => ({ ...prev, isOnline: !value }));
       } finally {
         setState((prev) => ({ ...prev, isLoadingStatus: false }));
       }
     },
-    [currentUser, showToast],
+    [currentUser, showToast]
   );
+
+  const handleAcceptRequest = async () => {
+    if (!state.incomingRequest) return;
+    setState(prev => ({ ...prev, isAccepting: true }));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      await acceptRequest(state.incomingRequest.id);
+      const requestId = state.incomingRequest.id;
+      setState(prev => ({ ...prev, isAccepting: false, incomingRequest: null }));
+      router.push({
+        pathname: '/screens/operator/navigation-to-pickup',
+        params: { requestId },
+      });
+    } catch (error) {
+      console.error('Failed to accept request:', error);
+      setState(prev => ({ ...prev, isAccepting: false }));
+      if (error instanceof ApiError) {
+        Alert.alert('Error', error.message || 'Failed to accept request');
+      } else {
+        Alert.alert('Error', 'An unexpected error occurred');
+      }
+    }
+  };
+
+  const handleDeclineRequest = () => {
+    setState(prev => ({ ...prev, incomingRequest: null }));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  };
+
+  const simulateRequest = () => {
+    const mockRequest: any = {
+      id: 'mock-' + Math.random().toString(36).substr(2, 9),
+      userId: 'user-1',
+      operatorId: null,
+      pickupAddress: 'Tetteh Quarshie Interchange, Accra',
+      pickupLat: 5.6179,
+      pickupLng: -0.1744,
+      destinationAddress: 'Kotoka International Airport, Accra',
+      destinationLat: 5.6037,
+      destinationLng: -0.1691,
+      distanceKm: 5.2,
+      estimatedPrice: 150,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      user: {
+        fullName: 'Kwame Mensah',
+        averageRating: 4.8,
+      }
+    };
+    setState(prev => ({ ...prev, incomingRequest: mockRequest, requestTimeLeft: 30 }));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
 
   return {
     ...state,
     handleOnlineToggle,
+    handleAcceptRequest,
+    handleDeclineRequest,
+    simulateRequest,
+    activeJob: state.activeJob,
+    refreshStats: fetchUserAndStats,
   };
 }
-
-

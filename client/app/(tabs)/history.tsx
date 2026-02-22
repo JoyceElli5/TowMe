@@ -1,87 +1,94 @@
-
-
-import React from 'react';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Fonts } from '@/constants/theme';
+import { useRequests } from '@/hooks/use-requests';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useToast } from '@/hooks/use-toast';
+import { TowingRequest, cancelRequest } from '@/lib/api';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { StarIcon, Route01Icon, FilterIcon } from 'hugeicons-react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
-import { Fonts } from '@/constants/theme';
 
-// Mock trip data
-const MOCK_TRIPS = [
-  {
-    id: '1',
-    date: 'Today, 2:30 PM',
-    pickup: 'Ring Road Central, Accra',
-    destination: 'Accra Mall',
-    distance: '12.5 km',
-    earnings: 'GHS 156',
-    rating: 5,
-  },
-  {
-    id: '2',
-    date: 'Yesterday, 10:15 AM',
-    pickup: 'Osu Oxford Street',
-    destination: 'Kotoka Airport',
-    distance: '8.2 km',
-    earnings: 'GHS 98',
-    rating: 4,
-  },
-  {
-    id: '3',
-    date: 'Nov 24, 4:45 PM',
-    pickup: 'East Legon',
-    destination: 'University of Ghana',
-    distance: '15.0 km',
-    earnings: 'GHS 180',
-    rating: 5,
-  },
-];
-
-function TripCard({ trip }: { trip: typeof MOCK_TRIPS[0] }) {
+function RequestCard({ request, isActive = false, onCancel }: { request: TowingRequest; isActive?: boolean; onCancel?: (id: string) => void }) {
   const iconColor = useThemeColor({}, 'icon');
-  const cardBg = useThemeColor({}, 'background');
+  const cardBg = useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background');
+  const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
+  const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+
+  const formatStatus = (status: string) => {
+    return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
   return (
-    <TouchableOpacity>
-      <ThemedView style={[styles.tripCard, { backgroundColor: cardBg }]}>
-      <View style={styles.tripHeader}>
-        <ThemedText style={styles.tripDate}>{trip.date}</ThemedText>
-        <View style={styles.ratingContainer}>
-          <StarIcon size={14} color="#F59E0B" strokeWidth={2} />
-          <ThemedText style={styles.ratingText}>{trip.rating}</ThemedText>
-        </View>
-      </View>
-
-      <View style={styles.addressContainer}>
-        <View style={styles.addressRow}>
-          <View style={styles.pickupDot} />
-          <ThemedText style={styles.addressText} numberOfLines={1}>
-            {trip.pickup}
+    <TouchableOpacity
+      onPress={() => {
+        if (isActive) {
+          const route = request.status === 'pending'
+            ? '/screens/user/searching-operator'
+            : request.status === 'accepted'
+              ? '/screens/user/operator-found'
+              : '/screens/user/live-tracking';
+          router.push({
+            pathname: route as any,
+            params: { requestId: request.id },
+          });
+        }
+      }}
+    >
+      <ThemedView style={[styles.tripCard, { backgroundColor: cardBg, borderColor }]}>
+        <View style={styles.tripHeader}>
+          <View style={styles.statusBadge}>
+            <View style={[styles.statusDot, { backgroundColor: isActive ? '#3B82F6' : '#9ca3af' }]} />
+            <ThemedText style={styles.statusText}>{formatStatus(request.status)}</ThemedText>
+          </View>
+          <ThemedText style={styles.tripDate}>
+            {new Date(request.createdAt).toLocaleDateString()}
           </ThemedText>
         </View>
-        <View style={styles.addressLine} />
-        <View style={styles.addressRow}>
-          <View style={styles.destinationDot} />
-          <ThemedText style={styles.addressText} numberOfLines={1}>
-            {trip.destination}
-          </ThemedText>
-        </View>
-      </View>
 
-      <View style={styles.tripFooter}>
-        <View style={styles.distanceContainer}>
-          <Route01Icon size={16} color={iconColor} strokeWidth={2} />
-          <ThemedText style={styles.distanceText}>{trip.distance}</ThemedText>
+        <View style={styles.addressContainer}>
+          <View style={styles.addressRow}>
+            <View style={styles.pickupDot} />
+            <ThemedText style={styles.addressText} numberOfLines={1}>
+              {request.pickupAddress}
+            </ThemedText>
+          </View>
+          <View style={styles.addressLine} />
+          <View style={styles.addressRow}>
+            <View style={styles.destinationDot} />
+            <ThemedText style={styles.addressText} numberOfLines={1}>
+              {request.destinationAddress}
+            </ThemedText>
+          </View>
         </View>
-        <ThemedText style={styles.earningsText}>{trip.earnings}</ThemedText>
-      </View>
+
+        <View style={styles.tripFooter}>
+          <View style={styles.footerInfo}>
+            <ThemedText style={styles.vehicleText}>{request.vehicleType.toUpperCase()}</ThemedText>
+            <ThemedText style={styles.earningsText}>GH₵ {request.estimatedPrice.toFixed(0)}</ThemedText>
+          </View>
+          {isActive && onCancel && (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => onCancel(request.id)}
+            >
+              <ThemedText style={styles.cancelText}>Cancel</ThemedText>
+            </TouchableOpacity>
+          )}
+          {!isActive && (
+            <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+          )}
+        </View>
       </ThemedView>
     </TouchableOpacity>
   );
@@ -89,47 +96,45 @@ function TripCard({ trip }: { trip: typeof MOCK_TRIPS[0] }) {
 
 export default function HistoryScreen() {
   const backgroundColor = useThemeColor({}, 'background');
-  const filterButtonBg = useThemeColor({ light: '#EBF5FF', dark: '#1E3A5F' }, 'background');
-  
+  const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+  const { activeRequests, pastRequests, isLoading, refresh } = useRequests('user');
+  const { showToast } = useToast();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    await refresh();
+    setIsRefreshing(false);
+  };
+
+  const handleCancelRequest = (requestId: string) => {
+    Alert.alert(
+      'Cancel Request',
+      'Are you sure you want to cancel this request?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelRequest(requestId, 'Cancelled by user from history');
+              showToast('Request cancelled', 'success');
+              refresh();
+            } catch (err) {
+              showToast('Failed to cancel request', 'error');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]}>
       {/* Header */}
       <View style={styles.header}>
-        <ThemedText type="title" style={styles.title}>Trip History</ThemedText>
-        <TouchableOpacity style={[styles.filterButton, { backgroundColor: filterButtonBg }]}>
-          <FilterIcon size={24} color="#3B82F6" strokeWidth={2} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Summary Card */}
-      <ThemedView style={styles.summaryCard}>
-        <View style={styles.summaryItem}>
-          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>GHS 434</ThemedText>
-          <ThemedText style={styles.summaryLabel}>Total Earnings</ThemedText>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>3</ThemedText>
-          <ThemedText style={styles.summaryLabel}>Trips</ThemedText>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>35.7 km</ThemedText>
-          <ThemedText style={styles.summaryLabel}>Distance</ThemedText>
-        </View>
-      </ThemedView>
-
-      {/* Filter Tabs */}
-      <View style={styles.filterTabs}>
-        <TouchableOpacity style={[styles.filterTab, styles.filterTabActive]}>
-          <ThemedText style={[styles.filterTabText, styles.filterTabTextActive]}>Today</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterTab}>
-          <ThemedText style={styles.filterTabText}>This Week</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterTab}>
-          <ThemedText style={styles.filterTabText}>This Month</ThemedText>
-        </TouchableOpacity>
+        <ThemedText type="title" style={styles.title}>My Requests</ThemedText>
       </View>
 
       {/* Trip List */}
@@ -137,10 +142,39 @@ export default function HistoryScreen() {
         style={styles.tripList}
         contentContainerStyle={styles.tripListContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={tintColor} />
+        }
       >
-        {MOCK_TRIPS.map((trip) => (
-          <TripCard key={trip.id} trip={trip} />
-        ))}
+        {activeRequests.length > 0 && (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Active Requests</ThemedText>
+            {activeRequests.map((req) => (
+              <RequestCard
+                key={req.id}
+                request={req}
+                isActive
+                onCancel={handleCancelRequest}
+              />
+            ))}
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Past Requests</ThemedText>
+          {isLoading && !isRefreshing ? (
+            <ActivityIndicator size="large" color={tintColor} style={styles.loader} />
+          ) : pastRequests.length > 0 ? (
+            pastRequests.map((req) => (
+              <RequestCard key={req.id} request={req} />
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="time-outline" size={48} color="#9ca3af" />
+              <ThemedText style={styles.emptyText}>No request history</ThemedText>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -151,9 +185,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
@@ -161,64 +192,16 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.semiBold,
   },
-  filterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+  section: {
+    marginBottom: 24,
   },
-  summaryCard: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  summaryItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  summaryValue: {
-    fontSize: 20,
-    fontFamily: Fonts.semiBold,
-    marginBottom: 4,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    fontFamily: Fonts.regular,
-  },
-  summaryDivider: {
-    width: 1,
-    backgroundColor: '#E5E7EB',
-  },
-  filterTabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    gap: 8,
-  },
-  filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: 'transparent',
-  },
-  filterTabActive: {
-    backgroundColor: '#3B82F6',
-  },
-  filterTabText: {
+  sectionTitle: {
     fontSize: 14,
     fontFamily: Fonts.medium,
-  },
-  filterTabTextActive: {
-    color: '#FFFFFF',
+    color: '#9ca3af',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   tripList: {
     flex: 1,
@@ -231,6 +214,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -243,18 +227,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  tripDate: {
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-  },
-  ratingContainer: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
   },
-  ratingText: {
-    fontSize: 14,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 11,
     fontFamily: Fonts.semiBold,
+  },
+  tripDate: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
+    color: '#9ca3af',
   },
   addressContainer: {
     marginBottom: 12,
@@ -265,27 +259,27 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pickupDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#10B981',
   },
   destinationDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#EF4444',
   },
   addressLine: {
-    width: 2,
-    height: 20,
+    width: 1,
+    height: 16,
     backgroundColor: '#E5E7EB',
-    marginLeft: 4,
+    marginLeft: 3.5,
     marginVertical: 2,
   },
   addressText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.regular,
   },
   tripFooter: {
@@ -294,20 +288,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: 'rgba(0,0,0,0.05)',
   },
-  distanceContainer: {
+  footerInfo: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    alignItems: 'baseline',
+    gap: 8,
   },
-  distanceText: {
-    fontSize: 14,
-    fontFamily: Fonts.regular,
+  vehicleText: {
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+    color: '#9ca3af',
   },
   earningsText: {
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: Fonts.semiBold,
     color: '#10B981',
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fee2e2',
+  },
+  cancelText: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
+    color: '#ef4444',
+  },
+  loader: {
+    marginTop: 20,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyText: {
+    color: '#9ca3af',
+    fontFamily: Fonts.medium,
   },
 });

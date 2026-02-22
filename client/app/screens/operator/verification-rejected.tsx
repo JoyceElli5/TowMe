@@ -5,7 +5,7 @@
  */
 
 import { router } from 'expo-router';
-import { AlertCircleIcon, ArrowRight01Icon } from 'hugeicons-react-native';
+import { AlertCircleIcon } from 'hugeicons-react-native';
 import React from 'react';
 import {
   ScrollView,
@@ -75,13 +75,13 @@ export default function VerificationRejectedScreen() {
         </ThemedView>
 
         {/* Action Buttons */}
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={[styles.primaryButton, { backgroundColor: errorColor }]}
           onPress={handleEditProfile}
         >
           <ThemedText style={styles.primaryButtonText}>Update Profile</ThemedText>
           <ArrowRight01Icon size={20} color="#FFFFFF" strokeWidth={2} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <TouchableOpacity
           style={[styles.secondaryButton, { borderColor }]}

@@ -22,8 +22,10 @@ import {
 type UserRole = 'vehicle_owner' | 'tow_operator';
 
 export default function OTPVerifyScreen() {
-  const params = useLocalSearchParams<{ phone: string; role?: UserRole }>();
+  const params = useLocalSearchParams<{ phone: string; email?: string; role?: UserRole; type?: 'phone' | 'email' }>();
   const phone = params.phone || '';
+  const email = params.email || '';
+  const isEmailMode = params.type === 'email' || !!email;
   const role = params.role || 'vehicle_owner';
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -63,9 +65,19 @@ export default function OTPVerifyScreen() {
 
     setIsLoading(true);
     try {
-      const result = await verifyOTP(phone, code, role);
+      let result;
+      if (isEmailMode) {
+        const { verifyEmailOTP } = await import('@/lib/services/authService');
+        result = await verifyEmailOTP(code);
+      } else {
+        result = await verifyOTP(phone, code, role);
+      }
+
       if (result.success) {
-        showToast('Login successful!', 'success');
+        showToast('Verification successful!', 'success');
+
+        // For email mode, we might need to log in first or we might already be logged in
+        // If it was just a registration flow, we probably want to send them to login or dashboard
 
         // Check user role and profile completion
         const user = await getCurrentUser();
@@ -108,7 +120,15 @@ export default function OTPVerifyScreen() {
             router.replace('/(tabs)');
           }
         } else {
-          router.replace('/(tabs)');
+          // If no user found (e.g. email verification before login), go to login
+          if (isEmailMode) {
+            router.replace({
+              pathname: '/screens/auth/login-screen',
+              params: { email, message: 'Email verified. Please log in.' }
+            });
+          } else {
+            router.replace('/(tabs)');
+          }
         }
       } else {
         showToast(result.error || 'Invalid OTP code', 'error');
@@ -125,7 +145,14 @@ export default function OTPVerifyScreen() {
   const handleResend = async () => {
     setIsResending(true);
     try {
-      const result = await sendOTP(phone);
+      let result;
+      if (isEmailMode) {
+        const { resendEmailOTP } = await import('@/lib/services/authService');
+        result = await resendEmailOTP(email);
+      } else {
+        result = await sendOTP(phone);
+      }
+
       if (result.success) {
         showToast('OTP resent successfully!', 'success');
         setOtp(['', '', '', '', '', '']);
@@ -152,7 +179,7 @@ export default function OTPVerifyScreen() {
         >
           <ThemedText style={styles.title}>Enter Verification Code</ThemedText>
           <ThemedText style={styles.subtitle}>
-            We sent a 6-digit code to {phone}
+            We sent a 6-digit code to {isEmailMode ? email : phone}
           </ThemedText>
 
           <View style={styles.otpContainer}>

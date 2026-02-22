@@ -31,6 +31,77 @@ export function DocumentUpload({
     const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
     const buttonColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
 
+    const styles = StyleSheet.create({
+        documentSection: {
+            marginBottom: 16,
+        },
+        documentLabel: {
+            fontSize: 14,
+            fontFamily: Fonts.medium,
+            marginBottom: 8,
+        },
+        documentPreview: {
+            marginTop: 8,
+            position: 'relative',
+        },
+        documentImage: {
+            width: '100%',
+            height: 200,
+            borderRadius: 12,
+            marginBottom: 8,
+        },
+        uploadingOverlay: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 8,
+        },
+        uploadingText: {
+            color: '#fff',
+            marginTop: 8,
+            fontSize: 14,
+            fontFamily: Fonts.medium,
+        },
+        uploadButtons: {
+            flexDirection: 'row',
+            gap: 12,
+            marginTop: 8,
+        },
+        uploadButton: {
+            flex: 1,
+            height: 48,
+            borderWidth: 1.5,
+            borderRadius: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+        },
+        uploadButtonText: {
+            fontSize: 14,
+            fontFamily: Fonts.medium,
+            color: '#fff',
+        },
+        removeButton: {
+            height: 40,
+            borderRadius: 8,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 16,
+        },
+        removeButtonText: {
+            color: '#fff',
+            fontSize: 14,
+            fontFamily: Fonts.medium,
+        },
+    });
+
     const handlePickImage = async (useCamera: boolean) => {
         try {
             // Request permissions
@@ -133,74 +204,3 @@ export function DocumentUpload({
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    documentSection: {
-        marginBottom: 16,
-    },
-    documentLabel: {
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-        marginBottom: 8,
-    },
-    documentPreview: {
-        marginTop: 8,
-        position: 'relative',
-    },
-    documentImage: {
-        width: '100%',
-        height: 200,
-        borderRadius: 12,
-        marginBottom: 8,
-    },
-    uploadingOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 8,
-    },
-    uploadingText: {
-        color: '#fff',
-        marginTop: 8,
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-    },
-    uploadButtons: {
-        flexDirection: 'row',
-        gap: 12,
-        marginTop: 8,
-    },
-    uploadButton: {
-        flex: 1,
-        height: 48,
-        borderWidth: 1.5,
-        borderRadius: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    uploadButtonText: {
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-        color: '#fff',
-    },
-    removeButton: {
-        height: 40,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 16,
-    },
-    removeButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-    },
-});

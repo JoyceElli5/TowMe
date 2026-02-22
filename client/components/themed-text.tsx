@@ -1,6 +1,6 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { Fonts } from '@/constants/theme';
+import { Fonts, Typography } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 export type ThemedTextProps = TextProps & {
@@ -18,6 +18,38 @@ export function ThemedText({
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
 
+  const styles = StyleSheet.create({
+    default: {
+      fontSize: Typography.sizes.md,
+      lineHeight: Typography.lineHeights.md,
+      fontFamily: Fonts.regular,
+    },
+    defaultSemiBold: {
+      fontSize: Typography.sizes.md,
+      lineHeight: Typography.lineHeights.md,
+      fontWeight: '600',
+      fontFamily: Fonts.semiBold,
+    },
+    title: {
+      fontSize: Typography.sizes['2xl'],
+      fontWeight: 'bold',
+      lineHeight: Typography.lineHeights['2xl'],
+      fontFamily: Fonts.semiBold,
+    },
+    subtitle: {
+      fontSize: Typography.sizes.lg,
+      fontWeight: 'bold',
+      lineHeight: Typography.lineHeights.lg,
+      fontFamily: Fonts.semiBold,
+    },
+    link: {
+      lineHeight: Typography.lineHeights.md,
+      fontSize: Typography.sizes.md,
+      color: '#0a7ea4',
+      fontFamily: Fonts.medium,
+    },
+  });
+
   return (
     <Text
       style={[
@@ -33,37 +65,3 @@ export function ThemedText({
     />
   );
 }
-
-import { Typography } from '@/constants/theme';
-
-const styles = StyleSheet.create({
-  default: {
-    fontSize: Typography.sizes.md,
-    lineHeight: Typography.lineHeights.md,
-    fontFamily: Fonts.regular,
-  },
-  defaultSemiBold: {
-    fontSize: Typography.sizes.md,
-    lineHeight: Typography.lineHeights.md,
-    fontWeight: '600',
-    fontFamily: Fonts.semiBold,
-  },
-  title: {
-    fontSize: Typography.sizes['2xl'],
-    fontWeight: 'bold',
-    lineHeight: Typography.lineHeights['2xl'],
-    fontFamily: Fonts.semiBold,
-  },
-  subtitle: {
-    fontSize: Typography.sizes.lg,
-    fontWeight: 'bold',
-    lineHeight: Typography.lineHeights.lg,
-    fontFamily: Fonts.semiBold,
-  },
-  link: {
-    lineHeight: Typography.lineHeights.md,
-    fontSize: Typography.sizes.md,
-    color: '#0a7ea4',
-    fontFamily: Fonts.medium,
-  },
-});

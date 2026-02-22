@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
 
-import { Spacing, Typography } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
-import PrimaryButton from '../primary-button';
+import { Spacing } from '@/constants/theme';
 import { ThemedText } from '../themed-text';
+
+const { width } = Dimensions.get('window');
 
 export type ErrorType = 'network' | 'server' | 'not-found' | 'generic' | 'critical';
 
@@ -25,166 +25,165 @@ export function ErrorView({
     title,
     message,
     onRetry,
-    retryLabel = 'Try Again',
+    retryLabel = 'TRY AGAIN',
     isLoading = false,
     showBackButton = true,
 }: ErrorViewProps) {
-    const backgroundColor = useThemeColor({}, 'background');
-    const mutedColor = useThemeColor({}, 'muted');
-    const errorColor = '#EF4444';
-    const secondaryColor = '#64748B';
+    const errorColor = '#FF0000';
 
-    const getIconData = () => {
+    const getIconName = () => {
         switch (type) {
             case 'network':
-                return { name: 'wifi-outline' as const, color: errorColor, bg: '#FEE2E2' };
+                return 'cloud-offline-outline';
             case 'server':
-                return { name: 'server-outline' as const, color: secondaryColor, bg: '#F1F5F9' };
+                return 'server-outline';
             case 'not-found':
-                return { name: 'search-outline' as const, color: secondaryColor, bg: '#F1F5F9' };
+                return 'search-outline';
             case 'critical':
-                return { name: 'flash-outline' as const, color: errorColor, bg: '#FEE2E2' };
+                return 'alert-circle-outline';
             default:
-                return { name: 'alert-circle-outline' as const, color: errorColor, bg: '#FEE2E2' };
+                return 'alert-circle-outline';
         }
     };
 
     const getTitle = () => {
         if (title) return title;
-        switch (type) {
-            case 'network':
-                return 'Connection Error';
-            case 'server':
-                return 'Server Offline';
-            case 'not-found':
-                return 'Not Found';
-            case 'critical':
-                return 'Critical Error';
-            default:
-                return 'Something went wrong';
-        }
+        return 'Error!';
     };
 
     const getMessage = () => {
         if (message) return message;
         switch (type) {
             case 'network':
-                return "We're having trouble reaching our servers. Please check your internet connection and try again.";
+                return "We're having trouble reaching our servers. Please check your internet connection.";
             case 'server':
-                return "Our servers are currently experiencing issues. We're working on fixing it. Please try again later.";
+                return "Our servers are currently experiencing issues. Please try again later.";
             case 'not-found':
-                return "We couldn't find the page or data you were looking for.";
+                return "We couldn't find the data you were looking for.";
             case 'critical':
-                return "The app encountered a critical error. Our team has been notified. You may need to restart.";
+                return "The app encountered a critical error. Please reload the screen.";
             default:
-                return "An unexpected error occurred. Please try again or contact support if the issue persists.";
+                return "An unexpected error occurred. Please try again.";
         }
     };
 
-    const iconData = getIconData();
+    // Styles defined inside to ensure they are available even if the global StyleSheet scope has issues
+    const styles = StyleSheet.create({
+        overlay: {
+            flex: 1,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: Spacing.xl,
+        },
+        card: {
+            backgroundColor: '#FFFFFF',
+            width: '100%',
+            maxWidth: 340,
+            borderRadius: 32,
+            padding: Spacing.xl,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.3,
+            shadowRadius: 20,
+            elevation: 10,
+        },
+        title: {
+            color: errorColor,
+            fontSize: 32,
+            fontFamily: 'Gilroy-SemiBold',
+            marginBottom: Spacing.lg,
+            textAlign: 'center',
+        },
+        iconOuterCircle: {
+            width: 100,
+            height: 100,
+            borderRadius: 50,
+            borderWidth: 2,
+            borderColor: errorColor,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: Spacing.xl,
+        },
+        iconInnerCircle: {
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: errorColor,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        message: {
+            color: '#4B5563',
+            fontSize: 16,
+            fontFamily: 'Gilroy-Regular',
+            textAlign: 'center',
+            lineHeight: 24,
+            marginBottom: Spacing['2xl'],
+            paddingHorizontal: Spacing.sm,
+        },
+        retryButton: {
+            backgroundColor: errorColor,
+            width: '100%',
+            height: 56,
+            borderRadius: 28,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: Spacing.md,
+        },
+        retryButtonText: {
+            color: '#FFFFFF',
+            fontSize: 18,
+            fontFamily: 'Gilroy-SemiBold',
+            letterSpacing: 1,
+        },
+        backButton: {
+            paddingVertical: Spacing.sm,
+        },
+        backButtonText: {
+            color: '#9CA3AF',
+            fontSize: 14,
+            fontFamily: 'Gilroy-Medium',
+        },
+    });
 
     return (
-        <View style={[styles.container, { backgroundColor }]}>
-            <View style={styles.header}>
-                <View style={[styles.iconContainer, { backgroundColor: iconData.bg }]}>
-                    <Ionicons name={iconData.name} size={48} color={iconData.color} />
+        <View style={styles.overlay}>
+            <View style={styles.card}>
+                <ThemedText style={styles.title}>{getTitle()}</ThemedText>
+
+                <View style={styles.iconOuterCircle}>
+                    <View style={styles.iconInnerCircle}>
+                        <Ionicons name={getIconName()} size={40} color="#FFFFFF" />
+                    </View>
                 </View>
-            </View>
 
-            <View style={styles.content}>
-                <ThemedText style={styles.title}>
-                    {getTitle()}
-                </ThemedText>
-                <ThemedText style={styles.description}>
-                    {getMessage()}
-                </ThemedText>
-            </View>
+                <ThemedText style={styles.message}>{getMessage()}</ThemedText>
 
-            <View style={styles.footer}>
                 {onRetry && (
-                    <PrimaryButton
-                        label={retryLabel}
+                    <TouchableOpacity
+                        style={styles.retryButton}
                         onPress={onRetry}
-                        isLoading={isLoading}
-                        variant="primary"
-                        style={styles.mainButton}
-                    />
+                        activeOpacity={0.8}
+                        disabled={isLoading}
+                    >
+                        <ThemedText style={styles.retryButtonText}>
+                            {isLoading ? 'LOADING...' : retryLabel}
+                        </ThemedText>
+                    </TouchableOpacity>
                 )}
 
                 {showBackButton && (
                     <TouchableOpacity
                         style={styles.backButton}
                         onPress={() => router.back()}
-                        disabled={isLoading}
+                        activeOpacity={0.6}
                     >
-                        <ThemedText style={styles.backButtonText}>
-                            Go Back
-                        </ThemedText>
+                        <ThemedText style={styles.backButtonText}>GO BACK</ThemedText>
                     </TouchableOpacity>
                 )}
             </View>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        paddingHorizontal: Spacing.xl * 1.5,
-        paddingVertical: Spacing.xl,
-        justifyContent: 'center',
-    },
-    header: {
-        alignItems: 'center',
-        marginBottom: Spacing.xl,
-    },
-    iconContainer: {
-        width: 96,
-        height: 96,
-        borderRadius: 48,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 4,
-    },
-    content: {
-        alignItems: 'center',
-        marginBottom: Spacing['2xl'],
-    },
-    title: {
-        fontSize: Typography.sizes['2xl'],
-        lineHeight: Typography.lineHeights['2xl'],
-        fontFamily: 'Gilroy-SemiBold',
-        textAlign: 'center',
-        marginBottom: Spacing.md,
-        color: '#1E293B',
-    },
-    description: {
-        fontSize: Typography.sizes.md,
-        lineHeight: Typography.lineHeights.md,
-        fontFamily: 'Gilroy-Regular',
-        textAlign: 'center',
-        color: '#64748B',
-        paddingHorizontal: Spacing.sm,
-    },
-    footer: {
-        width: '100%',
-        alignItems: 'center',
-    },
-    mainButton: {
-        width: '100%',
-        marginBottom: Spacing.md,
-    },
-    backButton: {
-        paddingVertical: Spacing.md,
-        paddingHorizontal: Spacing.xl,
-    },
-    backButtonText: {
-        fontSize: Typography.sizes.md,
-        fontFamily: 'Gilroy-Medium',
-        color: '#64748B',
-    },
-});

@@ -4,7 +4,12 @@
  * Shows operator profile information, earnings, trip history, and settings
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import {
+  Logout01Icon,
+  Wallet01Icon
+} from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,23 +20,15 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  ArrowLeft01Icon,
-  UserIcon,
-  Wallet01Icon,
-  Settings01Icon,
-  Logout01Icon,
-} from 'hugeicons-react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { getCurrentUser, logout } from '@/lib/api';
-import { getOperatorProfile } from '@/lib/services/operatorService';
-import { getOperatorRequests } from '@/lib/api/requests';
 import type { TowingRequest } from '@/lib/api';
+import { getCurrentUser, logout } from '@/lib/api';
+import { getOperatorRequests } from '@/lib/api/requests';
+import { getOperatorProfile } from '@/lib/services/operatorService';
 
 export default function OperatorProfileScreen() {
   const { showToast } = useToast();
@@ -136,7 +133,7 @@ export default function OperatorProfileScreen() {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: borderColor }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft01Icon size={24} color={iconColor} strokeWidth={2} />
+          <Ionicons name="arrow-back" size={24} color={iconColor} />
         </TouchableOpacity>
         <ThemedText style={styles.headerTitle}>Profile</ThemedText>
         <View style={styles.backButton} />
@@ -213,14 +210,14 @@ export default function OperatorProfileScreen() {
         {/* Settings */}
         <ThemedView style={[styles.section, { borderColor }]}>
           <ThemedText style={styles.sectionTitle}>Settings</ThemedText>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[styles.settingItem, { borderColor }]}
             onPress={() => router.push('/screens/operator/profile-setup-screen')}
           >
             <UserIcon size={20} color={iconColor} strokeWidth={2} />
             <ThemedText style={styles.settingText}>Edit Profile</ThemedText>
             <ArrowLeft01Icon size={20} color={iconColor} strokeWidth={2} style={styles.arrowRight} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           <TouchableOpacity
             style={[styles.settingItem, { borderColor }]}
             onPress={handleLogout}
