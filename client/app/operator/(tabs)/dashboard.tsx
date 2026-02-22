@@ -5,10 +5,11 @@
  * Shows availability toggle, coverage zones, and job request preview.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { Menu01Icon, UserIcon } from 'hugeicons-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { UserIcon } from 'hugeicons-react-native';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -27,13 +28,8 @@ import JobRequestPreview from '@/components/operator/job-request-preview';
 import SOSButton from '@/components/operator/sos-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useOperatorDashboard } from '@/hooks/use-operator-dashboard';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useToast } from '@/hooks/use-toast';
-import { acceptRequest, ApiError, getCurrentUser, TowingRequest } from '@/lib/api';
-import { getOperatorRequests, getPendingRequests } from '@/lib/api/requests';
-import { toggleOperatorOnlineStatus } from '@/lib/api/users';
-import { subscribeToPendingRequests, unsubscribe } from '@/lib/services/realtimeService';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // Mock Heat Zones (e.g., around Accra)
 const HEAT_ZONES = [
@@ -42,251 +38,39 @@ const HEAT_ZONES = [
 ];
 
 export default function OperatorDashboardScreen() {
-  const { showToast } = useToast();
   const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
   const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
   const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
   const mapRef = useRef<MapView>(null);
 
-  const [isOnline, setIsOnline] = useState(false);
-  const [earnings, setEarnings] = useState(0);
-  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
-  const [tripsToday, setTripsToday] = useState(0);
-  const [rating, setRating] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
-
-  // New State
   const [showEarningsModal, setShowEarningsModal] = useState(false);
-  const [incomingRequest, setIncomingRequest] = useState<TowingRequest | null>(null);
-  const [isAccepting, setIsAccepting] = useState(false);
-  const [requestTimeLeft, setRequestTimeLeft] = useState(30);
 
-  // Dev: Simulate Request
-  const simulateRequest = () => {
-    const mockRequest: TowingRequest = {
-      id: 'mock-123',
-      userId: 'user-1',
-      operatorId: null,
-      pickupAddress: 'Tetteh Quarshie Interchange, Accra',
-      pickupLat: 5.6179,
-      pickupLng: -0.1744,
-      destinationAddress: 'Kotoka International Airport, Accra',
-      destinationLat: 5.6037,
-      destinationLng: -0.1691,
-      distanceKm: 5.2,
-      estimatedPrice: 150,
-      finalPrice: null,
-      vehicleType: 'suv',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      completedAt: null,
-      acceptedAt: null,
-      startedAt: null,
-      cancellationReason: null,
-      user: {
-        id: 'user-1',
-        fullName: 'Kwame Mensah',
-        averageRating: 4.8,
-        phone: '+233200000000',
-        avatarUrl: null
-      }
-    };
-    setIncomingRequest(mockRequest);
-    setRequestTimeLeft(30);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  // Fetch current user and stats on mount
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (user) {
-          setCurrentUser({ id: user.id });
-          setIsOnline(user.isOnline || false);
-          setRating(user.averageRating || 0);
-
-          // Fetch today's trips and earnings
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          const tripsResponse = await getOperatorRequests(user.id, {
-            status: 'completed',
-            limit: 100,
-          });
-
-          if (tripsResponse.data) {
-            // Filter trips from today
-            const todayTrips = tripsResponse.data.filter((trip) => {
-              const tripDate = new Date(trip.completedAt || trip.createdAt);
-              return tripDate >= today;
-            });
-
-            setTripsToday(todayTrips.length);
-
-            // Calculate total earnings from all completed trips
-            const totalEarnings = tripsResponse.data.reduce((sum, trip) => {
-              return sum + (trip.finalPrice || trip.estimatedPrice || 0);
-            }, 0);
-            setEarnings(totalEarnings);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch current user:', error);
-        showToast('Please log in to continue', 'error');
-      }
-    };
-    fetchUser();
-  }, [showToast]);
-
-  // Request Timer
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (incomingRequest && requestTimeLeft > 0) {
-      timer = setInterval(() => {
-        setRequestTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleDeclineRequest(); // Auto decline
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [incomingRequest, requestTimeLeft]);
-
-  // Real-time subscription for pending requests when online
-  useEffect(() => {
-    if (!isOnline || !currentUser) return;
-
-    let channel: RealtimeChannel | null = null;
-    let backupInterval: NodeJS.Timeout | null = null;
-
-    const fetchPendingRequests = async () => {
-      // If we already have a request, don't fetch more
-      if (incomingRequest) return;
-
-      try {
-        const requests = await getPendingRequests();
-
-        if (requests && requests.length > 0) {
-          setIncomingRequest(requests[0]);
-          setRequestTimeLeft(30);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      } catch (error) {
-        console.error('Failed to fetch pending requests:', error);
-      }
-    };
-
-    // Initial fetch
-    fetchPendingRequests();
-
-    // Set up real-time subscription
-    try {
-      channel = subscribeToPendingRequests((payload) => {
-        console.log('New pending request received:', payload.eventType);
-        if (payload.eventType === 'INSERT') {
-          fetchPendingRequests();
-        }
-      });
-    } catch (error) {
-      console.error('Error setting up real-time subscription:', error);
-      backupInterval = setInterval(fetchPendingRequests, 15000);
-    }
-
-    backupInterval = setInterval(fetchPendingRequests, 30000);
-
-    return () => {
-      if (channel) unsubscribe(channel);
-      if (backupInterval) clearInterval(backupInterval);
-    };
-  }, [isOnline, currentUser, incomingRequest]);
-
-  // Handle online status toggle
-  const handleOnlineToggle = useCallback(async (value: boolean) => {
-    if (!currentUser) {
-      showToast('Please log in to go online', 'error');
-      return;
-    }
-
-    // Check if operator is verified before allowing them to go online
-    if (value) {
-      const { isOperatorVerified, getVerificationStatus } = await import('@/lib/services/operatorService');
-      const verified = await isOperatorVerified(currentUser.id);
-      const verificationStatus = await getVerificationStatus(currentUser.id);
-      
-      if (!verified) {
-        if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
-          showToast('Please complete your profile verification to go online', 'error');
-          router.push('/screens/operator/verification-pending');
-        } else if (verificationStatus === 'rejected') {
-          showToast('Your verification was rejected. Please update your profile', 'error');
-          router.push('/screens/operator/verification-rejected');
-        } else {
-          showToast('Please complete your profile to go online', 'error');
-          router.push('/screens/operator/profile-setup-screen');
-        }
-        return;
-      }
-    }
-
-    setIsLoadingStatus(true);
-    try {
-      await toggleOperatorOnlineStatus(currentUser.id, value);
-      setIsOnline(value);
-      showToast(value ? 'You are now online' : 'You are now offline', 'success');
-      Haptics.selectionAsync();
-    } catch (error: any) {
-      console.error('Failed to toggle online status:', error);
-      showToast(error.message || 'Could not update status', 'error');
-      setIsOnline(!value);
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  }, [currentUser, showToast]);
-
-  const handleAcceptRequest = async () => {
-    if (!incomingRequest) return;
-    setIsAccepting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      await acceptRequest(incomingRequest.id);
-      setIsAccepting(false);
-      setIncomingRequest(null);
-      router.push({
-        pathname: '/screens/operator/navigation-to-pickup',
-        params: { requestId: incomingRequest.id },
-      });
-    } catch (error) {
-      console.error('Failed to accept request:', error);
-      setIsAccepting(false);
-      if (error instanceof ApiError) {
-        Alert.alert('Error', error.message || 'Failed to accept request');
-      } else {
-        Alert.alert('Error', 'An unexpected error occurred');
-      }
-    }
-  };
-
-  const handleDeclineRequest = () => {
-    setIncomingRequest(null);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    // Logic to properly reject in backend if needed
-  };
+  // Hook-based logic
+  const {
+    isOnline,
+    earnings,
+    tripsToday,
+    rating,
+    isLoadingStatus,
+    incomingRequest,
+    isAccepting,
+    requestTimeLeft,
+    handleOnlineToggle,
+    handleAcceptRequest,
+    handleDeclineRequest,
+    simulateRequest,
+    activeJob,
+  } = useOperatorDashboard();
 
   const handleSOS = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Heavy);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     Alert.alert(
       "Emergency SOS",
       "Are you sure you want to contact emergency services?",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Call 112", style: "destructive", onPress: () => console.log("Calling 112...") } // Add Linking.openURL('tel:112')
+        { text: "Call 112", style: "destructive", onPress: () => console.log("Calling 112...") }
       ]
     );
   };
@@ -357,17 +141,17 @@ export default function OperatorDashboardScreen() {
             style={[styles.menuButton, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}
             onPress={() => setShowMenu(true)}
           >
-            <Menu01Icon size={20} color={tintColor} strokeWidth={2} />
+            <Ionicons name="menu-outline" size={24} color={tintColor} />
           </TouchableOpacity>
         </View>
 
         {/* Dev: Simulate Request Button */}
         {__DEV__ && !incomingRequest && (
           <TouchableOpacity
-            style={{ position: 'absolute', top: 120, right: 20, backgroundColor: 'orange', padding: 8, borderRadius: 8, zIndex: 100 }}
+            style={styles.devSimulateButton}
             onPress={simulateRequest}
           >
-            <ThemedText style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Simulate Job</ThemedText>
+            <ThemedText style={styles.devButtonText}>Simulate Job</ThemedText>
           </TouchableOpacity>
         )}
 
@@ -398,6 +182,37 @@ export default function OperatorDashboardScreen() {
         {/* Expanded View Spacer */}
         <View style={{ flex: 1 }} />
 
+        {/* Current Active Job Card */}
+        {activeJob && !incomingRequest && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={[styles.activeJobCard, { backgroundColor: tintColor }]}
+            onPress={() => {
+              const route = activeJob.status === 'accepted'
+                ? '/screens/operator/navigation-to-pickup'
+                : '/screens/operator/live-tracking';
+              router.push({
+                pathname: route as any,
+                params: { requestId: activeJob.id },
+              });
+            }}
+          >
+            <View style={styles.activeJobHeader}>
+              <View style={styles.activeJobPulse} />
+              <ThemedText style={styles.activeJobTitle}>Ongoing Job</ThemedText>
+            </View>
+            <ThemedText style={styles.activeJobAddress} numberOfLines={1}>
+              {activeJob.pickupAddress}
+            </ThemedText>
+            <View style={styles.activeJobFooter}>
+              <ThemedText style={styles.activeJobStatus}>
+                Status: {activeJob.status === 'accepted' ? 'Accepted' : 'In Progress'}
+              </ThemedText>
+              <ThemedText style={styles.activeJobResume}>Resume →</ThemedText>
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* SOS Button */}
         <SOSButton onPress={handleSOS} />
 
@@ -413,12 +228,28 @@ export default function OperatorDashboardScreen() {
         ) : (
           <ThemedView style={[styles.bottomCard, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}>
             <ThemedText style={styles.bottomTitle}>
-              {isOnline ? 'Waiting for requests...' : 'Go online to receive requests'}
+              {activeJob ? 'You have an active job' : (isOnline ? 'Waiting for requests...' : 'Go online to receive requests')}
             </ThemedText>
-            {isOnline && (
+            {!activeJob && isOnline && (
               <View style={[styles.pulseContainer, { backgroundColor: '#bae6fd' }]}>
                 <View style={[styles.pulse, { backgroundColor: tintColor }]} />
               </View>
+            )}
+            {activeJob && (
+              <TouchableOpacity
+                style={[styles.resumeButton, { backgroundColor: tintColor }]}
+                onPress={() => {
+                  const route = activeJob.status === 'accepted'
+                    ? '/screens/operator/navigation-to-pickup'
+                    : '/screens/operator/live-tracking';
+                  router.push({
+                    pathname: route as any,
+                    params: { requestId: activeJob.id },
+                  });
+                }}
+              >
+                <ThemedText style={styles.resumeButtonText}>Return to Job</ThemedText>
+              </TouchableOpacity>
             )}
           </ThemedView>
         )}
@@ -458,7 +289,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -470,7 +300,6 @@ const styles = StyleSheet.create({
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
     borderRadius: 22,
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -495,7 +324,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -506,7 +334,6 @@ const styles = StyleSheet.create({
   },
   statsCard: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
     marginHorizontal: 20,
     marginTop: 16,
     borderRadius: 16,
@@ -536,7 +363,6 @@ const styles = StyleSheet.create({
     width: 1,
   },
   bottomCard: {
-    backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
@@ -559,7 +385,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#bae6fd',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -567,6 +392,79 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#003554',
+  },
+  devSimulateButton: {
+    position: 'absolute',
+    top: 120,
+    right: 20,
+    backgroundColor: '#F59E0B',
+    padding: 8,
+    borderRadius: 8,
+    zIndex: 100,
+  },
+  devButtonText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  activeJobCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  activeJobHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  activeJobPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    marginRight: 8,
+  },
+  activeJobTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  activeJobAddress: {
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 12,
+    opacity: 0.9,
+  },
+  activeJobFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  activeJobStatus: {
+    color: '#fff',
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  activeJobResume: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  resumeButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  resumeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

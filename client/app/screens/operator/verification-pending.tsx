@@ -27,7 +27,7 @@ export default function VerificationPendingScreen() {
   const borderColor = useThemeColor({ light: '#E5E7EB', dark: '#374151' }, 'background');
   const iconColor = useThemeColor({}, 'icon');
   const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
-  
+
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'under_review' | 'approved' | 'rejected' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -61,9 +61,9 @@ export default function VerificationPendingScreen() {
     }
   };
 
-  const handleEditProfile = () => {
-    router.push('/screens/operator/profile-setup-screen');
-  };
+  // const handleEditProfile = () => {
+  //   router.push('/screens/operator/profile-setup-screen');
+  // };
 
   if (isLoading) {
     return (
@@ -140,14 +140,14 @@ export default function VerificationPendingScreen() {
         </ThemedView>
 
         {/* Action Button */}
-        {verificationStatus === 'pending' && (
+        {/* {verificationStatus === 'pending' && (
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: tintColor }]}
             onPress={handleEditProfile}
           >
             <ThemedText style={styles.actionButtonText}>Complete Profile</ThemedText>
           </TouchableOpacity>
-        )}
+        )} */}
 
         {/* Refresh Button */}
         <TouchableOpacity

@@ -43,155 +43,156 @@ export default function RegisterScreen() {
     },
   });
 
-//   const onSubmit = async (data: RegisterFormData) => {
-//     setIsLoading(true);
-//     try {
-//       // Step 1: Sign up with Supabase Auth
-//       const { user: supabaseUser, session, error: signUpError } = await signUpWithEmail(
-//         data.email,
-//         data.password
-//       );
+  //   const onSubmit = async (data: RegisterFormData) => {
+  //     setIsLoading(true);
+  //     try {
+  //       // Step 1: Sign up with Supabase Auth
+  //       const { user: supabaseUser, session, error: signUpError } = await signUpWithEmail(
+  //         data.email,
+  //         data.password
+  //       );
 
-//       if (signUpError) {
-//         throw new Error(signUpError.message || 'Failed to create account');
-//       }
+  //       if (signUpError) {
+  //         throw new Error(signUpError.message || 'Failed to create account');
+  //       }
 
-//       // if (!supabaseUser || !session) {
-//       //   throw new Error('Failed to create account. Please try again.');
-//       // }
+  //       // if (!supabaseUser || !session) {
+  //       //   throw new Error('Failed to create account. Please try again.');
+  //       // }
 
-//       if (signUpError) throw new Error(signUpError);
+  //       if (signUpError) throw new Error(signUpError);
 
-// if (!supabaseUser) {
-//   Alert.alert(
-//     "Check your email",
-//     "Your account was created. Confirm your email to proceed."
-//   );
-//   return;
-// }
+  // if (!supabaseUser) {
+  //   Alert.alert(
+  //     "Check your email",
+  //     "Your account was created. Confirm your email to proceed."
+  //   );
+  //   return;
+  // }
 
-// if (!session) {
-//   // If there's no session (e.g. email confirmation required), inform the user and stop.
-//   Alert.alert(
-//     "Check your email",
-//     "Your account was created. Confirm your email to proceed."
-//   );
-//   return;
-// }
+  // if (!session) {
+  //   // If there's no session (e.g. email confirmation required), inform the user and stop.
+  //   Alert.alert(
+  //     "Check your email",
+  //     "Your account was created. Confirm your email to proceed."
+  //   );
+  //   return;
+  // }
 
-//       // Step 2: Create profile in backend with the Supabase access token
-//       // This stores the user's role and additional profile data
-//         const user = await createProfile(
-//           {
-//             userId: supabaseUser.id,
-//             email: data.email,
-//             fullName: data.fullName,
-//             phone: data.phone,
-//             role: role,
-//           },
-//           session.access_token
-//         );
+  //       // Step 2: Create profile in backend with the Supabase access token
+  //       // This stores the user's role and additional profile data
+  //         const user = await createProfile(
+  //           {
+  //             userId: supabaseUser.id,
+  //             email: data.email,
+  //             fullName: data.fullName,
+  //             phone: data.phone,
+  //             role: role,
+  //           },
+  //           session.access_token
+  //         );
 
-//       console.log('Registration successful:', user);
-      
-//       // Navigate to appropriate dashboard based on user role
-//       if (user.role === 'tow_operator') {
-//         router.replace('/screens/operator/dashboard');
-//       } else {
-//         router.replace('/screens/user/home-screen');
-//       }
-//     } catch (error) {
-//       console.error('Registration error:', error);
-//       if (error instanceof ApiError) {
-//         if (error.errors && error.errors.length > 0) {
-//           const errorMessages = error.errors.map(e => `${e.field}: ${e.message}`).join('\n');
-//           Alert.alert('Registration Failed', errorMessages);
-//         } else {
-//           Alert.alert('Registration Failed', error.message || 'Could not complete registration');
-//         }
-//       } else if (error instanceof Error) {
-//         Alert.alert('Registration Failed', error.message || 'An unexpected error occurred. Please try again.');
-//       } else {
-//         Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
-//       }
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
+  //       console.log('Registration successful:', user);
 
-const onRegister = async (data: RegisterFormData) => {
-  setIsLoading(true);
-  try {
-    // Check API connection first
-    const isConnected = await checkApiConnection();
-    
-    if (!isConnected) {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:3001/api';
-      showToast(
-        `Cannot connect to backend at ${apiUrl}\n\n` +
-        `Please check:\n` +
-        `1. Backend is running\n` +
-        `2. EXPO_PUBLIC_API_URL is set correctly\n` +
-        `3. Network connection is active`,
-        'error'
-      );
-      setIsLoading(false);
-      return;
-    }
-    
-    // Register directly with backend API
-    const user = await registerApi({
-      email: data.email,
-      password: data.password,
-      fullName: data.fullName,
-      phone: data.phone,
-      role,
-    });
+  //       // Navigate to appropriate dashboard based on user role
+  //       if (user.role === 'tow_operator') {
+  //         router.replace('/screens/operator/dashboard');
+  //       } else {
+  //         router.replace('/screens/user/home-screen');
+  //       }
+  //     } catch (error) {
+  //       console.error('Registration error:', error);
+  //       if (error instanceof ApiError) {
+  //         if (error.errors && error.errors.length > 0) {
+  //           const errorMessages = error.errors.map(e => `${e.field}: ${e.message}`).join('\n');
+  //           Alert.alert('Registration Failed', errorMessages);
+  //         } else {
+  //           Alert.alert('Registration Failed', error.message || 'Could not complete registration');
+  //         }
+  //       } else if (error instanceof Error) {
+  //         Alert.alert('Registration Failed', error.message || 'An unexpected error occurred. Please try again.');
+  //       } else {
+  //         Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
+  //       }
+  //     } finally {
+  //       setIsLoading(false);
+  //     }
+  //   };
 
-    console.log('Registration successful:', user);
+  const onRegister = async (data: RegisterFormData) => {
+    setIsLoading(true);
+    try {
+      // Check API connection first
+      const isConnected = await checkApiConnection();
 
-    showToast(
-      'Account created successfully! Please check your email to verify your account before logging in.',
-      'success'
-    );
-
-    // Navigate to login screen after registration (email verification required)
-    setTimeout(() => {
-      router.replace({
-        pathname: '/screens/auth/login-screen',
-        params: { 
-          email: data.email,
-          message: 'Please verify your email before logging in'
-        },
-      });
-    }, 1500);
-
-  } catch (error) {
-    console.error('Registration error:', error);
-    if (error instanceof ApiError) {
-      // Log full error details for debugging
-      console.error('API Error Details:', {
-        message: error.message,
-        status: error.status,
-        errors: error.errors,
-      });
-      
-      if (error.errors && error.errors.length > 0) {
-        const errorMessages = error.errors.map(e => `${e.field}: ${e.message}`).join('\n');
-        showToast(errorMessages, 'error');
-      } else {
-        showToast(error.message || 'Registration failed', 'error');
+      if (!isConnected) {
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:3001/api';
+        showToast(
+          `Cannot connect to backend at ${apiUrl}\n\n` +
+          `Please check:\n` +
+          `1. Backend is running\n` +
+          `2. EXPO_PUBLIC_API_URL is set correctly\n` +
+          `3. Network connection is active`,
+          'error'
+        );
+        setIsLoading(false);
+        return;
       }
-    } else if (error instanceof Error) {
-      console.error('Error details:', error.message, error.stack);
-      showToast(error.message || 'An unexpected error occurred. Please try again.', 'error');
-    } else {
-      showToast('An unexpected error occurred. Please try again.', 'error');
+
+      // Register directly with backend API
+      const user = await registerApi({
+        email: data.email,
+        password: data.password,
+        fullName: data.fullName,
+        phone: data.phone,
+        role,
+      });
+
+      console.log('Registration successful:', user);
+
+      showToast(
+        'Account created successfully! Please verify your email with the 6-digit code sent to you.',
+        'success'
+      );
+
+      // Navigate to OTP verification screen after registration
+      setTimeout(() => {
+        router.replace({
+          pathname: '/screens/auth/otp-verify-screen',
+          params: {
+            email: data.email,
+            role: role,
+            type: 'email'
+          },
+        });
+      }, 1500);
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      if (error instanceof ApiError) {
+        // Log full error details for debugging
+        console.error('API Error Details:', {
+          message: error.message,
+          status: error.status,
+          errors: error.errors,
+        });
+
+        if (error.errors && error.errors.length > 0) {
+          const errorMessages = error.errors.map(e => `${e.field}: ${e.message}`).join('\n');
+          showToast(errorMessages, 'error');
+        } else {
+          showToast(error.message || 'Registration failed', 'error');
+        }
+      } else if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+        showToast(error.message || 'An unexpected error occurred. Please try again.', 'error');
+      } else {
+        showToast('An unexpected error occurred. Please try again.', 'error');
+      }
+    } finally {
+      setIsLoading(false);
     }
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const handleLoginPress = () => {
     router.push({
@@ -352,10 +353,10 @@ const onRegister = async (data: RegisterFormData) => {
                   accessibilityRole="button"
                   accessibilityHint={showPassword ? 'Password is currently visible' : 'Password is currently hidden'}
                 >
-                  <Ionicons 
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
-                    size={22} 
-                    color="#6b7280" 
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color="#6b7280"
                   />
                 </TouchableOpacity>
               </View>
@@ -397,10 +398,10 @@ const onRegister = async (data: RegisterFormData) => {
                   accessibilityRole="button"
                   accessibilityHint={showConfirmPassword ? 'Password is currently visible' : 'Password is currently hidden'}
                 >
-                  <Ionicons 
-                    name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} 
-                    size={22} 
-                    color="#6b7280" 
+                  <Ionicons
+                    name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color="#6b7280"
                   />
                 </TouchableOpacity>
               </View>

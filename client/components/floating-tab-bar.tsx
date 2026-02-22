@@ -1,7 +1,8 @@
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
-import { Home01Icon, Message01Icon, Notification01Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
+import { Home01Icon, Notification01Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
 import React, { useCallback } from 'react';
 import {
   Platform,
@@ -39,7 +40,7 @@ const TAB_CONFIG: Record<string, TabConfig> = {
   },
   messages: {
     name: 'Messages',
-    Icon: Message01Icon,
+    Icon: (props: any) => <Ionicons name="chatbubble-ellipses-outline" {...props} />,
   },
   profile: {
     name: 'Profile',
@@ -49,6 +50,10 @@ const TAB_CONFIG: Record<string, TabConfig> = {
   dashboard: {
     name: 'Home',
     Icon: Home01Icon,
+  },
+  jobs: {
+    name: 'Jobs',
+    Icon: TransactionIcon,
   },
   earnings: {
     name: 'Earnings',

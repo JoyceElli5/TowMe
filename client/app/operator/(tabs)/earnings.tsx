@@ -12,17 +12,15 @@ import {
     TransactionIcon,
     Wallet01Icon
 } from 'hugeicons-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     RefreshControl,
     ScrollView,
     StatusBar,
     StyleSheet,
-    Text // Explicitly imported
-    ,
-
-
+    Text,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -31,21 +29,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import WithdrawalModal from '@/components/operator/withdrawal-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useOperatorEarnings } from '@/hooks/use-operator-earnings';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import {
-    getWalletBalance,
-    getWalletTransactions,
-    requestWithdrawal,
-    WalletBalance,
-    WalletTransaction
-} from '@/lib/api/wallet';
+import { WalletTransaction } from '@/lib/api/wallet';
 
 const PERIODS = ['Daily', 'Weekly', 'Monthly'] as const;
 type Period = typeof PERIODS[number];
-
-// Use a hardcoded user ID for now since we don't have auth context easily accessible yet
-// In a real app this would come from useAuth()
-const MOCK_USER_ID = '36398504-646f-45e8-9b96-a23921cf5ad2';
 
 export default function EarningsWalletScreen() {
     const backgroundColor = useThemeColor({}, 'background');
@@ -54,45 +43,24 @@ export default function EarningsWalletScreen() {
     const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
 
     const [selectedPeriod, setSelectedPeriod] = useState<Period>('Weekly');
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [balance, setBalance] = useState<WalletBalance | null>(null);
-    const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [withdrawalModalVisible, setWithdrawalModalVisible] = useState(false);
 
-    const fetchData = async () => {
+    // Integrated hook-based logic
+    const {
+        balance,
+        transactions,
+        loading,
+        refreshing,
+        onRefresh,
+        handleWithdrawal
+    } = useOperatorEarnings();
+
+    const onWithdraw = async (amount: number, provider: string, phone: string) => {
         try {
-            const [balanceData, transactionsData] = await Promise.all([
-                getWalletBalance(MOCK_USER_ID),
-                getWalletTransactions(MOCK_USER_ID, { limit: 10 })
-            ]);
-            setBalance(balanceData);
-            setTransactions(transactionsData);
+            await handleWithdrawal(amount, provider, phone);
+            Alert.alert('Success', 'Withdrawal request submitted successfully.');
         } catch (error) {
-            console.error('Failed to load wallet data:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, [selectedPeriod]); // Reload when period changes (dummy for now)
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchData();
-    };
-
-    const handleWithdrawal = async (amount: number, provider: string, phone: string) => {
-        try {
-            await requestWithdrawal(MOCK_USER_ID, amount, { provider, phoneNumber: phone });
-            // Refresh data to show updated balance/transaction
-            onRefresh();
-        } catch (error) {
-            console.error('Withdrawal failed:', error);
-            alert('Withdrawal failed. Please try again.');
+            Alert.alert('Withdrawal failed', 'Please try again later.');
         }
     };
 
@@ -131,13 +99,13 @@ export default function EarningsWalletScreen() {
 
             <View style={styles.mainEarnings}>
                 <ThemedText style={styles.earningsLabel}>Total Earnings ({selectedPeriod})</ThemedText>
-                <ThemedText 
+                <ThemedText
                     style={[styles.earningsValue, { color: tintColor }]}
                     numberOfLines={1}
                     adjustsFontSizeToFit
                     minimumFontScale={0.7}
                 >
-                    {/* Calculate dynamically later */}
+                    {/* Placeholder for dynamic calculation */}
                     GH₵ 1,240.00
                 </ThemedText>
             </View>
@@ -168,16 +136,16 @@ export default function EarningsWalletScreen() {
             <View style={styles.walletHeader}>
                 <View>
                     <ThemedText style={styles.walletLabel}>Available Balance</ThemedText>
-                    {loading ? (
+                    {loading && !balance ? (
                         <ActivityIndicator color="white" />
                     ) : (
-                        <ThemedText 
+                        <ThemedText
                             style={styles.walletBalance}
                             numberOfLines={1}
                             adjustsFontSizeToFit
                             minimumFontScale={0.6}
                         >
-                            {balance?.currency} {balance?.available.toFixed(2)}
+                            {balance?.currency || 'GH₵'} {balance?.available.toFixed(2) || '0.00'}
                         </ThemedText>
                     )}
                 </View>
@@ -190,13 +158,13 @@ export default function EarningsWalletScreen() {
                 <View style={styles.walletDetailItem}>
                     <ThemedText style={styles.walletDetailLabel}>Pending</ThemedText>
                     <ThemedText style={styles.walletDetailValue}>
-                        {balance?.currency} {balance?.pending.toFixed(2)}
+                        {balance?.currency || 'GH₵'} {balance?.pending.toFixed(2) || '0.00'}
                     </ThemedText>
                 </View>
                 <View style={styles.walletDetailItem}>
                     <ThemedText style={styles.walletDetailLabel}>Withdrawn</ThemedText>
                     <ThemedText style={styles.walletDetailValue}>
-                        {balance?.currency} {balance?.withdrawn.toFixed(2)}
+                        {balance?.currency || 'GH₵'} {balance?.withdrawn.toFixed(2) || '0.00'}
                     </ThemedText>
                 </View>
             </View>
@@ -211,8 +179,8 @@ export default function EarningsWalletScreen() {
         </View>
     );
 
-    const renderTransactionItem = ({ item }: { item: WalletTransaction }) => (
-        <TouchableOpacity style={[styles.transactionItem, { backgroundColor: cardBg }]}>
+    const renderTransactionItem = (item: WalletTransaction) => (
+        <TouchableOpacity key={item.id} style={[styles.transactionItem, { backgroundColor: cardBg }]}>
             <View style={[styles.transactionIcon, { backgroundColor: item.amount > 0 ? '#dcfce7' : '#fee2e2' }]}>
                 {item.type === 'trip_payment' ? (
                     <TransactionIcon size={20} color={item.amount > 0 ? '#16a34a' : '#dc2626'} />
@@ -268,7 +236,7 @@ export default function EarningsWalletScreen() {
                     {renderWalletCard()}
                     {renderEarningsSummary()}
 
-                    {/* Incentives Section - Keeping static as placeholder for now */}
+                    {/* Incentives Section - Placeholder */}
                     <ThemedView style={[styles.card, { backgroundColor: cardBg }]}>
                         <View style={styles.cardHeader}>
                             <ThemedText style={styles.cardTitle}>Active Bonus</ThemedText>
@@ -297,14 +265,15 @@ export default function EarningsWalletScreen() {
                     </View>
 
                     <View style={{ gap: 12, paddingBottom: 100 }}>
-                        {loading && !refreshing ? (
+                        {loading && !refreshing && !balance ? (
                             <ActivityIndicator size="large" color={tintColor} style={{ marginTop: 20 }} />
                         ) : (
-                            transactions.map(item => (
-                                <View key={item.id}>
-                                    {renderTransactionItem({ item })}
-                                </View>
-                            ))
+                            transactions.map(item => renderTransactionItem(item))
+                        )}
+                        {!loading && transactions.length === 0 && (
+                            <ThemedText style={{ textAlign: 'center', marginTop: 20, color: '#9ca3af' }}>
+                                No transactions found
+                            </ThemedText>
                         )}
                     </View>
                 </ScrollView>
@@ -312,7 +281,7 @@ export default function EarningsWalletScreen() {
                 <WithdrawalModal
                     visible={withdrawalModalVisible}
                     onClose={() => setWithdrawalModalVisible(false)}
-                    onWithdraw={handleWithdrawal}
+                    onWithdraw={onWithdraw}
                     availableBalance={balance?.available || 0}
                 />
             </SafeAreaView>
@@ -488,6 +457,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#ffffff',
         fontFamily: 'Gilroy-SemiBold',
+        fontWeight: '700',
     },
     withdrawButton: {
         backgroundColor: '#ffffff',

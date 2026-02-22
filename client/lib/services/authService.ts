@@ -16,7 +16,7 @@ export async function sendOTP(phone: string): Promise<PhoneAuthResult> {
     // Remove any spaces or dashes
     const cleanedPhone = phone.replace(/\s|-/g, '');
     let formattedPhone: string;
-    
+
     if (cleanedPhone.startsWith('+233')) {
       formattedPhone = cleanedPhone;
     } else if (cleanedPhone.startsWith('233')) {
@@ -27,9 +27,9 @@ export async function sendOTP(phone: string): Promise<PhoneAuthResult> {
       // Assume it's a 9-digit number without prefix
       formattedPhone = `+233${cleanedPhone}`;
     }
-    
+
     console.log('Sending OTP to:', formattedPhone);
-    
+
     const { data, error } = await supabase.auth.signInWithOtp({
       phone: formattedPhone,
       options: {
@@ -39,15 +39,15 @@ export async function sendOTP(phone: string): Promise<PhoneAuthResult> {
 
     if (error) {
       console.error('Supabase OTP error:', error);
-      
+
       // Provide more helpful error messages
       if (error.message.includes('unsupported') || error.message.includes('provider')) {
-        return { 
-          success: false, 
-          error: 'SMS provider not configured. Please configure Twilio or another SMS provider in your Supabase dashboard under Authentication > Phone Auth settings.' 
+        return {
+          success: false,
+          error: 'SMS provider not configured. Please configure Twilio or another SMS provider in your Supabase dashboard under Authentication > Phone Auth settings.'
         };
       }
-      
+
       return { success: false, error: error.message };
     }
 
@@ -68,7 +68,7 @@ export async function verifyOTP(
 ): Promise<PhoneAuthResult> {
   try {
     const formattedPhone = phone.startsWith('+') ? phone : `+233${phone.replace(/^0/, '')}`;
-    
+
     const { data, error } = await supabase.auth.verifyOtp({
       phone: formattedPhone,
       token,
@@ -178,5 +178,31 @@ export async function getCurrentSession() {
 export async function getCurrentUser() {
   const { data: { user } } = await supabase.auth.getUser();
   return user;
+}
+
+/**
+ * Verify Email OTP
+ */
+export async function verifyEmailOTP(otp: string): Promise<PhoneAuthResult> {
+  try {
+    const { verifyEmail } = await import('@/lib/api/auth');
+    await verifyEmail(otp);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Verification failed' };
+  }
+}
+
+/**
+ * Resend Email OTP
+ */
+export async function resendEmailOTP(email: string): Promise<PhoneAuthResult> {
+  try {
+    const { resendVerificationEmail } = await import('@/lib/api/auth');
+    await resendVerificationEmail(email);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to resend OTP' };
+  }
 }
 
