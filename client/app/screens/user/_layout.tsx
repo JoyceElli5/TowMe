@@ -12,7 +12,13 @@ export default function UserScreensLayout() {
       <Stack.Screen name="home-screen" />
       <Stack.Screen name="searching-operator" />
       <Stack.Screen name="operator-found" />
-      <Stack.Screen name="live-tracking" />
+      <Stack.Screen
+        name="live-tracking"
+        options={{
+          // Show the "operator en route" experience as a modal over the map flow
+          presentation: 'modal',
+        }}
+      />
       <Stack.Screen name="trip-completed" />
       <Stack.Screen name="chat-screen" />
       <Stack.Screen name="rating" />

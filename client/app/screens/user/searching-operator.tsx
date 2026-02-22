@@ -19,27 +19,31 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PulseLoader from '@/components/pulse-loader';
 import { useToast } from '@/hooks/use-toast';
-import { ApiError, cancelRequest } from '@/lib/api';
+import { useActiveRequest } from '@/hooks/use-active-request';
+import { ApiError, cancelRequest, trackRequest } from '@/lib/api';
 import { subscribeToRequest, unsubscribe } from '@/lib/services/realtimeService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function SearchingOperatorScreen() {
   const params = useLocalSearchParams<{ requestId?: string }>();
   const requestId = params.requestId;
+  const { activeRequest } = useActiveRequest();
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const { showToast } = useToast();
   const [isCancelling, setIsCancelling] = useState(false);
+  const [pollTimer, setPollTimer] = useState<NodeJS.Timeout | null>(null);
 
   // Subscribe to request changes
   useEffect(() => {
     if (!requestId) {
-      // Fallback to old behavior if no requestId
+      // If for some reason we don't have a requestId, just go back after a short delay
       const timer = setTimeout(() => {
-        router.replace('/screens/user/operator-found');
+        router.back();
       }, 3000);
       return () => clearTimeout(timer);
     }
 
+    // 1) Supabase realtime subscription for status updates
     const subscription = subscribeToRequest(requestId, (payload) => {
       console.log('Request update:', payload);
       
@@ -59,12 +63,56 @@ export default function SearchingOperatorScreen() {
 
     setChannel(subscription);
 
+    // 2) Fallback polling if realtime isn't firing (e.g. Supabase not fully configured)
+    const interval = setInterval(async () => {
+      try {
+        const result = await trackRequest(requestId);
+        const status = result.request.status;
+
+        if (status === 'accepted') {
+          clearInterval(interval);
+          router.replace({
+            pathname: '/screens/user/operator-found',
+            params: { requestId },
+          });
+        } else if (status === 'cancelled') {
+          clearInterval(interval);
+          router.back();
+        }
+      } catch (error) {
+        // Silent here; we still have realtime + manual navigation
+        console.error('Error polling request status:', error);
+      }
+    }, 5000);
+
+    setPollTimer(interval);
+
     return () => {
       if (subscription) {
         unsubscribe(subscription);
       }
+      if (interval) {
+        clearInterval(interval);
+      }
     };
   }, [requestId]);
+
+  // Also react to activeRequest changes (fallback based on central session state)
+  useEffect(() => {
+    if (!activeRequest) return;
+
+    if (activeRequest.status === 'accepted') {
+      router.replace({
+        pathname: '/screens/user/operator-found',
+        params: { requestId: activeRequest.id },
+      });
+    } else if (activeRequest.status === 'in_progress') {
+      router.replace({
+        pathname: '/screens/user/live-tracking',
+        params: { requestId: activeRequest.id },
+      });
+    }
+  }, [activeRequest]);
 
   const handleCancel = async () => {
     if (!requestId) {
@@ -85,6 +133,9 @@ export default function SearchingOperatorScreen() {
         showToast('Failed to cancel request', 'error');
       }
     } finally {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+      }
       setIsCancelling(false);
     }
   };
