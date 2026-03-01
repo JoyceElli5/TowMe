@@ -31,18 +31,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useOperatorEarnings } from '@/hooks/use-operator-earnings';
 import { useThemeColor } from '@/hooks/use-theme-color';
-<<<<<<< HEAD
 import { WalletTransaction } from '@/lib/api/wallet';
-=======
-import {
-    getWalletBalance,
-    getWalletTransactions,
-    requestWithdrawal,
-    WalletBalance,
-    WalletTransaction
-} from '@/lib/api/wallet';
-import { getCurrentUser } from '@/lib/services/authService';
->>>>>>> 251dbc372cae9e405a1ff68a0bfb97b0e61a3171
 
 const PERIODS = ['Daily', 'Weekly', 'Monthly'] as const;
 type Period = typeof PERIODS[number];
@@ -54,14 +43,6 @@ export default function EarningsWalletScreen() {
     const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
 
     const [selectedPeriod, setSelectedPeriod] = useState<Period>('Weekly');
-<<<<<<< HEAD
-=======
-    const [operatorId, setOperatorId] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [balance, setBalance] = useState<WalletBalance | null>(null);
-    const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
->>>>>>> 251dbc372cae9e405a1ff68a0bfb97b0e61a3171
     const [withdrawalModalVisible, setWithdrawalModalVisible] = useState(false);
 
     // Integrated hook-based logic
@@ -76,67 +57,10 @@ export default function EarningsWalletScreen() {
 
     const onWithdraw = async (amount: number, provider: string, phone: string) => {
         try {
-<<<<<<< HEAD
             await handleWithdrawal(amount, provider, phone);
             Alert.alert('Success', 'Withdrawal request submitted successfully.');
         } catch (error) {
             Alert.alert('Withdrawal failed', 'Please try again later.');
-=======
-            if (!operatorId) {
-                return;
-            }
-
-            const [balanceData, transactionsData] = await Promise.all([
-                getWalletBalance(operatorId),
-                getWalletTransactions(operatorId, { limit: 10 })
-            ]);
-            setBalance(balanceData);
-            setTransactions(transactionsData);
-        } catch (error) {
-            console.error('Failed to load wallet data:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    useEffect(() => {
-        // Load current operator once on mount
-        const loadOperator = async () => {
-            try {
-                const authUser = await getCurrentUser();
-                if (authUser?.user?.id) {
-                    setOperatorId(authUser.user.id);
-                }
-            } catch (error) {
-                console.error('Failed to load operator for wallet:', error);
-            }
-        };
-
-        loadOperator();
-    }, []);
-
-    useEffect(() => {
-        fetchData();
-    }, [selectedPeriod, operatorId]); // Reload when period or operator changes
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchData();
-    };
-
-    const handleWithdrawal = async (amount: number, provider: string, phone: string) => {
-        try {
-            if (!operatorId) {
-                return;
-            }
-            await requestWithdrawal(operatorId, amount, { provider, phoneNumber: phone });
-            // Refresh data to show updated balance/transaction
-            onRefresh();
-        } catch (error) {
-            console.error('Withdrawal failed:', error);
-            alert('Withdrawal failed. Please try again.');
->>>>>>> 251dbc372cae9e405a1ff68a0bfb97b0e61a3171
         }
     };
 

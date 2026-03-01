@@ -7,8 +7,8 @@ import type { TowingRequest } from '../types/database.types';
 import { calculateDistance } from '../utils/distance.calculator';
 import logger from '../utils/logger';
 import { calculateEstimatedPrice, calculateFinalPrice } from '../utils/price.calculator';
-import { incrementUserTrips } from './users.service';
 import * as matchingService from './matching.service';
+import { incrementUserTrips } from './users.service';
 
 /**
  * Create a new towing request
@@ -22,13 +22,36 @@ export async function createRequest(
   // Check if user already has an active request
   const { data: activeRequest } = await supabase
     .from('towing_requests')
-    .select('id')
+    .select('id, status, created_at')
     .eq('user_id', userId)
     .in('status', ['pending', 'accepted', 'in_progress'])
     .single();
 
   if (activeRequest) {
-    throw createError.conflict('You already have an active request');
+    // If request is pending and older than 15 minutes, auto-cancel it
+    if (activeRequest.status === 'pending') {
+      const createdAt = new Date(activeRequest.created_at).getTime();
+      const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
+
+      if (createdAt < fifteenMinutesAgo) {
+        logger.info(`Auto-cancelling stale pending request ${activeRequest.id} for user ${userId}`);
+
+        await supabase
+          .from('towing_requests')
+          .update({
+            status: REQUEST_STATUS.CANCELLED,
+            cancellation_reason: 'Auto-cancelled due to timeout',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', activeRequest.id);
+
+        // Proceed with creating the new request
+      } else {
+        throw createError.conflict('You already have an active request');
+      }
+    } else {
+      throw createError.conflict('You already have an active request');
+    }
   }
 
   // Calculate distance
@@ -200,14 +223,22 @@ export async function getRequests(
 /**
  * Get pending requests (for operators)
  */
-export async function getPendingRequests(): Promise<TowingRequest[]> {
+export async function getPendingRequests(operatorId?: string): Promise<TowingRequest[]> {
   const supabase = getSupabaseAdmin();
 
-  const { data: requests, error } = await supabase
+  let query = supabase
     .from('towing_requests')
     .select('*')
     .eq('status', REQUEST_STATUS.PENDING)
     .order('created_at', { ascending: true });
+
+  if (operatorId) {
+    query = query.or(`operator_id.is.null,operator_id.eq.${operatorId}`);
+  } else {
+    query = query.is('operator_id', null);
+  }
+
+  const { data: requests, error } = await query;
 
   if (error) {
     logger.error('Error fetching pending requests:', error);
@@ -374,6 +405,81 @@ export async function acceptRequest(
   if (error) {
     logger.error('Error accepting request:', error);
     throw createError.internal('Failed to accept request');
+  }
+
+  return updatedRequest;
+}
+
+/**
+ * Decline a request (operator)
+ */
+export async function declineRequest(
+  requestId: string,
+  operatorId: string
+): Promise<TowingRequest> {
+  const supabase = getSupabaseAdmin();
+
+  // Verify request is pending and assigned to this operator
+  const { data: request } = await supabase
+    .from('towing_requests')
+    .select('status, operator_id')
+    .eq('id', requestId)
+    .single();
+
+  if (!request) {
+    throw createError.notFound('Request not found');
+  }
+
+  if (request.status !== REQUEST_STATUS.PENDING) {
+    throw createError.conflict('Request is no longer pending/available');
+  }
+
+  if (request.operator_id !== operatorId) {
+    throw createError.conflict('Request is not assigned to you or already taken');
+  }
+
+  // Set the request back to broadcast mode (operator_id = null)
+  const { data: updatedRequest, error } = await supabase
+    .from('towing_requests')
+    .update({
+      operator_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', requestId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error('Error declining request:', error);
+    throw createError.internal('Failed to decline request');
+  }
+
+  // Broadcast to all other online operators
+  const { data: onlineOperators } = await supabase
+    .from('users')
+    .select('id')
+    .eq('role', 'tow_operator')
+    .eq('is_online', true)
+    .neq('id', operatorId);
+
+  if (onlineOperators && onlineOperators.length > 0) {
+    const notificationsService = await import('./notification.service');
+    const notifications = onlineOperators.map(op =>
+      notificationsService.createNotification(
+        op.id,
+        'New Job Available! 🔔',
+        `A ${updatedRequest.vehicle_type} towing request was just released. First to accept gets it! Distance: ${updatedRequest.distance_km.toFixed(1)}km.`,
+        'request',
+        { requestId }
+      )
+    );
+
+    try {
+      await Promise.allSettled(notifications);
+      logger.info(`Broadcasted declined request ${requestId} to ${onlineOperators.length} operators`);
+    } catch (err) {
+      logger.error('Error broadcasting notifications on decline:', err);
+    }
   }
 
   return updatedRequest;

@@ -7,6 +7,7 @@ import { useRealtimeRequests } from '@/hooks/use-realtime-requests';
 import { useToast } from '@/hooks/use-toast';
 import {
   acceptRequest,
+  declineRequest as apiDeclineRequest,
   ApiError,
   getCurrentUser,
   getOperatorRequests,
@@ -40,6 +41,8 @@ export function useOperatorDashboard() {
     isAccepting: false,
     requestTimeLeft: 30,
   });
+
+  const [declinedRequests, setDeclinedRequests] = useState<Set<string>>(new Set());
 
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -86,11 +89,11 @@ export function useOperatorDashboard() {
       }));
 
       // Fetch active job (accepted or in_progress)
-      const activeJobs = await getOperatorRequests(user.id, {
-        limit: 1,
+      const recentJobs = await getOperatorRequests(user.id, {
+        limit: 50,
       });
 
-      const currentActiveJob = activeJobs.data.find(job =>
+      const currentActiveJob = recentJobs.data.find(job =>
         job.status === 'accepted' || job.status === 'in_progress'
       );
 
@@ -130,15 +133,18 @@ export function useOperatorDashboard() {
 
   // Watch for new requests from the shared hook
   useEffect(() => {
-    if (state.isOnline && !state.incomingRequest && pendingRequests.length > 0) {
-      setState(prev => ({
-        ...prev,
-        incomingRequest: pendingRequests[0],
-        requestTimeLeft: 30
-      }));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (state.isOnline && !state.activeJob && !state.incomingRequest && pendingRequests.length > 0) {
+      const newRequest = pendingRequests.find(req => !declinedRequests.has(req.id));
+      if (newRequest) {
+        setState(prev => ({
+          ...prev,
+          incomingRequest: newRequest,
+          requestTimeLeft: 30
+        }));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     }
-  }, [state.isOnline, state.incomingRequest, pendingRequests]);
+  }, [state.isOnline, state.activeJob, state.incomingRequest, pendingRequests, declinedRequests]);
 
   const handleOnlineToggle = useCallback(
     async (value: boolean) => {
@@ -209,7 +215,28 @@ export function useOperatorDashboard() {
     }
   };
 
-  const handleDeclineRequest = () => {
+  const handleDeclineRequest = async () => {
+    if (state.incomingRequest) {
+      const requestId = state.incomingRequest.id;
+
+      // Track locally so it doesn't pop up again
+      setDeclinedRequests(prev => {
+        const next = new Set(prev);
+        next.add(requestId);
+        return next;
+      });
+
+      // Notify backend if this isn't a mock request
+      if (!requestId.startsWith('mock-') && currentUser) {
+        try {
+          await apiDeclineRequest(requestId);
+        } catch (error) {
+          console.error('Failed to notify backend of decline:', error);
+          // We don't need to show an error to the user here; 
+          // we still want the request to disappear from their screen
+        }
+      }
+    }
     setState(prev => ({ ...prev, incomingRequest: null }));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   };

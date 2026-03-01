@@ -50,6 +50,30 @@ export function subscribeToUserRequests(
 }
 
 /**
+ * Subscribe to all requests for an operator
+ */
+export function subscribeToOperatorRequests(
+  operatorId: string,
+  callback: (payload: any) => void
+): RealtimeChannel {
+  const channel = supabase
+    .channel(`operator_requests:${operatorId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'towing_requests',
+        filter: `operator_id=eq.${operatorId}`,
+      },
+      callback
+    )
+    .subscribe();
+
+  return channel;
+}
+
+/**
  * Subscribe to notifications for a user
  */
 export function subscribeToNotifications(
@@ -84,7 +108,7 @@ export function subscribeToPendingRequests(
     .on(
       'postgres_changes',
       {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'towing_requests',
         filter: 'status=eq.pending',

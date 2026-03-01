@@ -23,9 +23,9 @@ function haversineDistance(
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -91,7 +91,7 @@ export async function findNearestOperator(
     // Check if location is recent (within last 5 minutes) and operator is available
     const lastSeen = new Date(location.last_seen || location.timestamp);
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    
+
     if (lastSeen < fiveMinutesAgo) {
       // Location is too old, skip
       continue;
@@ -140,17 +140,51 @@ export async function autoAssignOperator(
   const match = await findNearestOperator(pickupLat, pickupLng);
 
   if (!match) {
-    logger.info(`No operator available for request ${requestId}`);
+    logger.info(`No nearest operator available for request ${requestId}, broadcasting to all online operators`);
+
+    // Broadcast to all online operators
+    const { data: onlineOperators } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', 'tow_operator')
+      .eq('is_online', true);
+
+    if (onlineOperators && onlineOperators.length > 0) {
+      // Get the request details for the notification
+      const { data: request } = await supabase
+        .from('towing_requests')
+        .select('vehicle_type, distance_km')
+        .eq('id', requestId)
+        .single();
+
+      if (request) {
+        const notifications = onlineOperators.map(op =>
+          notificationsService.createNotification(
+            op.id,
+            'New Job Available! 🔔',
+            `A new ${request.vehicle_type} towing request is available. Distance: ${request.distance_km.toFixed(1)}km.`,
+            'request',
+            { requestId }
+          )
+        );
+
+        try {
+          await Promise.allSettled(notifications);
+          logger.info(`Broadcasted request ${requestId} to ${onlineOperators.length} operators`);
+        } catch (error) {
+          logger.error('Error broadcasting notifications:', error);
+        }
+      }
+    }
+
     return null;
   }
 
-  // Assign operator to request
+  // Assign operator to request target, but wait for acceptance
   const { data: request, error: updateError } = await supabase
     .from('towing_requests')
     .update({
       operator_id: match.operatorId,
-      status: 'accepted',
-      accepted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', requestId)
@@ -162,17 +196,14 @@ export async function autoAssignOperator(
     throw createError.internal('Failed to assign operator');
   }
 
-  // Create notification for user
+  // Create notification for the specific assigned operator to accept the job
   try {
     await notificationsService.createNotification(
-      request.user_id,
-      'Operator Assigned',
-      'A tow operator has been assigned to your request and is on the way!',
-      'status_update',
-      {
-        requestId,
-        operatorId: match.operatorId,
-      }
+      match.operatorId,
+      'New Job Assigned to You! 🔔',
+      'You have 30 seconds to accept this new towing request before it is re-assigned.',
+      'request',
+      { requestId }
     );
   } catch (error) {
     // Don't fail if notification creation fails
