@@ -4,8 +4,8 @@
  */
 
 import { Response } from 'express';
-import * as requestsService from '../services/requests.service';
 import * as receiptService from '../services/receipt.service';
+import * as requestsService from '../services/requests.service';
 import * as usersService from '../services/users.service';
 import type { AuthenticatedRequest } from '../types/api.types';
 import type { RequestStatus, VehicleType } from '../types/database.types';
@@ -79,6 +79,25 @@ export async function acceptRequest(req: AuthenticatedRequest, res: Response): P
     success: true,
     data: request,
     message: 'Request accepted',
+  });
+}
+
+/**
+ * PATCH /api/requests/:id/decline
+ */
+export async function declineRequest(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
+  const { id } = req.params;
+  const request = await requestsService.declineRequest(id, req.user.id);
+
+  res.json({
+    success: true,
+    data: request,
+    message: 'Request declined',
   });
 }
 
@@ -189,7 +208,7 @@ export async function getPendingRequests(req: AuthenticatedRequest, res: Respons
     return;
   }
 
-  const requests = await requestsService.getPendingRequests();
+  const requests = await requestsService.getPendingRequests(req.user.id);
 
   res.json({
     success: true,

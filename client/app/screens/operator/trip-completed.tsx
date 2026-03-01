@@ -8,22 +8,27 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+
+import { useToast } from '@/hooks/use-toast';
 import { getRequestById, type TowingRequest } from '@/lib/api';
 
 export default function TripCompletedOperatorScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
   const [request, setRequest] = useState<TowingRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetchRequest = async () => {
@@ -59,6 +64,19 @@ export default function TripCompletedOperatorScreen() {
 
   const handleDone = () => {
     router.replace('/screens/operator/dashboard');
+  };
+
+  const handleDownloadReceipt = async (id: string) => {
+    setIsDownloading(true);
+    try {
+      // Mock download delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      showToast('Receipt downloaded successfully', 'success');
+    } catch (error) {
+      showToast('Failed to download receipt', 'error');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   if (isLoading || !request) {
@@ -123,7 +141,7 @@ export default function TripCompletedOperatorScreen() {
         {/* Download Receipt Button */}
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={() => handleDownloadReceipt(requestId)}
+          onPress={() => handleDownloadReceipt(params.requestId)}
           disabled={isDownloading}
           activeOpacity={0.8}
         >

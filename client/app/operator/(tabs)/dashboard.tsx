@@ -45,7 +45,6 @@ export default function OperatorDashboardScreen() {
 
   const [showMenu, setShowMenu] = useState(false);
   const [showEarningsModal, setShowEarningsModal] = useState(false);
-<<<<<<< HEAD
 
   // Hook-based logic
   const {
@@ -63,173 +62,6 @@ export default function OperatorDashboardScreen() {
     simulateRequest,
     activeJob,
   } = useOperatorDashboard();
-=======
-  const [incomingRequest, setIncomingRequest] = useState<TowingRequest | null>(null);
-  const [isAccepting, setIsAccepting] = useState(false);
-
-  // Fetch current user and stats on mount
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (user) {
-          setCurrentUser({ id: user.id });
-          setIsOnline(user.isOnline || false);
-          setRating(user.averageRating || 0);
-
-          // Fetch today's trips and earnings
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          const tripsResponse = await getOperatorRequests(user.id, {
-            status: 'completed',
-            limit: 100,
-          });
-
-          if (tripsResponse.data) {
-            // Filter trips from today
-            const todayTrips = tripsResponse.data.filter((trip) => {
-              const tripDate = new Date(trip.completedAt || trip.createdAt);
-              return tripDate >= today;
-            });
-
-            setTripsToday(todayTrips.length);
-
-            // Calculate total earnings from all completed trips
-            const totalEarnings = tripsResponse.data.reduce((sum, trip) => {
-              return sum + (trip.finalPrice || trip.estimatedPrice || 0);
-            }, 0);
-            setEarnings(totalEarnings);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch current user:', error);
-        showToast('Please log in to continue', 'error');
-      }
-    };
-    fetchUser();
-  }, [showToast]);
-
-  // Real-time subscription for pending requests when online
-  useEffect(() => {
-    if (!isOnline || !currentUser) return;
-
-    let channel: RealtimeChannel | null = null;
-    let backupInterval: NodeJS.Timeout | null = null;
-
-    const fetchPendingRequests = async () => {
-      // If we already have a request, don't fetch more
-      if (incomingRequest) return;
-
-      try {
-        const requests = await getPendingRequests();
-
-        if (requests && requests.length > 0) {
-          setIncomingRequest(requests[0]);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      } catch (error) {
-        console.error('Failed to fetch pending requests:', error);
-      }
-    };
-
-    // Initial fetch
-    fetchPendingRequests();
-
-    // Set up real-time subscription
-    try {
-      channel = subscribeToPendingRequests((payload) => {
-        console.log('New pending request received:', payload.eventType);
-        if (payload.eventType === 'INSERT') {
-          fetchPendingRequests();
-        }
-      });
-    } catch (error) {
-      console.error('Error setting up real-time subscription:', error);
-      backupInterval = setInterval(fetchPendingRequests, 15000);
-    }
-
-    backupInterval = setInterval(fetchPendingRequests, 30000);
-
-    return () => {
-      if (channel) unsubscribe(channel);
-      if (backupInterval) clearInterval(backupInterval);
-    };
-  }, [isOnline, currentUser, incomingRequest]);
-
-  // Handle online status toggle
-  const handleOnlineToggle = useCallback(async (value: boolean) => {
-    if (!currentUser) {
-      showToast('Please log in to go online', 'error');
-      return;
-    }
-
-    // Check if operator is verified before allowing them to go online
-    if (value) {
-      const { isOperatorVerified, getVerificationStatus } = await import('@/lib/services/operatorService');
-      const verified = await isOperatorVerified(currentUser.id);
-      const verificationStatus = await getVerificationStatus(currentUser.id);
-      
-      if (!verified) {
-        if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
-          showToast('Please complete your profile verification to go online', 'error');
-          router.push('/screens/operator/verification-pending');
-        } else if (verificationStatus === 'rejected') {
-          showToast('Your verification was rejected. Please update your profile', 'error');
-          router.push('/screens/operator/verification-rejected');
-        } else {
-          showToast('Please complete your profile to go online', 'error');
-          router.push('/screens/operator/profile-setup-screen');
-        }
-        return;
-      }
-    }
-
-    setIsLoadingStatus(true);
-    try {
-      await toggleOperatorOnlineStatus(currentUser.id, value);
-      setIsOnline(value);
-      showToast(value ? 'You are now online' : 'You are now offline', 'success');
-      Haptics.selectionAsync();
-    } catch (error: any) {
-      console.error('Failed to toggle online status:', error);
-      showToast(error.message || 'Could not update status', 'error');
-      setIsOnline(!value);
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  }, [currentUser, showToast]);
-
-  const handleAcceptRequest = async () => {
-    if (!incomingRequest) return;
-    setIsAccepting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      await acceptRequest(incomingRequest.id);
-      setIsAccepting(false);
-      setIncomingRequest(null);
-      router.push({
-        pathname: '/screens/operator/navigation-to-pickup',
-        params: { requestId: incomingRequest.id },
-      });
-    } catch (error) {
-      console.error('Failed to accept request:', error);
-      setIsAccepting(false);
-      if (error instanceof ApiError) {
-        Alert.alert('Error', error.message || 'Failed to accept request');
-      } else {
-        Alert.alert('Error', 'An unexpected error occurred');
-      }
-    }
-  };
-
-  const handleDeclineRequest = () => {
-    setIncomingRequest(null);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    // TODO: Optionally notify backend about declined request
-  };
->>>>>>> 251dbc372cae9e405a1ff68a0bfb97b0e61a3171
 
   const handleSOS = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -314,7 +146,6 @@ export default function OperatorDashboardScreen() {
         </View>
 
         {/* Dev: Simulate Request Button */}
-<<<<<<< HEAD
         {__DEV__ && !incomingRequest && (
           <TouchableOpacity
             style={styles.devSimulateButton}
@@ -323,9 +154,6 @@ export default function OperatorDashboardScreen() {
             <ThemedText style={styles.devButtonText}>Simulate Job</ThemedText>
           </TouchableOpacity>
         )}
-=======
-        {/* (Dev simulate button removed – dashboard now only shows real backend requests) */}
->>>>>>> 251dbc372cae9e405a1ff68a0bfb97b0e61a3171
 
         {/* Stats Card - Clickable for Earnings */}
         {!incomingRequest && (

@@ -54,6 +54,24 @@ export default function JobRequestPreview({
                 </View>
             </View>
 
+            {/* User Info */}
+            {(request as any).user && (
+                <View style={styles.userInfo}>
+                    <View style={[styles.userAvatar, { backgroundColor: locationBgColor }]}>
+                        <Ionicons name="person-outline" size={20} color={tintColor} />
+                    </View>
+                    <View style={styles.userDetails}>
+                        <ThemedText style={styles.userName}>{(request as any).user.fullName || 'Unknown User'}</ThemedText>
+                        <View style={styles.ratingContainer}>
+                            <Ionicons name="star" size={14} color="#F59E0B" />
+                            <ThemedText style={styles.ratingText}>
+                                {((request as any).user.averageRating || 5.0).toFixed(1)}
+                            </ThemedText>
+                        </View>
+                    </View>
+                </View>
+            )}
+
             <View style={styles.divider} />
 
             {/* Trip Info Grid */}
@@ -160,6 +178,38 @@ const styles = StyleSheet.create({
         height: 1,
         backgroundColor: '#e5e7eb',
         marginBottom: 16,
+    },
+    userInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+        gap: 12,
+    },
+    userAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    userDetails: {
+        flex: 1,
+    },
+    userName: {
+        fontSize: 16,
+        fontWeight: '600',
+        fontFamily: 'Gilroy-SemiBold',
+    },
+    ratingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 2,
+    },
+    ratingText: {
+        fontSize: 12,
+        color: '#6b7280',
+        fontWeight: '500',
     },
     statsRow: {
         flexDirection: 'row',

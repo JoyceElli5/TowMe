@@ -4,9 +4,9 @@
 
 import { Router } from 'express';
 import * as requestsController from '../controllers/requests.controller';
-import { authMiddleware, requireVehicleOwner, requireTowOperator } from '../middleware/auth.middleware';
+import { authMiddleware } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
-import { validateBody, validateParams, validateQuery, schemas } from '../middleware/validate.middleware';
+import { schemas, validateBody, validateParams, validateQuery } from '../middleware/validate.middleware';
 
 const router = Router();
 
@@ -67,6 +67,14 @@ router.patch(
   authMiddleware,
   validateParams(schemas.uuid),
   asyncHandler(requestsController.acceptRequest)
+);
+
+// Decline request (operators)
+router.patch(
+  '/:id/decline',
+  authMiddleware,
+  validateParams(schemas.uuid),
+  asyncHandler(requestsController.declineRequest)
 );
 
 // Start trip (operators)

@@ -3,7 +3,7 @@
  */
 
 // Client
-export { default as api, ApiError, checkApiConnection, clearTokens, getAccessToken } from './client';
+export { ApiError, default as api, checkApiConnection, clearTokens, getAccessToken } from './client';
 export type { ApiResponse, PaginatedResponse } from './client';
 
 // Auth
@@ -15,7 +15,7 @@ export type { AuthResponse, LoginRequest, PublicUser, RegisterRequest, User } fr
 
 // Requests
 export {
-  acceptRequest, cancelRequest, completeRequest, createRequest, downloadReceipt, getOperatorRequests,
+  acceptRequest, cancelRequest, completeRequest, createRequest, declineRequest, downloadReceipt, getOperatorRequests,
   getPendingRequests, getPriceEstimate, getRequestById, getRequests, getUserRequests, startRequest, trackRequest
 } from './requests';
 export type {

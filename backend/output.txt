@@ -1,0 +1,101 @@
+Active requests: [
+  {
+    "id": "e33dbb8e-ba88-4a7e-ac1b-1472d185c2ed",
+    "user_id": "4e0ec588-35aa-46d1-a17b-aec05c37b142",
+    "operator_id": null,
+    "pickup_address": "Accra, Greater Accra, Ghana",
+    "destination_address": "Tema West Municipal, Tema, Greater Accra, Ghana",
+    "pickup_lat": 5.60717841,
+    "pickup_lng": -0.06369653,
+    "destination_lat": 5.62229476,
+    "destination_lng": -0.04688618,
+    "vehicle_type": "car",
+    "estimated_price": 50,
+    "final_price": null,
+    "distance_km": 2.51,
+    "status": "pending",
+    "cancellation_reason": null,
+    "created_at": "2026-02-17T13:23:23.169067+00:00",
+    "accepted_at": null,
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-02-17T13:23:23.169067+00:00"
+  },
+  {
+    "id": "510717cb-0999-4442-b443-e4150a9e86a8",
+    "user_id": "bd630fd9-675a-4a90-aa94-4a74ef70d960",
+    "operator_id": "52da27d4-44d4-4723-8e3a-683ec21bbeef",
+    "pickup_address": "Antawere Gonno Road, Accra, Greater Accra Region, Ghana",
+    "destination_address": "Burma Camp",
+    "pickup_lat": 5.604825,
+    "pickup_lng": -0.0666911,
+    "destination_lat": 5.5958462,
+    "destination_lng": -0.1518394,
+    "vehicle_type": "car",
+    "estimated_price": 105.84,
+    "final_price": null,
+    "distance_km": 9.48,
+    "status": "accepted",
+    "cancellation_reason": null,
+    "created_at": "2026-02-05T15:58:45.565118+00:00",
+    "accepted_at": "2026-02-05T15:01:54.956+00:00",
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-02-05T15:58:53.184507+00:00"
+  },
+  {
+    "id": "4579c477-e978-4277-88d0-41197c698c98",
+    "user_id": "5f425329-4c5f-4e9b-ad83-6253cd0d5bde",
+    "operator_id": "36398504-646f-45e8-9b96-a23921cf5ad2",
+    "pickup_address": "Antawere Gonno Road, Accra, Greater Accra Region, Ghana",
+    "destination_address": "Accra mall ",
+    "pickup_lat": 5.6046943,
+    "pickup_lng": -0.0665146,
+    "destination_lat": 5.6221003,
+    "destination_lng": -0.1733501,
+    "vehicle_type": "saloon",
+    "estimated_price": 142.82,
+    "final_price": null,
+    "distance_km": 11.98,
+    "status": "accepted",
+    "cancellation_reason": null,
+    "created_at": "2026-02-09T04:06:12.986712+00:00",
+    "accepted_at": "2026-02-09T14:03:55.076+00:00",
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-02-09T14:03:55.176551+00:00"
+  }
+]
+
+Operators: [
+  {
+    "id": "b5740db1-7ad9-43c7-8277-67200bd9f3dd",
+    "email": "kwame.duah2@gmail.com",
+    "full_name": "Kwame Duah",
+    "role": "tow_operator"
+  },
+  {
+    "id": "17b2516d-60a5-4fac-803d-eb0b05d6984f",
+    "email": "kwesi.kumi207@yahoo.com",
+    "full_name": "Kwesi Kumi",
+    "role": "tow_operator"
+  },
+  {
+    "id": "549fd2a6-941c-448a-a509-fea4ee9a75a4",
+    "email": "abena.boadu537@yahoo.com",
+    "full_name": "Abena Boadu",
+    "role": "tow_operator"
+  },
+  {
+    "id": "a6197324-aca2-49a4-b890-c7ccbeb8ff06",
+    "email": "grace.obeng329@outlook.com",
+    "full_name": "Grace Obeng",
+    "role": "tow_operator"
+  },
+  {
+    "id": "132e1b4f-4652-4946-a52f-1d8d308b4bcc",
+    "email": "blessing.amoah757@hotmail.com",
+    "full_name": "Blessing Amoah",
+    "role": "tow_operator"
+  }
+]

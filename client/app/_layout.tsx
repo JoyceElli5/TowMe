@@ -44,8 +44,8 @@ export default function RootLayout() {
   }
 
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
+    <ThemeProvider>
+      <ErrorBoundary>
         <NavigationWrapper>
           <ToastProvider>
             <Stack>
@@ -58,7 +58,7 @@ export default function RootLayout() {
             <StatusBar style="auto" />
           </ToastProvider>
         </NavigationWrapper>
-      </ThemeProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
