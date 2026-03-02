@@ -219,7 +219,18 @@ export const schemas = {
     requestId: z.string().uuid('Invalid request ID format'),
   }),
 
+  requestIdParam: z.object({
+    requestId: z.string().uuid('Invalid request ID format'),
+  }),
+
   operatorId: z.object({
     operatorId: z.string().uuid('Invalid operator ID format'),
+  }),
+
+  // Message schemas
+  sendMessage: z.object({
+    requestId: z.string().uuid('Invalid request ID'),
+    receiverId: z.string().uuid('Invalid receiver ID'),
+    content: z.string().min(1, 'Message content is required').max(5000, 'Message is too long'),
   }),
 };

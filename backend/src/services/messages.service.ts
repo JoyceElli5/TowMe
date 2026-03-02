@@ -6,16 +6,31 @@ import { Message } from '../types/database.types';
 import logger from '../utils/logger';
 
 /**
- * Get messages for a specific request
+ * Get messages for a specific request.
+ * Caller must be the request owner (user_id) or assigned operator (operator_id).
  */
 export async function getMessagesByRequest(requestId: string, userId: string): Promise<MessageResponse[]> {
     const supabase = getSupabaseAdmin();
+
+    const { data: request } = await supabase
+        .from('towing_requests')
+        .select('user_id, operator_id')
+        .eq('id', requestId)
+        .single();
+
+    if (!request) {
+        throw createError.notFound('Request not found');
+    }
+
+    const isParticipant = request.user_id === userId || request.operator_id === userId;
+    if (!isParticipant) {
+        throw createError.forbidden('You can only view messages for your own requests');
+    }
 
     const { data: messages, error } = await supabase
         .from('messages')
         .select('*')
         .eq('request_id', requestId)
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .order('created_at', { ascending: true });
 
     if (error) {
@@ -27,10 +42,33 @@ export async function getMessagesByRequest(requestId: string, userId: string): P
 }
 
 /**
- * Send a new message
+ * Send a new message.
+ * Sender and receiver must be the request's user and operator (in either order).
  */
 export async function sendMessage(senderId: string, data: SendMessageRequest): Promise<MessageResponse> {
     const supabase = getSupabaseAdmin();
+
+    const { data: request } = await supabase
+        .from('towing_requests')
+        .select('user_id, operator_id')
+        .eq('id', data.requestId)
+        .single();
+
+    if (!request) {
+        throw createError.notFound('Request not found');
+    }
+
+    const participants = [request.user_id, request.operator_id].filter(Boolean);
+    if (participants.length < 2) {
+        throw createError.conflict('Request has no assigned operator yet');
+    }
+
+    const senderAndReceiverOk =
+        (senderId === request.user_id && data.receiverId === request.operator_id) ||
+        (senderId === request.operator_id && data.receiverId === request.user_id);
+    if (!senderAndReceiverOk) {
+        throw createError.forbidden('You can only send messages to the other participant of this request');
+    }
 
     const { data: message, error } = await supabase
         .from('messages')
@@ -39,7 +77,7 @@ export async function sendMessage(senderId: string, data: SendMessageRequest): P
             request_id: data.requestId,
             sender_id: senderId,
             receiver_id: data.receiverId,
-            content: data.content,
+            content: data.content.trim(),
             is_read: false,
         })
         .select()

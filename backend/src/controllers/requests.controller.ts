@@ -30,8 +30,14 @@ export async function createRequest(req: AuthenticatedRequest, res: Response): P
 
 /**
  * GET /api/requests
+ * Returns only requests where the authenticated user is the request owner or assigned operator.
  */
 export async function getRequests(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const filters = {
     status: req.query.status as RequestStatus | undefined,
     vehicleType: req.query.vehicleType as VehicleType | undefined,
@@ -41,7 +47,7 @@ export async function getRequests(req: AuthenticatedRequest, res: Response): Pro
     limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
   };
 
-  const result = await requestsService.getRequests(filters);
+  const result = await requestsService.getRequests(filters, req.user.id);
 
   res.json({
     success: true,
@@ -52,10 +58,16 @@ export async function getRequests(req: AuthenticatedRequest, res: Response): Pro
 
 /**
  * GET /api/requests/:id
+ * Only the request owner or assigned operator can view.
  */
 export async function getRequestById(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const { id } = req.params;
-  const request = await requestsService.getRequestWithDetails(id);
+  const request = await requestsService.getRequestWithDetails(id, req.user.id);
 
   res.json({
     success: true,
@@ -161,9 +173,20 @@ export async function cancelRequest(req: AuthenticatedRequest, res: Response): P
 
 /**
  * GET /api/requests/user/:userId
+ * Authenticated user can only list their own requests (req.user.id must equal userId).
  */
 export async function getUserRequests(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const { userId } = req.params;
+  if (req.user.id !== userId) {
+    res.status(403).json({ success: false, error: 'You can only view your own requests' });
+    return;
+  }
+
   const filters = {
     status: req.query.status as RequestStatus | undefined,
     page: req.query.page ? parseInt(req.query.page as string) : undefined,
@@ -181,9 +204,20 @@ export async function getUserRequests(req: AuthenticatedRequest, res: Response):
 
 /**
  * GET /api/requests/operator/:operatorId
+ * Authenticated user can only list their own jobs (req.user.id must equal operatorId).
  */
 export async function getOperatorRequests(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const { operatorId } = req.params;
+  if (req.user.id !== operatorId) {
+    res.status(403).json({ success: false, error: 'You can only view your own jobs' });
+    return;
+  }
+
   const filters = {
     status: req.query.status as RequestStatus | undefined,
     page: req.query.page ? parseInt(req.query.page as string) : undefined,
@@ -218,10 +252,16 @@ export async function getPendingRequests(req: AuthenticatedRequest, res: Respons
 
 /**
  * GET /api/requests/:id/track
+ * Only the request owner (user) or assigned operator can track.
  */
 export async function trackRequest(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const { id } = req.params;
-  const request = await requestsService.getRequestWithDetails(id);
+  const request = await requestsService.getRequestWithDetails(id, req.user.id);
 
   // Get real-time operator location if operator is assigned
   let operatorLocation = null;
