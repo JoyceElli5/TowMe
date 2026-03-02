@@ -129,9 +129,13 @@ export async function getRequestById(requestId: string): Promise<TowingRequest> 
 }
 
 /**
- * Get request with user and operator details
+ * Get request with user and operator details.
+ * If userId is provided, only returns the request when the user is the owner or assigned operator; otherwise 403.
  */
-export async function getRequestWithDetails(requestId: string): Promise<TowingRequestResponse> {
+export async function getRequestWithDetails(
+  requestId: string,
+  userId?: string
+): Promise<TowingRequestResponse> {
   const supabase = getSupabaseAdmin();
 
   const { data: request, error } = await supabase
@@ -142,6 +146,10 @@ export async function getRequestWithDetails(requestId: string): Promise<TowingRe
 
   if (error || !request) {
     throw createError.notFound('Request not found');
+  }
+
+  if (userId != null && request.user_id !== userId && request.operator_id !== userId) {
+    throw createError.forbidden('You do not have access to this request');
   }
 
   // Get user details
@@ -166,10 +174,12 @@ export async function getRequestWithDetails(requestId: string): Promise<TowingRe
 }
 
 /**
- * Get all requests with filters
+ * Get all requests with filters.
+ * When userId is provided, returns only requests where the user is the owner or assigned operator.
  */
 export async function getRequests(
-  filters: TowingRequestFilters
+  filters: TowingRequestFilters,
+  userId: string
 ): Promise<PaginatedResponse<TowingRequestResponse>> {
   const supabase = getSupabaseAdmin();
   const page = filters.page || 1;
@@ -178,7 +188,8 @@ export async function getRequests(
 
   let query = supabase
     .from('towing_requests')
-    .select('*', { count: 'exact' });
+    .select('*', { count: 'exact' })
+    .or(`user_id.eq.${userId},operator_id.eq.${userId}`);
 
   if (filters.status) {
     query = query.eq('status', filters.status);
@@ -339,7 +350,8 @@ export async function getOperatorRequests(
 }
 
 /**
- * Accept a request (operator)
+ * Accept a request (operator).
+ * Uses a single atomic UPDATE ... WHERE id = ? AND status = 'pending' to avoid race conditions.
  */
 export async function acceptRequest(
   requestId: string,
@@ -347,22 +359,7 @@ export async function acceptRequest(
 ): Promise<TowingRequest> {
   const supabase = getSupabaseAdmin();
 
-  // Verify request is pending
-  const { data: request } = await supabase
-    .from('towing_requests')
-    .select('status')
-    .eq('id', requestId)
-    .single();
-
-  if (!request) {
-    throw createError.notFound('Request not found');
-  }
-
-  if (request.status !== REQUEST_STATUS.PENDING) {
-    throw createError.conflict('Request is no longer available');
-  }
-
-  // Check if operator has an active job
+  // Check if operator has an active job (before attempting accept)
   const { data: activeJob } = await supabase
     .from('towing_requests')
     .select('id')
@@ -374,7 +371,7 @@ export async function acceptRequest(
     throw createError.conflict('You already have an active job');
   }
 
-  // Verify operator is online
+  // Verify operator is online and is a tow_operator
   const { data: operator } = await supabase
     .from('users')
     .select('is_online, role')
@@ -389,7 +386,7 @@ export async function acceptRequest(
     throw createError.forbidden('You must be online to accept requests');
   }
 
-  // Accept the request
+  // Atomic accept: only update if request is still pending (prevents double-accept race)
   const { data: updatedRequest, error } = await supabase
     .from('towing_requests')
     .update({
@@ -399,10 +396,23 @@ export async function acceptRequest(
       updated_at: new Date().toISOString(),
     })
     .eq('id', requestId)
+    .eq('status', REQUEST_STATUS.PENDING)
     .select()
     .single();
 
   if (error) {
+    if (error.code === 'PGRST116') {
+      // No rows returned: request not found or no longer pending
+      const { data: existing } = await supabase
+        .from('towing_requests')
+        .select('id, status')
+        .eq('id', requestId)
+        .single();
+      if (!existing) {
+        throw createError.notFound('Request not found');
+      }
+      throw createError.conflict('Request is no longer available');
+    }
     logger.error('Error accepting request:', error);
     throw createError.internal('Failed to accept request');
   }

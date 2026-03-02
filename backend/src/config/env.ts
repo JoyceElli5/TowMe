@@ -37,15 +37,27 @@ export const config = {
   },
 };
 
+const DEFAULT_JWT_SECRET = 'development-secret-key-change-in-production';
+
 // Validate required environment variables
 export function validateEnv(): void {
   const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
   const missing = required.filter(key => !process.env[key]);
-  
+
   if (missing.length > 0) {
     console.warn(`Warning: Missing environment variables: ${missing.join(', ')}`);
     if (missing.includes('SUPABASE_SERVICE_ROLE_KEY')) {
       console.error('ERROR: SUPABASE_SERVICE_ROLE_KEY is required for user registration and other admin operations!');
+    }
+  }
+
+  if (config.nodeEnv === 'production') {
+    const secret = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
+    if (!process.env.JWT_SECRET || secret === DEFAULT_JWT_SECRET) {
+      throw new Error(
+        'JWT_SECRET must be set to a non-default value in production. ' +
+        'Generate a strong secret and set the JWT_SECRET environment variable.'
+      );
     }
   }
 }

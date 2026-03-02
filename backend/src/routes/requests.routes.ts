@@ -18,9 +18,10 @@ router.post(
   asyncHandler(requestsController.createRequest)
 );
 
-// Get all requests with filters
+// Get all requests with filters (authenticated: returns only requests where user is participant)
 router.get(
   '/',
+  authMiddleware,
   validateQuery(schemas.requestFilters),
   asyncHandler(requestsController.getRequests)
 );
@@ -32,23 +33,26 @@ router.get(
   asyncHandler(requestsController.getPendingRequests)
 );
 
-// Get user's requests
+// Get user's requests (authenticated: only own requests)
 router.get(
   '/user/:userId',
+  authMiddleware,
   validateParams(schemas.userId),
   asyncHandler(requestsController.getUserRequests)
 );
 
-// Get operator's jobs
+// Get operator's jobs (authenticated: only own jobs)
 router.get(
   '/operator/:operatorId',
+  authMiddleware,
   validateParams(schemas.operatorId),
   asyncHandler(requestsController.getOperatorRequests)
 );
 
-// Get single request
+// Get single request (authenticated: only if user is request owner or assigned operator)
 router.get(
   '/:id',
+  authMiddleware,
   validateParams(schemas.uuid),
   asyncHandler(requestsController.getRequestById)
 );
