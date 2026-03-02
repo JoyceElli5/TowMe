@@ -120,6 +120,14 @@ export async function getPendingRequests(): Promise<TowingRequest[]> {
   throw new Error(response.error || 'Failed to fetch pending requests');
 }
 
+export async function startRequest(id: string): Promise<TowingRequest> {
+  const response = await api.patch<TowingRequest>(`/requests/${id}/start`);
+  if (response.data) {
+    return response.data;
+  }
+  throw new Error(response.error || 'Failed to start request');
+}
+
 export async function acceptRequest(id: string): Promise<TowingRequest> {
   const response = await api.patch<TowingRequest>(`/requests/${id}/accept`);
   if (response.data) {
@@ -128,12 +136,12 @@ export async function acceptRequest(id: string): Promise<TowingRequest> {
   throw new Error(response.error || 'Failed to accept request');
 }
 
-export async function startRequest(id: string): Promise<TowingRequest> {
-  const response = await api.patch<TowingRequest>(`/requests/${id}/start`);
+export async function declineRequest(id: string): Promise<TowingRequest> {
+  const response = await api.patch<TowingRequest>(`/requests/${id}/decline`);
   if (response.data) {
     return response.data;
   }
-  throw new Error(response.error || 'Failed to start request');
+  throw new Error(response.error || 'Failed to decline request');
 }
 
 export async function completeRequest(id: string): Promise<TowingRequest> {

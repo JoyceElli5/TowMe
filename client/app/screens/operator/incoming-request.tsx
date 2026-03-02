@@ -37,7 +37,6 @@ const formatVehicleType = (vehicleType?: string): string => {
 
 export default function IncomingRequestScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
-  const [timeLeft, setTimeLeft] = useState(30);
   const [request, setRequest] = useState<TowingRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -64,22 +63,6 @@ export default function IncomingRequestScreen() {
 
     fetchRequest();
   }, [params.requestId]);
-
-  // Countdown timer
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          router.back();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
 
   const handleAccept = async () => {
     if (!params.requestId) return;
@@ -135,12 +118,10 @@ export default function IncomingRequestScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#003554" />
 
       <View style={styles.content}>
-        {/* Header with Timer */}
+        {/* Header */}
         <View style={styles.header}>
-          <View style={styles.timerContainer}>
-            <Text style={styles.timerValue}>{timeLeft}</Text>
-            <Text style={styles.timerLabel}>seconds to accept</Text>
-          </View>
+          <Text style={styles.headerTitle}>New Tow Request</Text>
+          <Text style={styles.headerSubtitle}>Review the details and accept or decline</Text>
         </View>
 
         {/* Request Card */}
@@ -252,19 +233,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   header: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 24,
   },
-  timerContainer: {
-    alignItems: 'center',
-  },
-  timerValue: {
-    fontSize: 48,
+  headerTitle: {
+    fontSize: 20,
     fontFamily: 'Gilroy-SemiBold',
     color: '#ffffff',
     marginBottom: 4,
   },
-  timerLabel: {
+  headerSubtitle: {
     fontSize: 14,
     fontFamily: 'Gilroy-Regular',
     color: '#bae6fd',

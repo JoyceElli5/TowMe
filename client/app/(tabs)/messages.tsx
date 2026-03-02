@@ -1,181 +1,157 @@
-
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
 import {
-  AlertCircleIcon,
-  CheckmarkCircle01Icon,
-  Location01Icon,
-  MessageDone01Icon,
-  StarIcon,
-  Wallet01Icon
-} from 'hugeicons-react-native';
-import React from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
+  FlatList,
+  Linking,
+  StatusBar,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Icon mapping for notifications
-const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
-  location: Location01Icon,
-  wallet: Wallet01Icon,
-  'checkmark-circle': CheckmarkCircle01Icon,
-  star: StarIcon,
-  'alert-circle': AlertCircleIcon,
-};
+interface ChatItem {
+  id: string;
+  requestId: string;
+  operatorName: string;
+  lastMessage: string;
+  timestamp: string;
+  unread: number;
+  phone: string;
+}
 
-// Mock notifications data
-const MOCK_NOTIFICATIONS = [
+const MOCK_CHATS: ChatItem[] = [
   {
     id: '1',
-    type: 'request',
-    title: 'New request nearby!',
-    message: 'A user needs towing assistance 2.5 km away',
-    time: '2 min ago',
-    read: false,
-    icon: 'location',
-    iconColor: '#3B82F6',
+    requestId: 'req-123',
+    operatorName: 'John Towing Services',
+    lastMessage: 'I am 5 minutes away from your location.',
+    timestamp: '10:30 AM',
+    unread: 2,
+    phone: '+233241234567',
   },
   {
     id: '2',
-    type: 'earning',
-    title: 'Trip completed - GHS 156 earned',
-    message: 'Your earnings have been credited to your wallet',
-    time: '1 hour ago',
-    read: false,
-    icon: 'wallet',
-    iconColor: '#10B981',
-  },
-  {
-    id: '3',
-    type: 'withdrawal',
-    title: 'Withdrawal processed successfully',
-    message: 'GHS 500 has been sent to your mobile money account',
-    time: '3 hours ago',
-    read: true,
-    icon: 'checkmark-circle',
-    iconColor: '#10B981',
-  },
-  {
-    id: '4',
-    type: 'review',
-    title: 'User left you a 5-star review!',
-    message: '"Great service, very professional!"',
-    time: 'Yesterday',
-    read: true,
-    icon: 'star',
-    iconColor: '#F59E0B',
-  },
-  {
-    id: '5',
-    type: 'reminder',
-    title: 'Reminder: Update your vehicle insurance',
-    message: 'Your insurance expires in 7 days',
-    time: '2 days ago',
-    read: true,
-    icon: 'alert-circle',
-    iconColor: '#EF4444',
+    requestId: 'req-456',
+    operatorName: 'Fast Recovery Ltd',
+    lastMessage: 'Your payment has been received. Thank you!',
+    timestamp: 'Yesterday',
+    unread: 0,
+    phone: '+233247654321',
   },
 ];
 
-function NotificationCard({
-  notification,
-}: {
-  notification: typeof MOCK_NOTIFICATIONS[0];
-}) {
-  const Icon = ICON_MAP[notification.icon] || Location01Icon;
+export default function UserMessagesScreen() {
+  const [searchQuery, setSearchQuery] = useState('');
   const cardBg = useThemeColor({}, 'background');
-  const unreadBg = useThemeColor({ light: '#F0F9FF', dark: '#1E3A5F' }, 'background');
-  
-  return (
-    <TouchableOpacity>
-      <ThemedView
-        style={[
-          styles.notificationCard,
-          { backgroundColor: !notification.read ? unreadBg : cardBg },
-          !notification.read && styles.notificationCardUnread,
-        ]}
-      >
-        <View
-          style={[
-            styles.iconContainer,
-            { backgroundColor: `${notification.iconColor}15` },
-          ]}
-        >
-          <Icon
-            size={24}
-            color={notification.iconColor}
-            strokeWidth={2}
-          />
-        </View>
+  const inputBg = useThemeColor({ light: '#F3F4F6', dark: '#374151' }, 'background');
+  const tintColor = useThemeColor({}, 'tint');
 
-        <View style={styles.contentContainer}>
-          <View style={styles.headerRow}>
-            <ThemedText
-              style={[
-                styles.notificationTitle,
-                !notification.read && styles.notificationTitleUnread,
-              ]}
-              numberOfLines={1}
-            >
-              {notification.title}
-            </ThemedText>
-            {!notification.read && <View style={styles.unreadDot} />}
-          </View>
-          <ThemedText style={styles.notificationMessage} numberOfLines={2}>
-            {notification.message}
-          </ThemedText>
-          <ThemedText style={styles.notificationTime}>{notification.time}</ThemedText>
-        </View>
-      </ThemedView>
-    </TouchableOpacity>
+  const filteredChats = MOCK_CHATS.filter(chat =>
+    chat.operatorName.toLowerCase().includes(searchQuery.toLowerCase())
   );
-}
 
-export default function MessagesScreen() {
-  const unreadCount = MOCK_NOTIFICATIONS.filter((n) => !n.read).length;
-  const backgroundColor = useThemeColor({}, 'background');
+  const handleCall = (phone: string) => {
+    Linking.openURL(`tel:${phone}`);
+  };
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <ThemedText type="title" style={styles.title}>Notifications</ThemedText>
-          {unreadCount > 0 && (
-            <ThemedText style={styles.subtitle}>
-              {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
-            </ThemedText>
+  const handleChatPress = (chat: ChatItem) => {
+    router.push({
+      pathname: '/screens/user/chat-screen',
+      params: {
+        requestId: chat.requestId,
+        operatorName: chat.operatorName,
+        operatorPhone: chat.phone
+      }
+    });
+  };
+
+  const renderItem = ({ item }: { item: ChatItem }) => (
+    <TouchableOpacity
+      style={[styles.chatItem, { backgroundColor: cardBg }]}
+      onPress={() => handleChatPress(item)}
+    >
+      <View style={[styles.avatar, { backgroundColor: tintColor + '20' }]}>
+        <ThemedText style={[styles.avatarText, { color: tintColor }]}>
+          {item.operatorName.charAt(0)}
+        </ThemedText>
+      </View>
+
+      <View style={styles.contentContainer}>
+        <View style={styles.headerRow}>
+          <ThemedText style={styles.name}>{item.operatorName}</ThemedText>
+          <ThemedText style={styles.timestamp}>{item.timestamp}</ThemedText>
+        </View>
+        <View style={styles.messageRow}>
+          <ThemedText
+            style={[
+              styles.message,
+              item.unread > 0 && styles.unreadMessage
+            ]}
+            numberOfLines={1}
+          >
+            {item.lastMessage}
+          </ThemedText>
+          {item.unread > 0 && (
+            <View style={[styles.unreadBadge, { backgroundColor: tintColor }]}>
+              <ThemedText style={styles.unreadCount}>{item.unread}</ThemedText>
+            </View>
           )}
         </View>
-        <TouchableOpacity style={styles.clearButton}>
-          <ThemedText style={styles.clearButtonText}>Clear All</ThemedText>
-        </TouchableOpacity>
       </View>
 
-      {/* Quick Actions */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.actionButton}>
-          <MessageDone01Icon size={20} color="#3B82F6" strokeWidth={2} />
-          <ThemedText style={styles.actionButtonText}>Mark all as read</ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      {/* Notifications List */}
-      <ScrollView
-        style={styles.notificationList}
-        contentContainerStyle={styles.notificationListContent}
-        showsVerticalScrollIndicator={false}
+      <TouchableOpacity
+        style={styles.callButton}
+        onPress={() => handleCall(item.phone)}
       >
-        {MOCK_NOTIFICATIONS.map((notification) => (
-          <NotificationCard key={notification.id} notification={notification} />
-        ))}
-      </ScrollView>
+        <Ionicons name="call-outline" size={20} color={tintColor} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="default" />
+      <ThemedView style={styles.header}>
+        <ThemedText type="title" style={styles.title}>Messages</ThemedText>
+        <ThemedText style={styles.subtitle}>Recent chats with operators</ThemedText>
+      </ThemedView>
+
+      <View style={styles.searchContainer}>
+        <View style={[styles.searchBar, { backgroundColor: inputBg }]}>
+          <Ionicons name="search-outline" size={20} color="#9CA3AF" />
+          <TextInput
+            placeholder="Search chats..."
+            placeholderTextColor="#9CA3AF"
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+      </View>
+
+      <FlatList
+        data={filteredChats}
+        renderItem={renderItem}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="chatbubbles-outline" size={64} color="#9CA3AF" />
+            <ThemedText style={styles.emptyText}>No messages yet</ThemedText>
+            <ThemedText style={styles.emptySubtext}>
+              When you start a request, you'll be able to chat with your operator here.
+            </ThemedText>
+          </View>
+        )}
+      />
     </SafeAreaView>
   );
 }
@@ -185,56 +161,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 10,
+    paddingBottom: 15,
   },
   title: {
     fontFamily: Fonts.semiBold,
   },
   subtitle: {
     fontSize: 14,
-    fontFamily: Fonts.regular,
+    opacity: 0.6,
     marginTop: 2,
   },
-  clearButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  clearButtonText: {
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    color: '#EF4444',
-  },
-  quickActions: {
+  searchContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    marginBottom: 15,
   },
-  actionButton: {
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 48,
+    borderRadius: 12,
     gap: 8,
-    paddingVertical: 8,
   },
-  actionButtonText: {
-    fontSize: 14,
-    fontFamily: Fonts.medium,
-    color: '#3B82F6',
-  },
-  notificationList: {
+  searchInput: {
     flex: 1,
+    fontSize: 16,
+    height: '100%',
   },
-  notificationListContent: {
+  listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
-  notificationCard: {
+  chatItem: {
     flexDirection: 'row',
-    borderRadius: 16,
+    alignItems: 'center',
     padding: 16,
+    borderRadius: 16,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -242,49 +206,87 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  notificationCardUnread: {
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 18,
+    fontFamily: Fonts.semiBold,
   },
   contentContainer: {
     flex: 1,
   },
   headerRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
     marginBottom: 4,
   },
-  notificationTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: Fonts.medium,
-  },
-  notificationTitleUnread: {
+  name: {
+    fontSize: 16,
     fontFamily: Fonts.semiBold,
   },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#3B82F6',
-  },
-  notificationMessage: {
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    marginBottom: 6,
-    lineHeight: 20,
-  },
-  notificationTime: {
+  timestamp: {
     fontSize: 12,
-    fontFamily: Fonts.regular,
+    opacity: 0.5,
+  },
+  messageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  message: {
+    flex: 1,
+    fontSize: 14,
+    opacity: 0.6,
+    marginRight: 8,
+  },
+  unreadMessage: {
+    opacity: 1,
+    fontFamily: Fonts.medium,
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadCount: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontFamily: Fonts.semiBold,
+  },
+  callButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 100,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontFamily: Fonts.semiBold,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    opacity: 0.5,
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 40,
   },
 });

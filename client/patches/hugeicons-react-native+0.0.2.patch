@@ -1,0 +1,14 @@
+diff --git a/node_modules/hugeicons-react-native/dist/esm/create-hugeicon-component.js b/node_modules/hugeicons-react-native/dist/esm/create-hugeicon-component.js
+index 696a16e..62a47c3 100644
+--- a/node_modules/hugeicons-react-native/dist/esm/create-hugeicon-component.js
++++ b/node_modules/hugeicons-react-native/dist/esm/create-hugeicon-component.js
+@@ -4,4 +4,8 @@
+  * See the LICENSE file in the root directory of this source tree.
+  */
+ 
+-import{jsx as c}from"react/jsx-runtime";import{forwardRef as w}from"react";import{Svg as W,Path as $,Circle as g,Rect as x,G as y}from"react-native-svg";const C={path:$,circle:g,rect:x,g:y},G=(d,f)=>{const r=w(({color:e="currentColor",size:o=24,variant:a="stroke",type:p="rounded",strokeWidth:i,...h},u)=>{const m=`${a}.${p}`,k=f[m]?.map(([n,s],v)=>{const l=C[n];if(!l)return console.warn(`Unsupported SVG element: ${n}`),null;const t={...s};return t.fill&&(t.fill=e),t.stroke&&(t.stroke=e),i!==void 0&&"strokeWidth"in s&&(t.strokeWidth=i),c(l,{...t},v)})??[];return c(W,{ref:u,width:o,height:o,viewBox:"0 0 24 24",fill:"none",strokeWidth:1.5,...h,children:k})});return r.displayName=`${d}Icon`,r};export{G as default};
++import { forwardRef as w } from "react";
++import { Path as $, Circle as g, Svg as W, Rect as x, G as y } from "react-native-svg";
++import { jsx as c } from "react/jsx-runtime";
++const C={path:$,circle:g,rect:x,g:y},G=(d,f)=>{const r=w(({color:e="currentColor",size:o=24,variant:a="stroke",type:p="rounded",strokeWidth:i,...h},u)=>{const m=`${a}.${p}`,k=f[m]?.map(([n,s],v)=>{const l=C[n];if(!l)return console.warn(`Unsupported SVG element: ${n}`),null;const t={...s};delete t.key;return t.fill&&(t.fill=e),t.stroke&&(t.stroke=e),i!==void 0&&"strokeWidth"in s&&(t.strokeWidth=i),c(l,{...t},v)})??[];return c(W,{ref:u,width:o,height:o,viewBox:"0 0 24 24",fill:"none",strokeWidth:1.5,...h,children:k})});return r.displayName=`${d}Icon`,r};export { G as default };
++

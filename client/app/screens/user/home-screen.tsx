@@ -9,155 +9,265 @@
  * - Toast notifications for errors
  */
 
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+/**
+ * HomeScreen (User Dashboard)
+ *
+ * Fixes:
+ * - LocationPickerModal rendered INSIDE GestureHandlerRootView
+ * - BottomSheet keyboard support enabled
+ * - Proper layering (MapView stays behind UI)
+ */
+
+import { Ionicons } from '@expo/vector-icons';
+import BottomSheet, { BottomSheetScrollView, BottomSheetView } from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
+import {
+  UserCircleIcon
+} from 'hugeicons-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
+  Linking,
   Platform,
   StatusBar,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import MapView, { PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UserCircleIcon, Car01Icon, Location01Icon, Flag01Icon } from 'hugeicons-react-native';
 
 import AddressInputCard from '@/components/address-input-card';
+import LocationPickerModal from '@/components/location-picker-modal';
 import PriceEstimatorCard from '@/components/price-estimator-card';
 import PrimaryButton from '@/components/primary-button';
-import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
-import { calculateEstimatedPrice } from '@/constants/pricing';
-import { useToast } from '@/hooks/use-toast';
-import { ApiError, createRequest, getCurrentUser, getUserRequests, type TowingRequest } from '@/lib/api';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import VehicleTypeCard, { VehicleType } from '@/components/vehicle-type-card';
+
+import { useToast } from '@/hooks/use-toast';
+import { ApiError, cancelRequest, createRequest } from '@/lib/api';
+
+import { useActiveRequest } from '@/hooks/use-active-request';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
+import {
+  calculateDistance,
+  getCurrentLocationWithAddress,
+  type Coordinates,
+} from '@/lib/services/locationService';
+import { calculateEstimatedPrice } from '@/lib/services/pricingService';
 
 export default function HomeScreen() {
   const { showToast } = useToast();
+
   const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
-  
-  // Bottom sheet references
+
   const placeOrderSheetRef = useRef<BottomSheet>(null);
   const activeSessionSheetRef = useRef<BottomSheet>(null);
 
-  // Snap points
-  const placeOrderSnapPoints = useMemo(() => ['12%', '45%', '85%'], []);
+  // Adjusted snap points to better fit content (15% collapsed, 60% half, 90% full)
+  const placeOrderSnapPoints = useMemo(() => ['15%', '60%', '90%'], []);
   const activeSessionSnapPoints = useMemo(() => ['15%', '50%'], []);
 
-  // State for addresses
-  const [pickupAddress, setPickupAddress] = useState<string>('');
-  const [destinationAddress, setDestinationAddress] = useState<string>('');
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [destinationAddress, setDestinationAddress] = useState('');
 
-  // State for coordinates
-  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pickupCoords, setPickupCoords] = useState<Coordinates | null>(null);
+  const [destinationCoords, setDestinationCoords] =
+    useState<Coordinates | null>(null);
 
-  // State for vehicle selection
-  const [selectedVehicle, setSelectedVehicle] = useState<VehicleType | null>(null);
+  const [selectedVehicle, setSelectedVehicle] =
+    useState<VehicleType | null>(null);
 
-  // State for request loading
   const [isRequesting, setIsRequesting] = useState(false);
+  const { activeRequest } = useActiveRequest();
 
-  // State for active session
-  const [activeRequest, setActiveRequest] = useState<TowingRequest | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
 
-  // Map region (default to Accra, Ghana)
-  const [mapRegion] = useState<Region>({
+  const [showPickupPicker, setShowPickupPicker] = useState(false);
+  const [showDestinationPicker, setShowDestinationPicker] = useState(false);
+
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+
+  const [mapRegion, setMapRegion] = useState<Region>({
     latitude: 5.6037,
-    longitude: -0.1870,
+    longitude: -0.187,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
 
-  // Load current user and check for active sessions
+  /**
+   * Detect current location
+   */
   useEffect(() => {
-    const loadUserAndActiveSession = async () => {
+    const detectLocation = async () => {
       try {
-        const user = await getCurrentUser();
-        if (user) {
-          setCurrentUser(user);
-          
-          // Check for active requests (pending, accepted, or in_progress)
-          // Fetch each status separately since API doesn't support array of statuses
-          const statuses: ('pending' | 'accepted' | 'in_progress')[] = ['pending', 'accepted', 'in_progress'];
-          let foundRequest: TowingRequest | null = null;
-          
-          for (const status of statuses) {
-            try {
-              const response = await getUserRequests(user.id, {
-                status,
-                limit: 1,
-              });
-              
-              if (response.data && response.data.length > 0) {
-                foundRequest = response.data[0];
-                break;
-              }
-            } catch {
-              // Continue to next status
-            }
-          }
-          
-          if (foundRequest) {
-            setActiveRequest(foundRequest);
-            // Show active session sheet
-            activeSessionSheetRef.current?.snapToIndex(1);
-          }
+        const location = await getCurrentLocationWithAddress();
+        if (location) {
+          setPickupCoords(location.coordinates);
+          setPickupAddress(location.address);
         }
-      } catch (error) {
-        console.error('Failed to load user/active session:', error);
-        if (error instanceof ApiError) {
-          showToast(error.message || 'Failed to load session', 'error');
-        }
+      } catch {
+        // Silent fail (user can manually select)
       }
     };
 
-    loadUserAndActiveSession();
-    
-    // Poll for active session updates every 10 seconds
-    const interval = setInterval(loadUserAndActiveSession, 10000);
-    return () => clearInterval(interval);
-  }, [showToast]);
+    detectLocation();
+  }, []);
 
-  // Calculate estimated price
-  const getEstimatedPrice = useCallback((): number | null => {
-    if (!pickupAddress || !destinationAddress) {
-      return null;
+  /**
+   * Update map region to fit both pickup and destination
+   */
+  useEffect(() => {
+    if (pickupCoords && destinationCoords) {
+      const minLat = Math.min(pickupCoords.lat, destinationCoords.lat);
+      const maxLat = Math.max(pickupCoords.lat, destinationCoords.lat);
+      const minLng = Math.min(pickupCoords.lng, destinationCoords.lng);
+      const maxLng = Math.max(pickupCoords.lng, destinationCoords.lng);
+
+      const latDelta = (maxLat - minLat) * 1.5; // Add 50% padding
+      const lngDelta = (maxLng - minLng) * 1.5;
+
+      setMapRegion({
+        latitude: (minLat + maxLat) / 2,
+        longitude: (minLng + maxLng) / 2,
+        latitudeDelta: Math.max(latDelta, 0.01),
+        longitudeDelta: Math.max(lngDelta, 0.01),
+      });
+    } else if (pickupCoords) {
+      // If only pickup is selected, center on pickup
+      setMapRegion({
+        latitude: pickupCoords.lat,
+        longitude: pickupCoords.lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
     }
-    const mockDistanceKm = 10;
-    return calculateEstimatedPrice(mockDistanceKm, selectedVehicle);
-  }, [selectedVehicle, pickupAddress, destinationAddress]);
+  }, [pickupCoords, destinationCoords]);
 
-  const estimatedPrice = getEstimatedPrice();
+  // Fetch route when both locations are selected
+  useEffect(() => {
+    if (pickupCoords && destinationCoords) {
+      const fetchRoute = async () => {
+        try {
+          const route = await getRoute(
+            { latitude: pickupCoords.lat, longitude: pickupCoords.lng },
+            { latitude: destinationCoords.lat, longitude: destinationCoords.lng }
+          );
+          setRoutePoints(route.points);
+        } catch (error) {
+          console.error('Error fetching route:', error);
+          // Fallback to straight line
+          setRoutePoints([
+            { latitude: pickupCoords.lat, longitude: pickupCoords.lng },
+            { latitude: destinationCoords.lat, longitude: destinationCoords.lng },
+          ]);
+        }
+      };
+      fetchRoute();
+    } else {
+      setRoutePoints([]);
+    }
+  }, [pickupCoords, destinationCoords]);
 
-  // Handle address input press
-  const handlePickupPress = useCallback(() => {
-    setPickupAddress('Ring Road Central, Accra');
-    setPickupCoords({ lat: 5.5500, lng: -0.2050 });
-    placeOrderSheetRef.current?.snapToIndex(1);
-  }, []);
+  /**
+   * Price calculation
+   */
+  useEffect(() => {
+    const updatePrice = async () => {
+      if (!selectedVehicle || !pickupCoords || !destinationCoords) {
+        setEstimatedPrice(null);
+        return;
+      }
 
-  const handleDestinationPress = useCallback(() => {
-    setDestinationAddress('Accra Mall, Accra');
-    setDestinationCoords({ lat: 5.6350, lng: -0.1650 });
-    placeOrderSheetRef.current?.snapToIndex(1);
-  }, []);
+      const distance = calculateDistance(
+        pickupCoords.lat,
+        pickupCoords.lng,
+        destinationCoords.lat,
+        destinationCoords.lng
+      );
 
-  // Handle vehicle selection
-  const handleVehicleSelect = useCallback((type: VehicleType) => {
-    setSelectedVehicle(type);
-  }, []);
+      const price = await calculateEstimatedPrice(distance, selectedVehicle);
+      setEstimatedPrice(price);
+    };
 
-  // Handle request button press
+    updatePrice();
+  }, [selectedVehicle, pickupCoords, destinationCoords]);
+
+  /**
+   * Snap active session sheet when an active request exists
+   */
+  useEffect(() => {
+    if (activeRequest) {
+      activeSessionSheetRef.current?.snapToIndex(1);
+    }
+  }, [activeRequest]);
+
+  /**
+   * Location selection handlers with delayed snap to ensure smooth transition
+   */
+  const handlePickupSelect = useCallback(
+    (address: string, coords: Coordinates) => {
+      setPickupAddress(address);
+      setPickupCoords(coords);
+
+      // Delay snap to ensure modal closes smoothly first
+      setTimeout(() => {
+        placeOrderSheetRef.current?.snapToIndex(1);
+      }, 400);
+    },
+    []
+  );
+
+  const handleDestinationSelect = useCallback(
+    (address: string, coords: Coordinates) => {
+      setDestinationAddress(address);
+      setDestinationCoords(coords);
+
+      // Delay snap and maybe expand further if we have both addresses
+      setTimeout(() => {
+        placeOrderSheetRef.current?.snapToIndex(1);
+      }, 400);
+    },
+    []
+  );
+
+  /**
+   * Request Tow
+   */
   const handleRequestPress = useCallback(async () => {
-    if (!selectedVehicle || !pickupAddress || !destinationAddress || !pickupCoords || !destinationCoords) {
+    if (
+      !pickupCoords ||
+      !destinationCoords ||
+      !pickupAddress ||
+      !destinationAddress ||
+      !selectedVehicle
+    ) {
       showToast('Please fill in all fields', 'error');
+      return;
+    }
+
+    // Check if user already has an active request
+    if (activeRequest) {
+      showToast('You already have an active request. Please complete or cancel it first.', 'error');
+      // Optionally navigate to the active request
+      if (activeRequest.status === 'pending') {
+        router.push({
+          pathname: '/screens/user/searching-operator',
+          params: { requestId: activeRequest.id },
+        });
+      } else if (activeRequest.status === 'accepted') {
+        router.push({
+          pathname: '/screens/user/operator-found',
+          params: { requestId: activeRequest.id },
+        });
+      } else if (activeRequest.status === 'in_progress') {
+        router.push({
+          pathname: '/screens/user/live-tracking',
+          params: { requestId: activeRequest.id },
+        });
+      }
       return;
     }
 
@@ -174,248 +284,322 @@ export default function HomeScreen() {
         vehicleType: selectedVehicle,
       });
 
-      showToast('Towing request created successfully!', 'success');
+      showToast('Request created successfully!', 'success');
 
-      // Navigate to searching screen
       router.push({
         pathname: '/screens/user/searching-operator',
         params: { requestId: request.id },
       });
     } catch (error) {
-      console.error('Request creation error:', error);
       if (error instanceof ApiError) {
-        showToast(error.message || 'Could not create towing request', 'error');
+        // Handle 409 Conflict specifically
+        if (
+          error.message.includes('already have an active request') ||
+          error.message.includes('Conflict')
+        ) {
+          showToast(
+            'You already have an active request. Please complete or cancel it first.',
+            'error',
+          );
+          // Active request hook will refresh state via realtime / polling
+        } else {
+          showToast(error.message || 'Request failed. Try again.', 'error');
+        }
       } else {
-        showToast('An unexpected error occurred. Please try again.', 'error');
+        showToast('Request failed. Try again.', 'error');
       }
     } finally {
       setIsRequesting(false);
     }
-  }, [selectedVehicle, pickupAddress, destinationAddress, pickupCoords, destinationCoords, showToast]);
+  }, [
+    pickupCoords,
+    destinationCoords,
+    pickupAddress,
+    destinationAddress,
+    selectedVehicle,
+    activeRequest,
+    showToast,
+  ]);
 
-  // Handle active session actions
-  const handleViewActiveSession = useCallback(() => {
-    if (!activeRequest) return;
-    
-    // Navigate to appropriate screen based on status
-    if (activeRequest.status === 'pending') {
-      router.push({
-        pathname: '/screens/user/searching-operator',
-        params: { requestId: activeRequest.id },
-      });
-    } else if (activeRequest.status === 'accepted') {
-      router.push({
-        pathname: '/screens/user/operator-found',
-        params: { requestId: activeRequest.id },
-      });
-    } else if (activeRequest.status === 'in_progress') {
-      router.push({
-        pathname: '/screens/user/live-tracking',
-        params: { requestId: activeRequest.id },
-      });
-    }
-  }, [activeRequest]);
-
-  // Check if request can be made
-  const canRequest = selectedVehicle && pickupAddress && destinationAddress && pickupCoords && destinationCoords;
-
-  // Determine which bottom sheet to show
-  const hasActiveSession = activeRequest && ['pending', 'accepted', 'in_progress'].includes(activeRequest.status);
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Searching for operator...';
-      case 'accepted': return 'Operator found';
-      case 'in_progress': return 'Towing in progress';
-      default: return status;
-    }
-  };
+  const hasActiveSession =
+    activeRequest &&
+    ['pending', 'accepted', 'in_progress'].includes(activeRequest.status);
 
   return (
-    <GestureHandlerRootView style={[styles.container, { backgroundColor }]}>
+    <GestureHandlerRootView style={styles.container}>
+      {/* ✅ Modals INSIDE Gesture Root */}
+      <LocationPickerModal
+        visible={showPickupPicker}
+        onClose={() => setShowPickupPicker(false)}
+        onSelect={handlePickupSelect}
+        initialLocation={pickupCoords || undefined}
+        title="Select Pickup Location"
+      />
+
+      <LocationPickerModal
+        visible={showDestinationPicker}
+        onClose={() => setShowDestinationPicker(false)}
+        onSelect={handleDestinationSelect}
+        initialLocation={destinationCoords || undefined}
+        title="Select Destination"
+      />
+
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <StatusBar barStyle={backgroundColor === '#151718' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
-        
-        {/* Profile Icon Button */}
+        <StatusBar translucent />
+
+        {/* Profile Button */}
         <TouchableOpacity
-          style={[styles.profileButton, { backgroundColor: useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background') }]}
+          style={styles.profileButton}
           onPress={() => router.push('/(tabs)/profile')}
-          accessibilityLabel="Open profile"
         >
-          <UserCircleIcon size={32} color={useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint')} />
+          <UserCircleIcon size={32} />
         </TouchableOpacity>
 
-        {/* Full-screen Map */}
+        {/* Map */}
         <View style={styles.mapContainer}>
           <MapView
             style={styles.map}
             provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-            initialRegion={mapRegion}
+            region={mapRegion}
             showsUserLocation
-            showsMyLocationButton
-            showsCompass
-            mapType="standard"
-          />
-        </View>
-
-        {/* Active Session Bottom Sheet */}
-        {hasActiveSession && (
-          <BottomSheet
-            ref={activeSessionSheetRef}
-            index={1}
-            snapPoints={activeSessionSnapPoints}
-            enablePanDownToClose={false}
-            backgroundStyle={styles.bottomSheetBackground}
-            handleIndicatorStyle={styles.handleIndicator}
           >
-            <BottomSheetView style={styles.activeSessionContent}>
-              <View style={styles.activeSessionHeader}>
-                <View style={styles.activeSessionIcon}>
-                  <Car01Icon size={24} color="#3B82F6" />
-                </View>
-                <View style={styles.activeSessionInfo}>
-                  <ThemedText type="subtitle" style={styles.activeSessionTitle}>Active Towing Session</ThemedText>
-                  <ThemedText style={styles.activeSessionStatus}>{getStatusLabel(activeRequest!.status)}</ThemedText>
-                </View>
-              </View>
+            {/* Pickup Marker */}
+            {pickupCoords && (
+              <Marker
+                coordinate={{
+                  latitude: pickupCoords.lat,
+                  longitude: pickupCoords.lng,
+                }}
+                title="Pickup Location"
+                pinColor="#3B82F6"
+              />
+            )}
 
-              {activeRequest && (
-                <View style={styles.activeSessionDetails}>
-                  <View style={styles.activeSessionRow}>
-                    <Location01Icon size={16} color={useThemeColor({}, 'icon')} />
-                    <ThemedText style={styles.activeSessionText} numberOfLines={1}>
-                      {activeRequest.pickupAddress}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.activeSessionRow}>
-                    <Flag01Icon size={16} color={useThemeColor({}, 'icon')} />
-                    <ThemedText style={styles.activeSessionText} numberOfLines={1}>
-                      {activeRequest.destinationAddress}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.activeSessionRow}>
-                    <Car01Icon size={16} color={useThemeColor({}, 'icon')} />
-                    <ThemedText style={styles.activeSessionText}>
-                      {activeRequest.vehicleType.charAt(0).toUpperCase() + activeRequest.vehicleType.slice(1)}
-                    </ThemedText>
-                  </View>
-                </View>
-              )}
+            {/* Destination Marker */}
+            {destinationCoords && (
+              <Marker
+                coordinate={{
+                  latitude: destinationCoords.lat,
+                  longitude: destinationCoords.lng,
+                }}
+                title="Destination"
+                pinColor="#10B981"
+              />
+            )}
+
+            {/* Route Polyline */}
+            {routePoints.length > 0 && (
+              <Polyline
+                coordinates={routePoints}
+                strokeColor="#003554"
+                strokeWidth={5}
+                lineCap="round"
+                lineJoin="round"
+              />
+            )}
+          </MapView>
+        </View>
+      </SafeAreaView>
+
+      {/* BottomSheet - Outside SafeAreaView for proper positioning */}
+      {!hasActiveSession ? (
+        <BottomSheet
+          ref={placeOrderSheetRef}
+          index={1}
+          snapPoints={placeOrderSnapPoints}
+          enablePanDownToClose={false}
+          keyboardBehavior="interactive"
+          keyboardBlurBehavior="restore"
+          backgroundStyle={[styles.bottomSheetBackground, { backgroundColor }]}
+          handleIndicatorStyle={styles.handleIndicator}
+        >
+          <BottomSheetView style={styles.sheetContent}>
+            <BottomSheetScrollView
+              contentContainerStyle={styles.scrollContentContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              <ThemedText style={styles.headerTitle}>Request a Tow</ThemedText>
+
+              <AddressInputCard
+                type="pickup"
+                value={pickupAddress}
+                placeholder="Pickup location"
+                onPress={() => setShowPickupPicker(true)}
+              />
+
+              <AddressInputCard
+                type="destination"
+                value={destinationAddress}
+                placeholder="Destination"
+                onPress={() => setShowDestinationPicker(true)}
+              />
+
+              <VehicleTypeCard
+                selectedType={selectedVehicle}
+                onSelect={setSelectedVehicle}
+              />
+
+              <PriceEstimatorCard
+                estimatedPrice={estimatedPrice}
+                isCalculating={false}
+              />
 
               <PrimaryButton
-                label="View Session"
-                onPress={handleViewActiveSession}
-                isLoading={false}
+                label="Request Tow Truck"
+                isLoading={isRequesting}
+                disabled={!pickupCoords || !destinationCoords}
+                onPress={handleRequestPress}
               />
-            </BottomSheetView>
-          </BottomSheet>
-        )}
+            </BottomSheetScrollView>
+          </BottomSheetView>
+        </BottomSheet>
+      ) : (
+        <BottomSheet
+          ref={activeSessionSheetRef}
+          index={1}
+          snapPoints={activeSessionSnapPoints}
+          enablePanDownToClose={false}
+          backgroundStyle={[styles.bottomSheetBackground, { backgroundColor }]}
+          handleIndicatorStyle={styles.handleIndicator}
+        >
+          <BottomSheetView style={styles.sheetContent}>
+            <BottomSheetScrollView
+              contentContainerStyle={styles.scrollContentContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              <ThemedText style={styles.headerTitle}>
+                {activeRequest?.status === 'pending' && 'Searching for Operator'}
+                {activeRequest?.status === 'accepted' && 'Operator Found'}
+                {activeRequest?.status === 'in_progress' && 'Trip in Progress'}
+              </ThemedText>
 
-        {/* Place Order Bottom Sheet (hidden when active session exists) */}
-        {!hasActiveSession && (
-          <BottomSheet
-            ref={placeOrderSheetRef}
-            index={1}
-            snapPoints={placeOrderSnapPoints}
-            enablePanDownToClose={false}
-            backgroundStyle={styles.bottomSheetBackground}
-            handleIndicatorStyle={styles.handleIndicator}
-          >
-            <BottomSheetView style={styles.bottomSheetContent}>
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>Request a Tow</Text>
-                <Text style={styles.headerSubtitle}>
-                  Enter your pickup and destination to get started
-                </Text>
-              </View>
+              {activeRequest && (
+                <>
+                  <View style={styles.sessionInfo}>
+                    <ThemedText style={styles.sessionLabel}>From</ThemedText>
+                    <ThemedText style={styles.sessionValue}>{activeRequest.pickupAddress}</ThemedText>
+                  </View>
 
-              {/* Address Inputs */}
-              <View style={styles.addressSection}>
-                <AddressInputCard
-                  type="pickup"
-                  value={pickupAddress}
-                  placeholder="Enter pickup location"
-                  onPress={handlePickupPress}
-                />
-                <View style={styles.addressDivider}>
-                  <View style={styles.dividerLine} />
-                </View>
-                <AddressInputCard
-                  type="destination"
-                  value={destinationAddress}
-                  placeholder="Enter destination"
-                  onPress={handleDestinationPress}
-                />
-              </View>
+                  <View style={styles.sessionInfo}>
+                    <ThemedText style={styles.sessionLabel}>To</ThemedText>
+                    <ThemedText style={styles.sessionValue}>{activeRequest.destinationAddress}</ThemedText>
+                  </View>
 
-              {/* Vehicle Type Selector */}
-              <View style={styles.vehicleSection}>
-                <VehicleTypeCard
-                  selectedType={selectedVehicle}
-                  onSelect={handleVehicleSelect}
-                />
-              </View>
+                  {activeRequest.operator && (
+                    <View style={styles.operatorInfo}>
+                      <ThemedText style={styles.sessionLabel}>Operator</ThemedText>
+                      <ThemedText style={styles.sessionValue}>{activeRequest.operator.fullName}</ThemedText>
+                      {activeRequest.operator.phone && (
+                        <TouchableOpacity
+                          style={styles.callOperatorButton}
+                          onPress={() => {
+                            Linking.openURL(`tel:${activeRequest.operator?.phone}`).catch(() => {
+                              showToast('Unable to make phone call', 'error');
+                            });
+                          }}
+                        >
+                          <ThemedText style={styles.callOperatorText}>
+                            📞 {activeRequest.operator.phone}
+                          </ThemedText>
+                        </TouchableOpacity>
+                      )}
+                      {activeRequest.operator.averageRating && (
+                        <ThemedText style={styles.operatorRating}>
+                          ⭐ {activeRequest.operator.averageRating.toFixed(1)} rating
+                        </ThemedText>
+                      )}
+                    </View>
+                  )}
 
-              {/* Price Estimator */}
-              <View style={styles.priceSection}>
-                <PriceEstimatorCard
-                  estimatedPrice={estimatedPrice}
-                  isCalculating={false}
-                />
-              </View>
+                  <View style={styles.sessionActions}>
+                    {activeRequest.status === 'pending' && (
+                      <PrimaryButton
+                        label="View Status"
+                        onPress={() => router.push({
+                          pathname: '/screens/user/searching-operator',
+                          params: { requestId: activeRequest.id },
+                        })}
+                      />
+                    )}
+                    {activeRequest.status === 'accepted' && (
+                      <PrimaryButton
+                        label="Track Operator"
+                        onPress={() => router.push({
+                          pathname: '/screens/user/operator-found',
+                          params: { requestId: activeRequest.id },
+                        })}
+                      />
+                    )}
+                    {activeRequest.status === 'in_progress' && (
+                      <PrimaryButton
+                        label="Live Tracking"
+                        onPress={() => router.push({
+                          pathname: '/screens/user/live-tracking',
+                          params: { requestId: activeRequest.id },
+                        })}
+                      />
+                    )}
 
-              {/* Request Button */}
-              <View style={styles.buttonSection}>
-                <PrimaryButton
-                  label="Request Tow Truck"
-                  loadingLabel="Searching for Operator..."
-                  isLoading={isRequesting}
-                  disabled={!canRequest}
-                  onPress={handleRequestPress}
-                />
-              </View>
-            </BottomSheetView>
-          </BottomSheet>
-        )}
-      </SafeAreaView>
+                    {/* Cancellation Button */}
+                    <TouchableOpacity
+                      style={styles.cancelRequestButton}
+                      onPress={() => {
+                        Alert.alert(
+                          "Cancel Request",
+                          "Are you sure you want to cancel this request?",
+                          [
+                            { text: "No", style: "cancel" },
+                            {
+                              text: "Yes, Cancel",
+                              style: "destructive",
+                              onPress: async () => {
+                                try {
+                                  await cancelRequest(activeRequest.id, 'Cancelled by user from home');
+                                  showToast('Request cancelled', 'success');
+                                } catch (error) {
+                                  showToast('Failed to cancel request', 'error');
+                                }
+                              }
+                            }
+                          ]
+                        );
+                      }}
+                    >
+                      <View style={styles.cancelButtonContent}>
+                        <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+                        <ThemedText style={styles.cancelButtonText}>Cancel Request</ThemedText>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </BottomSheetScrollView>
+          </BottomSheetView>
+        </BottomSheet>
+      )}
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+
+  safeArea: { flex: 1 },
+
+  mapContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
   },
-  safeArea: {
-    flex: 1,
-  },
+
+  map: { flex: 1 },
+
   profileButton: {
     position: 'absolute',
-    top: 50,
+    top: 60,
     right: 20,
-    zIndex: 1000,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    zIndex: 20,
   },
-  mapContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  map: {
-    flex: 1,
-  },
+
   bottomSheetBackground: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -425,96 +609,74 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+
   handleIndicator: {
     width: 40,
     height: 4,
     borderRadius: 2,
+    backgroundColor: '#9ca3af',
   },
-  bottomSheetContent: {
+
+  sheetContent: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
   },
-  activeSessionContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+
+  scrollContentContainer: {
+    padding: 20,
+    gap: 16,
+    paddingBottom: 40,
   },
-  header: {
-    marginBottom: 20,
-  },
+
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
     marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  addressSection: {
-    marginBottom: 20,
-  },
-  addressDivider: {
-    paddingLeft: 52,
-    height: 16,
-  },
-  dividerLine: {
-    width: 2,
-    height: '100%',
-    backgroundColor: '#e5e7eb',
-    marginLeft: 7,
-  },
-  vehicleSection: {
+
+  sessionInfo: {
     marginBottom: 16,
   },
-  priceSection: {
-    marginBottom: 20,
-  },
-  buttonSection: {
-    marginTop: 'auto',
-  },
-  activeSessionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  activeSessionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  activeSessionInfo: {
-    flex: 1,
-  },
-  activeSessionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+
+  sessionLabel: {
+    fontSize: 14,
+    opacity: 0.6,
     marginBottom: 4,
   },
-  activeSessionStatus: {
-    fontSize: 14,
-    color: '#3B82F6',
+
+  sessionValue: {
+    fontSize: 16,
     fontWeight: '500',
   },
-  activeSessionDetails: {
-    marginBottom: 20,
-    gap: 12,
+
+  operatorInfo: {
+    marginBottom: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
   },
-  activeSessionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+
+  callOperatorButton: {
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#dcfce7',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
-  activeSessionText: {
+
+  callOperatorText: {
     fontSize: 14,
-    color: '#374151',
-    flex: 1,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+
+  operatorRating: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+
+  sessionActions: {
+    marginTop: 8,
   },
 });

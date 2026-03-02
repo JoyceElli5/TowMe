@@ -45,7 +45,7 @@ export interface LoginRequest {
 // Auth API functions
 export async function register(data: RegisterRequest): Promise<User> {
   const response = await api.post<AuthResponse>('/auth/register', data);
-  
+
   if (response.data) {
     await setAccessToken(response.data.accessToken);
     if (response.data.refreshToken) {
@@ -53,7 +53,7 @@ export async function register(data: RegisterRequest): Promise<User> {
     }
     return response.data.user;
   }
-  
+
   throw new ApiError(
     response.error || 'Registration failed',
     500,
@@ -63,7 +63,7 @@ export async function register(data: RegisterRequest): Promise<User> {
 
 export async function login(data: LoginRequest): Promise<User> {
   const response = await api.post<AuthResponse>('/auth/login', data);
-  
+
   if (response.data) {
     await setAccessToken(response.data.accessToken);
     if (response.data.refreshToken) {
@@ -71,7 +71,7 @@ export async function login(data: LoginRequest): Promise<User> {
     }
     return response.data.user;
   }
-  
+
   throw new ApiError(
     response.error || 'Login failed',
     500,
@@ -100,20 +100,20 @@ export async function refreshAccessToken(): Promise<boolean> {
   try {
     const { getRefreshToken } = await import('./client');
     const refreshToken = await getRefreshToken();
-    
+
     if (!refreshToken) {
       return false;
     }
-    
+
     const response = await api.post<{ accessToken: string }>('/auth/refresh-token', {
       refreshToken,
     });
-    
+
     if (response.data?.accessToken) {
       await setAccessToken(response.data.accessToken);
       return true;
     }
-    
+
     return false;
   } catch {
     return false;
@@ -128,6 +128,10 @@ export async function resetPassword(token: string, newPassword: string): Promise
   await api.post('/auth/reset-password', { token, newPassword });
 }
 
-export async function verifyEmail(token: string): Promise<void> {
-  await api.post('/auth/verify-email', { token });
+export async function verifyEmail(otp: string): Promise<void> {
+  await api.post('/auth/verify-email', { token: otp });
+}
+
+export async function resendVerificationEmail(email: string): Promise<void> {
+  await api.post('/auth/resend-verification', { email });
 }

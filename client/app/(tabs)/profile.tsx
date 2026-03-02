@@ -12,12 +12,31 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import {
+  AlertCircleIcon,
+  ArrowRight01Icon,
+  Camera01Icon,
+  Car01Icon,
+  Chatting01Icon,
+  CheckmarkCircle01Icon,
+  CreditCardIcon,
+  HeadsetIcon,
+  HelpCircleIcon,
+  LegalDocument01Icon,
+  Location01Icon,
+  Logout01Icon,
+  Mail01Icon,
+  Moon01Icon,
+  Notification01Icon,
+  Sun01Icon,
+  UserBlock01Icon
+} from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
   Image,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -25,31 +44,17 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { 
-  Camera01Icon, 
-  Logout01Icon, 
-  Moon01Icon, 
-  Sun01Icon, 
-  Notification01Icon, 
-  Chatting01Icon, 
-  Mail01Icon, 
-  CreditCardIcon, 
-  SmartPhone01Icon, 
-  Wallet01Icon, 
-  UserBlock01Icon, 
-  HeadsetIcon, 
-  HelpCircleIcon, 
-  LegalDocument01Icon, 
-  ArrowRight01Icon,
-  Location01Icon
-} from 'hugeicons-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useTheme } from '@/contexts/theme-context';
-import { useToast } from '@/hooks/use-toast';
-import { ApiError, getCurrentUser, logout, updateUserAvatar, type User } from '@/lib/api';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Fonts } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useToast } from '@/hooks/use-toast';
+import { ApiError, getCurrentUser, getUserRequests, logout, updateUserAvatar, type TowingRequest, type User } from '@/lib/api';
+import { getCurrentUser as getAuthUser } from '@/lib/services/authService';
+import { getUserVehicles, type UserVehicle } from '@/lib/services/vehicleService';
 
 interface SettingItemProps {
   icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -73,7 +78,6 @@ function SettingItem({
   onPress,
   onSwitchChange,
 }: SettingItemProps & { onSwitchChange?: (value: boolean) => void }) {
-  const iconBgColor = useThemeColor({}, 'background');
   const arrowColor = useThemeColor({}, 'icon');
   return (
     <TouchableOpacity
@@ -119,10 +123,68 @@ export default function ProfileScreen() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [vehicles, setVehicles] = useState<UserVehicle[]>([]);
+  const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
+  const [tripHistory, setTripHistory] = useState<TowingRequest[]>([]);
+  const [isLoadingTrips, setIsLoadingTrips] = useState(false);
+  
+  // Notification preferences
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [smsAlerts, setSmsAlerts] = useState(true);
+  const [emailUpdates, setEmailUpdates] = useState(false);
+  
+  // All hooks must be called before any conditional returns
+  const backgroundColor = useThemeColor({}, 'background');
+  const statsBg = useThemeColor({ light: '#F9FAFB', dark: '#1F2937' }, 'background');
+  const dividerColor = useThemeColor({ light: '#E5E7EB', dark: '#374151' }, 'background');
+  const iconColor = useThemeColor({}, 'icon');
+  const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
 
   useEffect(() => {
     loadUser();
+    loadVehicles();
+    loadTripHistory();
   }, []);
+
+  // Refresh vehicles when screen comes into focus (e.g., after adding/editing)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadVehicles();
+    }, [])
+  );
+
+  const loadVehicles = async () => {
+    try {
+      const authUser = await getAuthUser();
+      if (authUser) {
+        setIsLoadingVehicles(true);
+        const userVehicles = await getUserVehicles(authUser.id);
+        setVehicles(userVehicles);
+      }
+    } catch (error) {
+      console.error('Error loading vehicles:', error);
+    } finally {
+      setIsLoadingVehicles(false);
+    }
+  };
+
+  const loadTripHistory = async () => {
+    try {
+      const user = await getCurrentUser();
+      if (user) {
+        setIsLoadingTrips(true);
+        const response = await getUserRequests(user.id, {
+          status: 'completed',
+          limit: 10,
+        });
+        setTripHistory(response.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading trip history:', error);
+    } finally {
+      setIsLoadingTrips(false);
+    }
+  };
 
   const loadUser = async () => {
     try {
@@ -182,15 +244,14 @@ export default function ProfileScreen() {
         setIsUploading(true);
         const imageUri = result.assets[0].uri;
         
-        // In a real app, you would upload the image to a storage service (e.g., Supabase Storage)
-        // and get a URL back. For now, we'll use the local URI as a placeholder
-        // TODO: Implement actual image upload to Supabase Storage or similar
-        
         if (currentUser) {
           try {
-            // For now, we'll just update with a placeholder URL
-            // In production, upload to Supabase Storage first
-            await updateUserAvatar(currentUser.id, imageUri);
+            // Upload image to Supabase Storage first
+            const { uploadProfilePhoto } = await import('@/lib/services/storageService');
+            const photoUrl = await uploadProfilePhoto(currentUser.id, imageUri);
+            
+            // Update user profile with the photo URL
+            await updateUserAvatar(currentUser.id, photoUrl);
             await loadUser();
             showToast('Profile picture updated', 'success');
           } catch (error) {
@@ -222,18 +283,13 @@ export default function ProfileScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#003554" />
         </View>
       </SafeAreaView>
     );
   }
-
-  const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
-  const statsBg = useThemeColor({ light: '#F9FAFB', dark: '#1F2937' }, 'background');
-  const dividerColor = useThemeColor({ light: '#E5E7EB', dark: '#374151' }, 'background');
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]}>
@@ -291,13 +347,129 @@ export default function ProfileScreen() {
             </View>
             <View style={[styles.statDivider, { backgroundColor: dividerColor }]} />
             <View style={styles.statItem}>
-              <ThemedText type="defaultSemiBold" style={styles.statValue}>
-                {currentUser?.isVerified ? '✓' : '—'}
-              </ThemedText>
+              {currentUser?.isVerified ? (
+                <CheckmarkCircle01Icon size={24} color={tintColor} strokeWidth={2} />
+              ) : (
+                <AlertCircleIcon size={24} color={iconColor} strokeWidth={2} />
+              )}
               <ThemedText style={styles.statLabel}>Verified</ThemedText>
             </View>
           </ThemedView>
         </ThemedView>
+
+        {/* My Vehicles */}
+        <SectionHeader title="My Vehicles" />
+        <View style={styles.settingsCard}>
+          <View style={styles.vehicleHeader}>
+            <ThemedText style={styles.vehicleSectionTitle}>Manage your vehicles</ThemedText>
+            <TouchableOpacity
+              onPress={() => router.push('/screens/user/add-edit-vehicle-screen')}
+              style={styles.addVehicleButton}
+            >
+              <ThemedText style={styles.addVehicleText}>+ Add Vehicle</ThemedText>
+            </TouchableOpacity>
+          </View>
+          
+          {isLoadingVehicles ? (
+            <View style={styles.vehicleLoading}>
+              <ActivityIndicator size="small" />
+            </View>
+          ) : vehicles.length === 0 ? (
+            <ThemedView style={styles.emptyVehicles}>
+              <ThemedText style={styles.emptyVehiclesText}>No vehicles added yet</ThemedText>
+              <ThemedText style={styles.emptyVehiclesSubtext}>
+                Add a vehicle to make requesting tows easier
+              </ThemedText>
+            </ThemedView>
+          ) : (
+            vehicles.map((vehicle) => (
+              <TouchableOpacity
+                key={vehicle.id}
+                style={styles.vehicleItem}
+                onPress={() =>
+                  router.push({
+                    pathname: '/screens/user/add-edit-vehicle-screen',
+                    params: { vehicleId: vehicle.id },
+                  })
+                }
+              >
+                <View style={styles.vehicleItemContent}>
+                  {vehicle.photo_url ? (
+                    <Image
+                      source={{ uri: vehicle.photo_url }}
+                      style={styles.vehiclePhoto}
+                    />
+                  ) : (
+                    <View style={[styles.vehicleIconContainer, { backgroundColor: dividerColor }]}>
+                      <Car01Icon size={24} color={tintColor} strokeWidth={2} />
+                    </View>
+                  )}
+                  <View style={styles.vehicleInfo}>
+                    <ThemedText style={styles.vehicleName}>
+                      {vehicle.make && vehicle.model
+                        ? `${vehicle.make} ${vehicle.model}`
+                        : vehicle.vehicle_type.charAt(0).toUpperCase() + vehicle.vehicle_type.slice(1)}
+                    </ThemedText>
+                    <ThemedText style={styles.vehicleDetails}>
+                      {[vehicle.color, vehicle.plate_number].filter(Boolean).join(' • ') || 'No details'}
+                    </ThemedText>
+                  </View>
+                </View>
+                <ArrowRight01Icon size={20} color={iconColor} strokeWidth={2} />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
+        {/* Trip History */}
+        <SectionHeader title="Trip History" />
+        <View style={styles.settingsCard}>
+          {isLoadingTrips ? (
+            <View style={styles.vehicleLoading}>
+              <ActivityIndicator size="small" />
+            </View>
+          ) : tripHistory.length === 0 ? (
+            <ThemedView style={styles.emptyVehicles}>
+              <ThemedText style={styles.emptyVehiclesText}>No completed trips yet</ThemedText>
+              <ThemedText style={styles.emptyVehiclesSubtext}>
+                Your completed trips will appear here
+              </ThemedText>
+            </ThemedView>
+          ) : (
+            tripHistory.map((trip) => (
+              <TouchableOpacity
+                key={trip.id}
+                style={styles.tripItem}
+                onPress={() => {
+                  router.push({
+                    pathname: '/screens/user/trip-completed',
+                    params: { requestId: trip.id },
+                  });
+                }}
+              >
+                <View style={styles.tripItemContent}>
+                  <View style={[styles.tripIconContainer, { backgroundColor: dividerColor }]}>
+                    <Car01Icon size={20} color={tintColor} strokeWidth={2} />
+                  </View>
+                  <View style={styles.tripInfo}>
+                    <ThemedText style={styles.tripRoute}>
+                      {trip.pickupAddress.split(',')[0]} → {trip.destinationAddress.split(',')[0]}
+                    </ThemedText>
+                    <ThemedText style={styles.tripDetails}>
+                      {trip.distanceKm?.toFixed(1) || '0'} km • GH₵ {(trip.finalPrice || trip.estimatedPrice || 0).toFixed(2)}
+                    </ThemedText>
+                    {trip.completedAt && (
+                      <ThemedText style={styles.tripDate}>
+                        {new Date(trip.completedAt).toLocaleDateString()}
+                      </ThemedText>
+                    )}
+                  </View>
+                </View>
+                <ArrowRight01Icon size={20} color={iconColor} strokeWidth={2} />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
 
         {/* Appearance */}
         <SectionHeader title="Appearance" />
@@ -321,25 +493,40 @@ export default function ProfileScreen() {
             icon={Notification01Icon}
             iconColor="#3B82F6"
             title="Push Notifications"
+            subtitle="Receive push notifications about your trips"
             showArrow={false}
             showSwitch
-            switchValue={true}
+            switchValue={pushNotifications}
+            onSwitchChange={(value) => {
+              setPushNotifications(value);
+              showToast(value ? 'Push notifications enabled' : 'Push notifications disabled', 'success');
+            }}
           />
           <SettingItem
             icon={Chatting01Icon}
             iconColor="#10B981"
             title="SMS Alerts"
+            subtitle="Get SMS updates about your requests"
             showArrow={false}
             showSwitch
-            switchValue={true}
+            switchValue={smsAlerts}
+            onSwitchChange={(value) => {
+              setSmsAlerts(value);
+              showToast(value ? 'SMS alerts enabled' : 'SMS alerts disabled', 'success');
+            }}
           />
           <SettingItem
             icon={Mail01Icon}
             iconColor="#F59E0B"
             title="Email Updates"
+            subtitle="Receive email notifications and updates"
             showArrow={false}
             showSwitch
-            switchValue={false}
+            switchValue={emailUpdates}
+            onSwitchChange={(value) => {
+              setEmailUpdates(value);
+              showToast(value ? 'Email updates enabled' : 'Email updates disabled', 'success');
+            }}
           />
         </View>
 
@@ -349,20 +536,9 @@ export default function ProfileScreen() {
           <SettingItem
             icon={CreditCardIcon}
             iconColor="#8B5CF6"
-            title="Bank Account"
-            subtitle="•••• 4532"
-          />
-          <SettingItem
-            icon={SmartPhone01Icon}
-            iconColor="#EC4899"
-            title="Mobile Money"
-            subtitle="024 ••• ••89"
-          />
-          <SettingItem
-            icon={Wallet01Icon}
-            iconColor="#10B981"
-            title="Default Withdrawal"
-            subtitle="Mobile Money"
+            title="Payment Methods"
+            subtitle="Manage your payment methods"
+            onPress={() => router.push('/screens/user/payment-methods-screen')}
           />
         </View>
 
@@ -373,16 +549,20 @@ export default function ProfileScreen() {
             icon={Location01Icon}
             iconColor="#EF4444"
             title="Share Location"
-            subtitle="Only when online"
+            subtitle="Location is shared with operators during active trips"
             showArrow={false}
             showSwitch
             switchValue={true}
+            onSwitchChange={() => {
+              showToast('Location sharing is required for active trips', 'info');
+            }}
           />
           <SettingItem
             icon={UserBlock01Icon}
             iconColor="#6B7280"
             title="Blocked Users"
-            subtitle="2 users blocked"
+            subtitle="Manage blocked users"
+            onPress={() => router.push('/screens/user/blocked-users-screen')}
           />
         </View>
 
@@ -393,16 +573,22 @@ export default function ProfileScreen() {
             icon={HeadsetIcon}
             iconColor="#3B82F6"
             title="Contact Support"
+            subtitle="Get help from our support team"
+            onPress={() => router.push('/screens/user/contact-support-screen')}
           />
           <SettingItem
             icon={HelpCircleIcon}
             iconColor="#F59E0B"
             title="FAQs"
+            subtitle="Frequently asked questions"
+            onPress={() => router.push('/screens/user/faqs-screen')}
           />
           <SettingItem
             icon={LegalDocument01Icon}
             iconColor="#6B7280"
             title="Terms & Conditions"
+            subtitle="Read our terms of service"
+            onPress={() => router.push('/screens/user/terms-screen')}
           />
         </View>
 
@@ -509,6 +695,84 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
   },
+  vehicleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  vehicleSectionTitle: {
+    fontSize: 16,
+    fontFamily: Fonts.semiBold,
+  },
+  addVehicleButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#003554',
+  },
+  addVehicleText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: Fonts.medium,
+  },
+  vehicleLoading: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyVehicles: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyVehiclesText: {
+    fontSize: 16,
+    fontFamily: Fonts.medium,
+    marginBottom: 8,
+  },
+  emptyVehiclesSubtext: {
+    fontSize: 14,
+    opacity: 0.6,
+    textAlign: 'center',
+  },
+  vehicleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  vehicleItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  vehiclePhoto: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  vehicleIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  vehicleInfo: {
+    flex: 1,
+  },
+  vehicleName: {
+    fontSize: 16,
+    fontFamily: Fonts.semiBold,
+    marginBottom: 4,
+  },
+  vehicleDetails: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
   statDivider: {
     width: 1,
     height: 32,
@@ -584,5 +848,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 16,
+  },
+  tripItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  tripItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  tripIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  tripInfo: {
+    flex: 1,
+  },
+  tripRoute: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  tripDetails: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  tripDate: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 4,
   },
 });

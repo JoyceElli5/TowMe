@@ -27,6 +27,8 @@ interface PrimaryButtonProps {
   onPress: () => void;
   /** Button variant */
   variant?: 'primary' | 'secondary' | 'outline';
+  /** Optional style override */
+  style?: any;
 }
 
 export default function PrimaryButton({
@@ -36,8 +38,64 @@ export default function PrimaryButton({
   disabled = false,
   onPress,
   variant = 'primary',
+  style,
 }: PrimaryButtonProps) {
   const isDisabled = disabled || isLoading;
+
+  const styles = StyleSheet.create({
+    button: {
+      height: 56,
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 32,
+    },
+    primaryButton: {
+      backgroundColor: '#003554',
+      shadowColor: '#003554',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    secondaryButton: {
+      backgroundColor: '#0a7ea4',
+      shadowColor: '#0a7ea4',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    outlineButton: {
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderColor: '#003554',
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+    buttonText: {
+      fontSize: 16,
+      fontFamily: 'Gilroy-SemiBold',
+    },
+    primaryButtonText: {
+      color: '#ffffff',
+    },
+    secondaryButtonText: {
+      color: '#ffffff',
+    },
+    outlineButtonText: {
+      color: '#003554',
+    },
+    loadingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    loadingText: {
+      marginLeft: 8,
+    },
+  });
 
   const getButtonStyle = () => {
     switch (variant) {
@@ -66,6 +124,7 @@ export default function PrimaryButton({
       style={[
         ...getButtonStyle(),
         isDisabled && styles.buttonDisabled,
+        style,
       ]}
       onPress={onPress}
       disabled={isDisabled}
@@ -90,58 +149,3 @@ export default function PrimaryButton({
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  primaryButton: {
-    backgroundColor: '#003554',
-    shadowColor: '#003554',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  secondaryButton: {
-    backgroundColor: '#0a7ea4',
-    shadowColor: '#0a7ea4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  outlineButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#003554',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontFamily: 'Gilroy-SemiBold',
-  },
-  primaryButtonText: {
-    color: '#ffffff',
-  },
-  secondaryButtonText: {
-    color: '#ffffff',
-  },
-  outlineButtonText: {
-    color: '#003554',
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  loadingText: {
-    marginLeft: 8,
-  },
-});

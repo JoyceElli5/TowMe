@@ -1,4 +1,5 @@
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
 import { Home01Icon, Notification01Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
@@ -24,6 +25,7 @@ interface TabConfig {
 }
 
 const TAB_CONFIG: Record<string, TabConfig> = {
+  // User tabs
   index: {
     name: 'Home',
     Icon: Home01Icon,
@@ -32,13 +34,30 @@ const TAB_CONFIG: Record<string, TabConfig> = {
     name: 'History',
     Icon: TransactionIcon,
   },
+  notifications: {
+    name: 'Notifications',
+    Icon: Notification01Icon,
+  },
   messages: {
     name: 'Messages',
-    Icon: Notification01Icon,
+    Icon: (props: any) => <Ionicons name="chatbubble-ellipses-outline" {...props} />,
   },
   profile: {
     name: 'Profile',
     Icon: UserIcon,
+  },
+  // Operator tabs
+  dashboard: {
+    name: 'Home',
+    Icon: Home01Icon,
+  },
+  jobs: {
+    name: 'Jobs',
+    Icon: TransactionIcon,
+  },
+  earnings: {
+    name: 'Earnings',
+    Icon: TransactionIcon,
   },
 };
 
@@ -57,7 +76,7 @@ function TabItem({
   const scale = useSharedValue(1);
   const config = TAB_CONFIG[routeName] || TAB_CONFIG.index;
   const Icon = config.Icon;
-  
+
   // Theme colors - using dark blue (#003554) for active state
   const activeColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
   const inactiveColor = useThemeColor({}, 'icon');
@@ -190,7 +209,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     width: '100%',
-    maxWidth: 310,
+    maxWidth: 360,
     // Shadow for depth
     shadowColor: '#000',
     shadowOffset: {

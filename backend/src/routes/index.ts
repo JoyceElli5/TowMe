@@ -5,12 +5,14 @@
 
 import { Router } from 'express';
 import authRoutes from './auth.routes';
-import usersRoutes from './users.routes';
-import operatorsRoutes from './operators.routes';
-import requestsRoutes from './requests.routes';
-import ratingsRoutes from './ratings.routes';
+import directionsRoutes from './directions.routes';
 import inspectionsRoutes from './inspections.routes';
+import messagesRoutes from './messages.routes';
+import operatorsRoutes from './operators.routes';
 import paymentsRoutes from './payments.routes';
+import ratingsRoutes from './ratings.routes';
+import requestsRoutes from './requests.routes';
+import usersRoutes from './users.routes';
 
 const router = Router();
 
@@ -23,6 +25,8 @@ router.use('/ratings', ratingsRoutes);
 router.use('/inspections', inspectionsRoutes);
 router.use('/payments', paymentsRoutes);
 router.use('/pricing', paymentsRoutes); // Alias for pricing/estimate
+router.use('/directions', directionsRoutes);
+router.use('/messages', messagesRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

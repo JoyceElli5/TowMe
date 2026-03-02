@@ -5,7 +5,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text } from 'react-native';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -24,6 +24,30 @@ export default function Toast({
 }: ToastProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-50)).current;
+
+  const styles = StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderRadius: 28,
+      marginHorizontal: 20,
+      marginTop: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 8,
+      minHeight: 56,
+    },
+    message: {
+      flex: 1,
+      marginLeft: 12,
+      fontSize: 15,
+      fontFamily: 'Gilroy-Medium',
+    },
+  });
 
   useEffect(() => {
     // Animate in
@@ -117,28 +141,3 @@ export default function Toast({
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 28,
-    marginHorizontal: 20,
-    marginTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-    minHeight: 56,
-  },
-  message: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 15,
-    fontFamily: 'Gilroy-Medium',
-  },
-});
-

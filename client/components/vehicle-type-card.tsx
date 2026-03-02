@@ -14,13 +14,12 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { VEHICLE_OPTIONS, VehicleType } from '@/constants/pricing';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { Fonts } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
 
 // Re-export types for convenience
-export { VehicleType, VEHICLE_OPTIONS };
+export { VEHICLE_OPTIONS, VehicleType };
 
 interface VehicleTypeCardProps {
   /** Currently selected vehicle type */
@@ -41,6 +40,65 @@ export default function VehicleTypeCard({
   const labelColor = useThemeColor({}, 'text');
   const selectedLabelColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
   const inactiveLabelColor = useThemeColor({}, 'icon');
+
+  const styles = StyleSheet.create({
+    container: {
+      marginBottom: 16,
+    },
+    title: {
+      fontSize: 16,
+      fontFamily: Fonts.semiBold,
+      marginBottom: 12,
+    },
+    scrollContent: {
+      paddingRight: 16,
+      gap: 12,
+    },
+    vehicleCard: {
+      alignItems: 'center',
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderWidth: 2,
+      minWidth: 80,
+      position: 'relative',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    iconContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
+    },
+    vehicleIcon: {
+      fontSize: 24,
+    },
+    vehicleLabel: {
+      fontSize: 13,
+      textAlign: 'center',
+    },
+    checkmark: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkmarkText: {
+      color: '#ffffff',
+      fontSize: 11,
+      fontFamily: Fonts.semiBold,
+    },
+  });
 
   return (
     <View style={styles.container}>
@@ -101,62 +159,3 @@ export default function VehicleTypeCard({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 16,
-    fontFamily: Fonts.semiBold,
-    marginBottom: 12,
-  },
-  scrollContent: {
-    paddingRight: 16,
-    gap: 12,
-  },
-  vehicleCard: {
-    alignItems: 'center',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderWidth: 2,
-    minWidth: 80,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  vehicleIcon: {
-    fontSize: 24,
-  },
-  vehicleLabel: {
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  checkmark: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkmarkText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontFamily: Fonts.semiBold,
-  },
-});

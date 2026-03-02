@@ -4,8 +4,9 @@
  */
 
 import { Response } from 'express';
-import * as requestsService from '../services/requests.service';
 import * as receiptService from '../services/receipt.service';
+import * as requestsService from '../services/requests.service';
+import * as usersService from '../services/users.service';
 import type { AuthenticatedRequest } from '../types/api.types';
 import type { RequestStatus, VehicleType } from '../types/database.types';
 
@@ -29,8 +30,14 @@ export async function createRequest(req: AuthenticatedRequest, res: Response): P
 
 /**
  * GET /api/requests
+ * Returns only requests where the authenticated user is the request owner or assigned operator.
  */
 export async function getRequests(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const filters = {
     status: req.query.status as RequestStatus | undefined,
     vehicleType: req.query.vehicleType as VehicleType | undefined,
@@ -40,7 +47,7 @@ export async function getRequests(req: AuthenticatedRequest, res: Response): Pro
     limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
   };
 
-  const result = await requestsService.getRequests(filters);
+  const result = await requestsService.getRequests(filters, req.user.id);
 
   res.json({
     success: true,
@@ -51,10 +58,16 @@ export async function getRequests(req: AuthenticatedRequest, res: Response): Pro
 
 /**
  * GET /api/requests/:id
+ * Only the request owner or assigned operator can view.
  */
 export async function getRequestById(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const { id } = req.params;
-  const request = await requestsService.getRequestWithDetails(id);
+  const request = await requestsService.getRequestWithDetails(id, req.user.id);
 
   res.json({
     success: true,
@@ -78,6 +91,25 @@ export async function acceptRequest(req: AuthenticatedRequest, res: Response): P
     success: true,
     data: request,
     message: 'Request accepted',
+  });
+}
+
+/**
+ * PATCH /api/requests/:id/decline
+ */
+export async function declineRequest(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
+  const { id } = req.params;
+  const request = await requestsService.declineRequest(id, req.user.id);
+
+  res.json({
+    success: true,
+    data: request,
+    message: 'Request declined',
   });
 }
 
@@ -141,9 +173,20 @@ export async function cancelRequest(req: AuthenticatedRequest, res: Response): P
 
 /**
  * GET /api/requests/user/:userId
+ * Authenticated user can only list their own requests (req.user.id must equal userId).
  */
 export async function getUserRequests(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const { userId } = req.params;
+  if (req.user.id !== userId) {
+    res.status(403).json({ success: false, error: 'You can only view your own requests' });
+    return;
+  }
+
   const filters = {
     status: req.query.status as RequestStatus | undefined,
     page: req.query.page ? parseInt(req.query.page as string) : undefined,
@@ -161,9 +204,20 @@ export async function getUserRequests(req: AuthenticatedRequest, res: Response):
 
 /**
  * GET /api/requests/operator/:operatorId
+ * Authenticated user can only list their own jobs (req.user.id must equal operatorId).
  */
 export async function getOperatorRequests(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
   const { operatorId } = req.params;
+  if (req.user.id !== operatorId) {
+    res.status(403).json({ success: false, error: 'You can only view your own jobs' });
+    return;
+  }
+
   const filters = {
     status: req.query.status as RequestStatus | undefined,
     page: req.query.page ? parseInt(req.query.page as string) : undefined,
@@ -188,7 +242,7 @@ export async function getPendingRequests(req: AuthenticatedRequest, res: Respons
     return;
   }
 
-  const requests = await requestsService.getPendingRequests();
+  const requests = await requestsService.getPendingRequests(req.user.id);
 
   res.json({
     success: true,
@@ -198,23 +252,29 @@ export async function getPendingRequests(req: AuthenticatedRequest, res: Respons
 
 /**
  * GET /api/requests/:id/track
+ * Only the request owner (user) or assigned operator can track.
  */
 export async function trackRequest(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { id } = req.params;
-  const request = await requestsService.getRequestWithDetails(id);
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
 
-  // In a real implementation, this would include real-time location data
+  const { id } = req.params;
+  const request = await requestsService.getRequestWithDetails(id, req.user.id);
+
+  // Get real-time operator location if operator is assigned
+  let operatorLocation = null;
+  if (request.operator?.id) {
+    const location = await usersService.getOperatorLocation(request.operator.id);
+    operatorLocation = location;
+  }
+
   res.json({
     success: true,
     data: {
       request,
-      // Placeholder for operator location
-      operatorLocation: request.operator ? {
-        latitude: 5.6050,
-        longitude: -0.1860,
-        heading: 180,
-        timestamp: new Date().toISOString(),
-      } : null,
+      operatorLocation,
     },
   });
 }

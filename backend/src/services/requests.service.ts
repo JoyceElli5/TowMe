@@ -7,6 +7,7 @@ import type { TowingRequest } from '../types/database.types';
 import { calculateDistance } from '../utils/distance.calculator';
 import logger from '../utils/logger';
 import { calculateEstimatedPrice, calculateFinalPrice } from '../utils/price.calculator';
+import * as matchingService from './matching.service';
 import { incrementUserTrips } from './users.service';
 
 /**
@@ -21,13 +22,36 @@ export async function createRequest(
   // Check if user already has an active request
   const { data: activeRequest } = await supabase
     .from('towing_requests')
-    .select('id')
+    .select('id, status, created_at')
     .eq('user_id', userId)
     .in('status', ['pending', 'accepted', 'in_progress'])
     .single();
 
   if (activeRequest) {
-    throw createError.conflict('You already have an active request');
+    // If request is pending and older than 15 minutes, auto-cancel it
+    if (activeRequest.status === 'pending') {
+      const createdAt = new Date(activeRequest.created_at).getTime();
+      const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
+
+      if (createdAt < fifteenMinutesAgo) {
+        logger.info(`Auto-cancelling stale pending request ${activeRequest.id} for user ${userId}`);
+
+        await supabase
+          .from('towing_requests')
+          .update({
+            status: REQUEST_STATUS.CANCELLED,
+            cancellation_reason: 'Auto-cancelled due to timeout',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', activeRequest.id);
+
+        // Proceed with creating the new request
+      } else {
+        throw createError.conflict('You already have an active request');
+      }
+    } else {
+      throw createError.conflict('You already have an active request');
+    }
   }
 
   // Calculate distance
@@ -38,8 +62,8 @@ export async function createRequest(
     data.destinationLng
   );
 
-  // Calculate estimated price
-  const estimatedPrice = calculateEstimatedPrice(distanceKm, data.vehicleType);
+  // Calculate estimated price (now async - fetches from database)
+  const estimatedPrice = await calculateEstimatedPrice(distanceKm, data.vehicleType);
 
   // Create request
   const { data: request, error } = await supabase
@@ -66,6 +90,22 @@ export async function createRequest(
     throw createError.internal('Failed to create request');
   }
 
+  // Attempt to automatically assign an operator
+  // This runs asynchronously and doesn't block the request creation
+  // If no operator is available, request remains in 'pending' status
+  matchingService.autoAssignOperator(request.id, data.pickupLat, data.pickupLng)
+    .then((match) => {
+      if (match) {
+        logger.info(`Auto-assigned operator ${match.operatorId} to request ${request.id}`);
+      } else {
+        logger.info(`No operator available for request ${request.id}, keeping as pending`);
+      }
+    })
+    .catch((error) => {
+      // Don't fail request creation if matching fails
+      logger.error('Error in auto-assignment:', error);
+    });
+
   return request;
 }
 
@@ -89,9 +129,13 @@ export async function getRequestById(requestId: string): Promise<TowingRequest> 
 }
 
 /**
- * Get request with user and operator details
+ * Get request with user and operator details.
+ * If userId is provided, only returns the request when the user is the owner or assigned operator; otherwise 403.
  */
-export async function getRequestWithDetails(requestId: string): Promise<TowingRequestResponse> {
+export async function getRequestWithDetails(
+  requestId: string,
+  userId?: string
+): Promise<TowingRequestResponse> {
   const supabase = getSupabaseAdmin();
 
   const { data: request, error } = await supabase
@@ -102,6 +146,10 @@ export async function getRequestWithDetails(requestId: string): Promise<TowingRe
 
   if (error || !request) {
     throw createError.notFound('Request not found');
+  }
+
+  if (userId != null && request.user_id !== userId && request.operator_id !== userId) {
+    throw createError.forbidden('You do not have access to this request');
   }
 
   // Get user details
@@ -126,10 +174,12 @@ export async function getRequestWithDetails(requestId: string): Promise<TowingRe
 }
 
 /**
- * Get all requests with filters
+ * Get all requests with filters.
+ * When userId is provided, returns only requests where the user is the owner or assigned operator.
  */
 export async function getRequests(
-  filters: TowingRequestFilters
+  filters: TowingRequestFilters,
+  userId: string
 ): Promise<PaginatedResponse<TowingRequestResponse>> {
   const supabase = getSupabaseAdmin();
   const page = filters.page || 1;
@@ -138,7 +188,8 @@ export async function getRequests(
 
   let query = supabase
     .from('towing_requests')
-    .select('*', { count: 'exact' });
+    .select('*', { count: 'exact' })
+    .or(`user_id.eq.${userId},operator_id.eq.${userId}`);
 
   if (filters.status) {
     query = query.eq('status', filters.status);
@@ -183,14 +234,22 @@ export async function getRequests(
 /**
  * Get pending requests (for operators)
  */
-export async function getPendingRequests(): Promise<TowingRequest[]> {
+export async function getPendingRequests(operatorId?: string): Promise<TowingRequest[]> {
   const supabase = getSupabaseAdmin();
 
-  const { data: requests, error } = await supabase
+  let query = supabase
     .from('towing_requests')
     .select('*')
     .eq('status', REQUEST_STATUS.PENDING)
     .order('created_at', { ascending: true });
+
+  if (operatorId) {
+    query = query.or(`operator_id.is.null,operator_id.eq.${operatorId}`);
+  } else {
+    query = query.is('operator_id', null);
+  }
+
+  const { data: requests, error } = await query;
 
   if (error) {
     logger.error('Error fetching pending requests:', error);
@@ -291,7 +350,8 @@ export async function getOperatorRequests(
 }
 
 /**
- * Accept a request (operator)
+ * Accept a request (operator).
+ * Uses a single atomic UPDATE ... WHERE id = ? AND status = 'pending' to avoid race conditions.
  */
 export async function acceptRequest(
   requestId: string,
@@ -299,22 +359,7 @@ export async function acceptRequest(
 ): Promise<TowingRequest> {
   const supabase = getSupabaseAdmin();
 
-  // Verify request is pending
-  const { data: request } = await supabase
-    .from('towing_requests')
-    .select('status')
-    .eq('id', requestId)
-    .single();
-
-  if (!request) {
-    throw createError.notFound('Request not found');
-  }
-
-  if (request.status !== REQUEST_STATUS.PENDING) {
-    throw createError.conflict('Request is no longer available');
-  }
-
-  // Check if operator has an active job
+  // Check if operator has an active job (before attempting accept)
   const { data: activeJob } = await supabase
     .from('towing_requests')
     .select('id')
@@ -326,7 +371,7 @@ export async function acceptRequest(
     throw createError.conflict('You already have an active job');
   }
 
-  // Verify operator is online
+  // Verify operator is online and is a tow_operator
   const { data: operator } = await supabase
     .from('users')
     .select('is_online, role')
@@ -341,7 +386,7 @@ export async function acceptRequest(
     throw createError.forbidden('You must be online to accept requests');
   }
 
-  // Accept the request
+  // Atomic accept: only update if request is still pending (prevents double-accept race)
   const { data: updatedRequest, error } = await supabase
     .from('towing_requests')
     .update({
@@ -351,12 +396,100 @@ export async function acceptRequest(
       updated_at: new Date().toISOString(),
     })
     .eq('id', requestId)
+    .eq('status', REQUEST_STATUS.PENDING)
     .select()
     .single();
 
   if (error) {
+    if (error.code === 'PGRST116') {
+      // No rows returned: request not found or no longer pending
+      const { data: existing } = await supabase
+        .from('towing_requests')
+        .select('id, status')
+        .eq('id', requestId)
+        .single();
+      if (!existing) {
+        throw createError.notFound('Request not found');
+      }
+      throw createError.conflict('Request is no longer available');
+    }
     logger.error('Error accepting request:', error);
     throw createError.internal('Failed to accept request');
+  }
+
+  return updatedRequest;
+}
+
+/**
+ * Decline a request (operator)
+ */
+export async function declineRequest(
+  requestId: string,
+  operatorId: string
+): Promise<TowingRequest> {
+  const supabase = getSupabaseAdmin();
+
+  // Verify request is pending and assigned to this operator
+  const { data: request } = await supabase
+    .from('towing_requests')
+    .select('status, operator_id')
+    .eq('id', requestId)
+    .single();
+
+  if (!request) {
+    throw createError.notFound('Request not found');
+  }
+
+  if (request.status !== REQUEST_STATUS.PENDING) {
+    throw createError.conflict('Request is no longer pending/available');
+  }
+
+  if (request.operator_id !== operatorId) {
+    throw createError.conflict('Request is not assigned to you or already taken');
+  }
+
+  // Set the request back to broadcast mode (operator_id = null)
+  const { data: updatedRequest, error } = await supabase
+    .from('towing_requests')
+    .update({
+      operator_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', requestId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error('Error declining request:', error);
+    throw createError.internal('Failed to decline request');
+  }
+
+  // Broadcast to all other online operators
+  const { data: onlineOperators } = await supabase
+    .from('users')
+    .select('id')
+    .eq('role', 'tow_operator')
+    .eq('is_online', true)
+    .neq('id', operatorId);
+
+  if (onlineOperators && onlineOperators.length > 0) {
+    const notificationsService = await import('./notification.service');
+    const notifications = onlineOperators.map(op =>
+      notificationsService.createNotification(
+        op.id,
+        'New Job Available! 🔔',
+        `A ${updatedRequest.vehicle_type} towing request was just released. First to accept gets it! Distance: ${updatedRequest.distance_km.toFixed(1)}km.`,
+        'request',
+        { requestId }
+      )
+    );
+
+    try {
+      await Promise.allSettled(notifications);
+      logger.info(`Broadcasted declined request ${requestId} to ${onlineOperators.length} operators`);
+    } catch (err) {
+      logger.error('Error broadcasting notifications on decline:', err);
+    }
   }
 
   return updatedRequest;
@@ -432,7 +565,7 @@ export async function completeRequest(
   }
 
   // Calculate final price (could include additional charges in future)
-  const finalPrice = calculateFinalPrice(request.distance_km, request.vehicle_type);
+  const finalPrice = await calculateFinalPrice(request.distance_km, request.vehicle_type);
 
   const { data: updatedRequest, error } = await supabase
     .from('towing_requests')

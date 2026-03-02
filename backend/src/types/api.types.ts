@@ -3,10 +3,16 @@
  */
 
 import { Request } from 'express';
-import { UserRole, VehicleType, RequestStatus, VehicleCondition } from './database.types';
+import { RequestStatus, UserRole, VehicleCondition, VehicleType } from './database.types';
 
 // Extend Express Request to include user info
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<
+  P = any,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = any,
+  Locals extends Record<string, any> = Record<string, any>
+> extends Request<P, ResBody, ReqBody, ReqQuery, Locals> {
   user?: {
     id: string;
     email: string;
@@ -231,6 +237,23 @@ export interface LocationResponse {
   heading: number | null;
   speed: number | null;
   timestamp: string;
+}
+
+// Messaging types
+export interface SendMessageRequest {
+  requestId: string;
+  receiverId: string;
+  content: string;
+}
+
+export interface MessageResponse {
+  id: string;
+  requestId: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
 }
 
 // Analytics types

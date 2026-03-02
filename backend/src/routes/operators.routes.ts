@@ -18,4 +18,13 @@ router.patch(
   asyncHandler(usersController.toggleOnlineStatus)
 );
 
+// Update operator location (protected - operators only)
+router.patch(
+  '/:id/location',
+  authMiddleware,
+  requireTowOperator,
+  validateParams(schemas.uuid),
+  asyncHandler(usersController.updateOperatorLocation)
+);
+
 export default router;
