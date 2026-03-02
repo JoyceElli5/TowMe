@@ -147,6 +147,30 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  /** Try to refresh access token using refresh token; returns true if new token was stored. */
+  private async tryRefreshAndStoreToken(): Promise<boolean> {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) return false;
+    try {
+      const url = `${this.baseUrl}/auth/refresh-token`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      const token = data?.data?.accessToken ?? data?.accessToken;
+      if (token) {
+        await setAccessToken(token);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
@@ -194,6 +218,17 @@ class ApiClient {
 
       // Check if response is ok before trying to parse JSON
       if (!response.ok) {
+        // 401: try refresh token once, then retry (skip for auth endpoints to avoid loops)
+        const isAuthEndpoint = endpoint.includes('/auth/');
+        if (response.status === 401 && retryCount === 0 && !isAuthEndpoint) {
+          const refreshed = await this.tryRefreshAndStoreToken();
+          if (refreshed) {
+            return this.request<T>(endpoint, options, retryCount + 1);
+          }
+          await clearTokens();
+          throw new ApiError('Session expired. Please sign in again.', 401);
+        }
+
         // Retry logic for idempotent methods (GET) or specific status codes
         const isIdempotent = !options.method || options.method === 'GET' || options.method === 'HEAD' || options.method === 'OPTIONS';
         const isRetryableStatus = [408, 429, 500, 502, 503, 504].includes(response.status);
@@ -223,7 +258,7 @@ class ApiClient {
       let data: ApiResponse<T>;
       try {
         data = await response.json();
-      } catch (parseError) {
+      } catch {
         throw new ApiError('Invalid JSON response from server', response.status);
       }
 
