@@ -22,7 +22,7 @@ export default function RoleSelectionScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGetStarted = () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isLoading) return;
     setIsLoading(true);
     try {
       router.push({
@@ -30,6 +30,10 @@ export default function RoleSelectionScreen() {
         params: { role: selectedRole },
       });
     } catch {
+      // If navigation fails, allow the user to try again
+    } finally {
+      // Always reset loading so if the user comes back
+      // they can change their selection
       setIsLoading(false);
     }
   };
