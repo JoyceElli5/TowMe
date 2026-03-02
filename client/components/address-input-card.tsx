@@ -35,6 +35,60 @@ export default function AddressInputCard({
 }: AddressInputCardProps) {
   const isPickup = type === 'pickup';
 
+  const styles = StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: '#9ca3af',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    iconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    pickupIcon: {
+      backgroundColor: '#dcfce7',
+    },
+    destinationIcon: {
+      backgroundColor: '#fee2e2',
+    },
+    contentContainer: {
+      flex: 1,
+    },
+    label: {
+      fontSize: 12,
+      fontWeight: '500',
+      marginBottom: 2,
+    },
+    addressText: {
+      fontSize: 15,
+      fontWeight: '500',
+    },
+    placeholderText: {
+      fontWeight: '400',
+    },
+    arrowContainer: {
+      marginLeft: 8,
+    },
+    arrowText: {
+      fontSize: 24,
+      color: '#9ca3af',
+      fontWeight: '300',
+    },
+  });
+
   return (
     <TouchableOpacity
       style={styles.container}
@@ -71,57 +125,3 @@ export default function AddressInputCard({
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#9ca3af',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  pickupIcon: {
-    backgroundColor: '#dcfce7',
-  },
-  destinationIcon: {
-    backgroundColor: '#fee2e2',
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  addressText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  placeholderText: {
-    fontWeight: '400',
-  },
-  arrowContainer: {
-    marginLeft: 8,
-  },
-  arrowText: {
-    fontSize: 24,
-    color: '#9ca3af',
-    fontWeight: '300',
-  },
-});

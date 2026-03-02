@@ -22,14 +22,18 @@ export default function RoleSelectionScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGetStarted = () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isLoading) return;
     setIsLoading(true);
     try {
       router.push({
-        pathname: '/screens/auth/login-screen',
+        pathname: '/screens/auth/auth-method-screen',
         params: { role: selectedRole },
       });
     } catch {
+      // If navigation fails, allow the user to try again
+    } finally {
+      // Always reset loading so if the user comes back
+      // they can change their selection
       setIsLoading(false);
     }
   };

@@ -4,24 +4,24 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { BASE_PRICE_PER_KM, CURRENCY_SYMBOL, REQUEST_STATUS } from '../config/constants';
 import { getSupabaseAdmin } from '../config/database';
-import { CURRENCY_SYMBOL, REQUEST_STATUS, BASE_PRICE_PER_KM } from '../config/constants';
 import { createError } from '../middleware/error.middleware';
-import { calculateDistance } from '../utils/distance.calculator';
-import { calculateEstimatedPrice, getVehicleMultiplier } from '../utils/price.calculator';
 import type {
-  PriceEstimateRequest,
-  PriceEstimateResponse,
   CreatePaymentRequest,
   PaymentResponse,
+  PriceEstimateRequest,
+  PriceEstimateResponse,
 } from '../types/api.types';
-import type { Payment, VehicleType } from '../types/database.types';
+import type { Payment } from '../types/database.types';
+import { calculateDistance } from '../utils/distance.calculator';
 import logger from '../utils/logger';
+import { calculateEstimatedPrice, getVehicleMultiplier } from '../utils/price.calculator';
 
 /**
  * Get price estimate for a trip
  */
-export function getPriceEstimate(data: PriceEstimateRequest): PriceEstimateResponse {
+export async function getPriceEstimate(data: PriceEstimateRequest): Promise<PriceEstimateResponse> {
   const distanceKm = calculateDistance(
     data.pickupLat,
     data.pickupLng,
@@ -29,7 +29,7 @@ export function getPriceEstimate(data: PriceEstimateRequest): PriceEstimateRespo
     data.destinationLng
   );
 
-  const estimatedPrice = calculateEstimatedPrice(distanceKm, data.vehicleType);
+  const estimatedPrice = await calculateEstimatedPrice(distanceKm, data.vehicleType);
   const vehicleMultiplier = getVehicleMultiplier(data.vehicleType);
 
   return {

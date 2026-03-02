@@ -18,6 +18,7 @@ import {
 
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, login as loginApi } from '@/lib/api';
+import { signInWithEmail } from '@/lib/supabase';
 import { LoginFormData, loginSchema, UserRole } from '@/schemas/auth';
 
 export default function LoginScreen() {
@@ -49,13 +50,49 @@ export default function LoginScreen() {
       });
 
       console.log('Login successful:', user);
-      
+
+      // Also sign into Supabase Auth so auth.uid() is set for RLS and Storage
+      try {
+        const { error: supabaseError } = await signInWithEmail(
+          data.email,
+          data.password
+        );
+        if (supabaseError) {
+          console.warn('Supabase email sign-in failed:', supabaseError.message);
+        }
+      } catch (supabaseErr: any) {
+        console.warn(
+          'Error signing into Supabase Auth:',
+          supabaseErr?.message || supabaseErr
+        );
+      }
+
       showToast('Login successful!', 'success');
-      
+
       // Navigate to appropriate dashboard based on user role from API response
-      setTimeout(() => {
+      setTimeout(async () => {
         if (user.role === 'tow_operator') {
-          router.replace('/screens/operator/dashboard');
+          // Check if operator profile is complete and verified
+          const { isProfileComplete, getVerificationStatus } = await import('@/lib/services/operatorService');
+
+          const profileComplete = await isProfileComplete(user.id);
+          // if (!profileComplete) {
+          //   router.replace('/screens/operator/profile-setup-screen');
+          //   return;
+          // }
+
+          const verificationStatus = await getVerificationStatus(user.id);
+          if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
+            router.replace('/screens/operator/verification-pending');
+          } else if (verificationStatus === 'rejected') {
+            router.replace('/screens/operator/verification-rejected');
+          } else if (verificationStatus === 'approved') {
+            router.replace('/operator/(tabs)/dashboard');
+          } else {
+            // router.replace('/screens/operator/profile-setup-screen');
+            console.warn('Operator verification status unknown, and profile setup screen is disabled');
+            router.replace('/operator/(tabs)/dashboard'); // Fallback to dashboard
+          }
         } else {
           router.replace('/(tabs)');
         }
@@ -186,10 +223,10 @@ export default function LoginScreen() {
                   accessibilityRole="button"
                   accessibilityHint={showPassword ? 'Password is currently visible' : 'Password is currently hidden'}
                 >
-                  <Ionicons 
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
-                    size={22} 
-                    color="#6b7280" 
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color="#6b7280"
                   />
                 </TouchableOpacity>
               </View>

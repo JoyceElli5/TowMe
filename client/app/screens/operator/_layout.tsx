@@ -9,13 +9,18 @@ import { Stack } from 'expo-router';
 export default function OperatorScreensLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
+// <Stack.Screen name="profile-setup-screen" />
+      <Stack.Screen name="verification-pending" />
+      <Stack.Screen name="verification-rejected" />
       <Stack.Screen name="dashboard" />
+      <Stack.Screen name="profile" />
       <Stack.Screen name="incoming-request" />
       <Stack.Screen name="navigation-to-pickup" />
       <Stack.Screen name="arrived-at-pickup" />
       <Stack.Screen name="towing-in-progress" />
       <Stack.Screen name="trip-completed" />
       <Stack.Screen name="rate-user" />
+      <Stack.Screen name="chat-screen" />
     </Stack>
   );
 }

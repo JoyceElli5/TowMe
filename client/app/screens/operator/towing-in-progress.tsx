@@ -1,14 +1,16 @@
 /**
- * Towing in Progress Screen (Placeholder)
+ * Towing in Progress Screen
  * 
  * Shows active towing with navigation to destination.
  * Displays progress and allows completion confirmation.
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Platform,
   StatusBar,
   StyleSheet,
@@ -16,30 +18,163 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useToast } from '@/hooks/use-toast';
+import { completeRequest, getRequestById, type TowingRequest } from '@/lib/api';
+import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
+import { calculateDistance } from '@/lib/services/locationService';
+import { getCurrentOperatorLocation, type OperatorLocation } from '@/lib/services/operatorLocationService';
+
 export default function TowingInProgressScreen() {
+  const params = useLocalSearchParams<{ requestId: string }>();
+  const { showToast } = useToast();
+
+  const [request, setRequest] = useState<TowingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [operatorLocation, setOperatorLocation] = useState<OperatorLocation | null>(null);
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+  const [mapRegion, setMapRegion] = useState<Region | null>(null);
+  const [distance, setDistance] = useState<number>(0);
+  const [eta, setEta] = useState<number>(0);
   const [progress, setProgress] = useState(0);
+  const [isCompleting, setIsCompleting] = useState(false);
 
-  // Simulate progress
+  // Fetch request details
   useEffect(() => {
-    const timer = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          return 100;
+    const fetchRequest = async () => {
+      if (!params.requestId) {
+        Alert.alert('Error', 'Request ID is missing');
+        router.back();
+        return;
+      }
+
+      try {
+        const requestData = await getRequestById(params.requestId);
+        setRequest(requestData);
+
+        // Set initial map region
+        if (requestData.destinationLat && requestData.destinationLng) {
+          setMapRegion({
+            latitude: requestData.destinationLat,
+            longitude: requestData.destinationLng,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          });
         }
-        return prev + 5;
+      } catch (error) {
+        console.error('Failed to fetch request:', error);
+        Alert.alert('Error', 'Failed to load request details');
+        router.back();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRequest();
+  }, [params.requestId]);
+
+  // Update operator location and route
+  useEffect(() => {
+    if (!request) return;
+
+    const updateLocation = async () => {
+      try {
+        const location = await getCurrentOperatorLocation();
+        if (location) {
+          setOperatorLocation(location);
+
+          // Update route
+          const route = await getRoute(
+            { latitude: location.latitude, longitude: location.longitude },
+            { latitude: request.destinationLat, longitude: request.destinationLng }
+          );
+          setRoutePoints(route.points);
+
+          // Calculate distance and ETA
+          const dist = calculateDistance(
+            location.latitude,
+            location.longitude,
+            request.destinationLat,
+            request.destinationLng
+          );
+          setDistance(dist / 1000); // Convert to km
+          setEta(Math.max(1, Math.round((dist / 1000) * 2.5))); // ~2.5 min per km
+
+          // Calculate progress (0-100%)
+          const totalDistance = request.distanceKm || 1;
+          const remainingDistance = dist / 1000;
+          const traveledDistance = Math.max(0, totalDistance - remainingDistance);
+          const progressPercent = Math.min(100, Math.max(0, (traveledDistance / totalDistance) * 100));
+          setProgress(progressPercent);
+
+          // Update map region
+          const allCoords = [
+            { latitude: location.latitude, longitude: location.longitude },
+            { latitude: request.destinationLat, longitude: request.destinationLng },
+          ];
+          const minLat = Math.min(...allCoords.map(c => c.latitude));
+          const maxLat = Math.max(...allCoords.map(c => c.latitude));
+          const minLng = Math.min(...allCoords.map(c => c.longitude));
+          const maxLng = Math.max(...allCoords.map(c => c.longitude));
+
+          setMapRegion({
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLng + maxLng) / 2,
+            latitudeDelta: Math.max((maxLat - minLat) * 1.5, 0.01),
+            longitudeDelta: Math.max((maxLng - minLng) * 1.5, 0.01),
+          });
+        }
+      } catch (error) {
+        console.error('Error updating location:', error);
+      }
+    };
+
+    updateLocation();
+    const interval = setInterval(updateLocation, 5000); // Update every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [request]);
+
+  const handleComplete = async () => {
+    if (!params.requestId) return;
+
+    setIsCompleting(true);
+    try {
+      await completeRequest(params.requestId);
+      router.replace({
+        pathname: '/screens/operator/trip-completed',
+        params: { requestId: params.requestId },
       });
-    }, 500);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleComplete = () => {
-    router.replace('/screens/operator/trip-completed');
+    } catch (error) {
+      console.error('Failed to complete request:', error);
+      showToast('Failed to complete trip', 'error');
+    } finally {
+      setIsCompleting(false);
+    }
   };
+
+  const handleMessage = () => {
+    if (params.requestId) {
+      router.push({
+        pathname: '/screens/operator/chat-screen',
+        params: { requestId: params.requestId },
+      });
+    }
+  };
+
+  if (isLoading || !request) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -49,29 +184,53 @@ export default function TowingInProgressScreen() {
       <MapView
         style={styles.map}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={{
-          latitude: 5.6037,
-          longitude: -0.1870,
-          latitudeDelta: 0.03,
-          longitudeDelta: 0.03,
-        }}
+        region={mapRegion || undefined}
+        showsUserLocation
       >
         {/* Destination Marker */}
         <Marker
-          coordinate={{ latitude: 5.6100, longitude: -0.1800 }}
+          coordinate={{ latitude: request.destinationLat, longitude: request.destinationLng }}
           title="Destination"
         >
           <View style={styles.destinationMarker}>
             <Ionicons name="flag" size={24} color="#EF4444" />
           </View>
         </Marker>
+
+        {/* Operator Location Marker */}
+        {operatorLocation && (
+          <Marker
+            coordinate={{ latitude: operatorLocation.latitude, longitude: operatorLocation.longitude }}
+            title="Your Location"
+          >
+            <View style={styles.operatorMarker}>
+              <Ionicons name="car" size={20} color="#10B981" />
+            </View>
+          </Marker>
+        )}
+
+        {/* Route Polyline */}
+        {routePoints.length > 0 && (
+          <Polyline
+            coordinates={routePoints}
+            strokeColor="#003554"
+            strokeWidth={5}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
       </MapView>
 
       {/* Header */}
       <SafeAreaView style={styles.header}>
-        <View style={styles.statusBadge}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Towing in Progress</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.statusBadge}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Towing in Progress</Text>
+          </View>
+          <TouchableOpacity style={styles.messageButton} onPress={handleMessage}>
+            <Ionicons name="chatbubble-ellipses" size={24} color="#003554" />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -80,21 +239,21 @@ export default function TowingInProgressScreen() {
         {/* Progress Info */}
         <View style={styles.progressInfo}>
           <Text style={styles.destinationLabel}>Heading to</Text>
-          <Text style={styles.destinationText}>Accra Mall, Accra</Text>
+          <Text style={styles.destinationText}>{request.destinationAddress || 'Loading...'}</Text>
         </View>
 
         {/* Progress Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>8.5 km</Text>
+            <Text style={styles.statValue}>{distance.toFixed(1)} km</Text>
             <Text style={styles.statLabel}>Remaining</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>~20 min</Text>
+            <Text style={styles.statValue}>~{eta} min</Text>
             <Text style={styles.statLabel}>ETA</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{progress}%</Text>
+            <Text style={styles.statValue}>{Math.round(progress)}%</Text>
             <Text style={styles.statLabel}>Complete</Text>
           </View>
         </View>
@@ -108,15 +267,19 @@ export default function TowingInProgressScreen() {
         <TouchableOpacity
           style={[
             styles.completeButton,
-            progress < 100 && styles.buttonDisabled,
+            (progress < 90 || isCompleting) && styles.buttonDisabled,
           ]}
           onPress={handleComplete}
-          disabled={progress < 100}
+          disabled={progress < 90 || isCompleting}
           activeOpacity={0.8}
         >
-          <Text style={styles.completeButtonText}>
-            {progress < 100 ? 'Towing...' : 'Complete Trip'}
-          </Text>
+          {isCompleting ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.completeButtonText}>
+              {progress < 90 ? 'Towing...' : 'Complete Trip'}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -149,6 +312,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -157,6 +327,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     gap: 8,
+  },
+  messageButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statusDot: {
     width: 10,
@@ -248,5 +431,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  operatorMarker: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });

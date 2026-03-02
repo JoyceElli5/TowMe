@@ -33,7 +33,7 @@ export async function getPriceEstimate(req: AuthenticatedRequest, res: Response)
     return;
   }
 
-  const estimate = paymentsService.getPriceEstimate({
+  const estimate = await paymentsService.getPriceEstimate({
     pickupLat,
     pickupLng,
     destinationLat,

@@ -62,5 +62,15 @@ declare module 'hugeicons-react-native' {
   export const SmartPhone01Icon: ComponentType<IconProps>;
   export const LegalDocument01Icon: ComponentType<IconProps>;
   export const MessageDone01Icon: ComponentType<IconProps>;
+  
+  // Additional icons for profile screen
+  export const Moon01Icon: ComponentType<IconProps>;
+  export const Sun01Icon: ComponentType<IconProps>;
+  export const Mail01Icon: ComponentType<IconProps>;
+  export const CreditCardIcon: ComponentType<IconProps>;
+  export const UserBlock01Icon: ComponentType<IconProps>;
+  export const HeadsetIcon: ComponentType<IconProps>;
+  export const HelpCircleIcon: ComponentType<IconProps>;
+  export const Car01Icon: ComponentType<IconProps>;
 }
 

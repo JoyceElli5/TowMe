@@ -1,6 +1,78 @@
-import { Redirect } from 'expo-router';
+import { ThemedView } from '@/components/themed-view';
+import { getCurrentSession, getCurrentUser } from '@/lib/services/authService';
+import { isProfileComplete } from '@/lib/services/operatorService';
+import { supabase } from '@/lib/supabase';
+import { router } from 'expo-router';
+import { useEffect } from 'react';
+import { ActivityIndicator } from 'react-native';
 
 export default function IndexScreen() {
-  // Redirect to onboarding screens
-  return <Redirect href="/screens/onboarding/onboarding-screen" />;
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const session = await getCurrentSession();
+        console.log('Auth check - Session:', session ? 'exists' : 'none');
+        
+        if (session && session.user) {
+          // Check user role and profile completion
+          const user = await getCurrentUser();
+          console.log('Auth check - User:', user ? user.id : 'none');
+          
+          if (user) {
+            try {
+              const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('role, profile_completed')
+                .eq('id', user.id)
+                .maybeSingle();
+
+              if (userError) {
+                console.error('Error fetching user data:', userError);
+                // If user doesn't exist in users table, redirect to onboarding
+                router.replace('/screens/onboarding/onboarding-screen');
+                return;
+              }
+
+              if (!userData) {
+                // No row in users table for this auth user yet
+                router.replace('/screens/onboarding/onboarding-screen');
+                return;
+              }
+
+              if (userData.role === 'tow_operator') {
+                // For now, always send operators to their dashboard.
+                // They can complete profile from the Profile tab/settings.
+                router.replace('/operator/(tabs)/dashboard');
+              } else {
+                // Regular user - go to tabs
+                router.replace('/(tabs)');
+              }
+            } catch (dbError) {
+              console.error('Database error:', dbError);
+              // On error, redirect to onboarding
+              router.replace('/screens/onboarding/onboarding-screen');
+            }
+          } else {
+            // No user found - redirect to onboarding
+            router.replace('/screens/onboarding/onboarding-screen');
+          }
+        } else {
+          // No session - redirect to onboarding
+          console.log('No session found, redirecting to onboarding');
+          router.replace('/screens/onboarding/onboarding-screen');
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        // On any error, redirect to onboarding
+        router.replace('/screens/onboarding/onboarding-screen');
+      }
+    };
+    checkAuth();
+  }, []);
+
+  return (
+    <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" />
+    </ThemedView>
+  );
 }
