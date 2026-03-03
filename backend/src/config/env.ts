@@ -35,6 +35,13 @@ export const config = {
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '1000', 10),
     authMaxRequests: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || '100', 10),
   },
+
+  // Admin dashboard: set ADMIN_SECRET + ADMIN_EMAIL + ADMIN_PASSWORD to enable login
+  admin: {
+    secret: process.env.ADMIN_SECRET || '',
+    email: process.env.ADMIN_EMAIL || '',
+    password: process.env.ADMIN_PASSWORD || '',
+  },
 };
 
 const DEFAULT_JWT_SECRET = 'development-secret-key-change-in-production';
