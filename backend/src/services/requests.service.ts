@@ -28,11 +28,13 @@ export async function createRequest(
     .single();
 
   if (activeRequest) {
-    // If request is pending and older than 15 minutes, auto-cancel it
-    if (activeRequest.status === 'pending') {
-      const createdAt = new Date(activeRequest.created_at).getTime();
-      const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
+    const createdAt = new Date(activeRequest.created_at).getTime();
+    const now = Date.now();
+    const fifteenMinutesAgo = now - 15 * 60 * 1000;
+    const sixHoursAgo = now - 6 * 60 * 60 * 1000;
 
+    if (activeRequest.status === 'pending') {
+      // Pending requests older than 15 minutes are auto-cancelled
       if (createdAt < fifteenMinutesAgo) {
         logger.info(`Auto-cancelling stale pending request ${activeRequest.id} for user ${userId}`);
 
@@ -44,13 +46,27 @@ export async function createRequest(
             updated_at: new Date().toISOString(),
           })
           .eq('id', activeRequest.id);
-
         // Proceed with creating the new request
       } else {
         throw createError.conflict('You already have an active request');
       }
     } else {
-      throw createError.conflict('You already have an active request');
+      // Accepted / in_progress requests older than 6 hours are auto-closed
+      if (createdAt < sixHoursAgo) {
+        logger.info(`Auto-closing stale active request ${activeRequest.id} for user ${userId}`);
+
+        await supabase
+          .from('towing_requests')
+          .update({
+            status: REQUEST_STATUS.CANCELLED,
+            cancellation_reason: 'Auto-cancelled due to inactivity',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', activeRequest.id);
+        // Allow new request to be created
+      } else {
+        throw createError.conflict('You already have an active request');
+      }
     }
   }
 
