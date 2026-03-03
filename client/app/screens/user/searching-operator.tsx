@@ -80,8 +80,18 @@ export default function SearchingOperatorScreen() {
           router.back();
         }
       } catch (error) {
-        // Silent here; we still have realtime + manual navigation
         console.error('Error polling request status:', error);
+        if (error instanceof ApiError) {
+          if (error.status === 404) {
+            clearInterval(interval);
+            showToast('This request is no longer available.', 'error');
+            router.replace('/screens/user/home-screen');
+          } else if (error.status === 401) {
+            clearInterval(interval);
+            showToast('Session expired. Please sign in again.', 'error');
+            router.replace('/screens/auth/login-screen');
+          }
+        }
       }
     }, 5000);
 

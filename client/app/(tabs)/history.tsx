@@ -97,7 +97,7 @@ function RequestCard({ request, isActive = false, onCancel }: { request: TowingR
 export default function HistoryScreen() {
   const backgroundColor = useThemeColor({}, 'background');
   const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
-  const { activeRequests, pastRequests, isLoading, refresh } = useRequests('user');
+  const { activeRequests, pastRequests, isLoading, error, refresh } = useRequests('user');
   const { showToast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -146,6 +146,16 @@ export default function HistoryScreen() {
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={tintColor} />
         }
       >
+        {error && !isLoading && !isRefreshing && (
+          <View style={styles.errorCard}>
+            <Ionicons name="alert-circle-outline" size={18} color="#b91c1c" />
+            <ThemedText style={styles.errorText}>{error}</ThemedText>
+            <TouchableOpacity onPress={onRefresh}>
+              <ThemedText style={styles.errorAction}>Tap to retry</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {activeRequests.length > 0 && (
           <View style={styles.section}>
             <ThemedText style={styles.sectionTitle}>Active Requests</ThemedText>
@@ -209,6 +219,27 @@ const styles = StyleSheet.create({
   tripListContent: {
     paddingHorizontal: 20,
     paddingBottom: 120,
+  },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    marginBottom: 16,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#991b1b',
+  },
+  errorAction: {
+    fontSize: 13,
+    fontFamily: Fonts.medium,
+    color: '#b91c1c',
   },
   tripCard: {
     borderRadius: 16,

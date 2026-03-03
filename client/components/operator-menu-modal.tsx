@@ -11,22 +11,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  UserIcon,
-  Wallet01Icon,
-  Settings01Icon,
-  Logout01Icon,
-  Close01Icon,
-} from 'hugeicons-react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { logout } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import { Alert } from 'react-native';
 
 interface OperatorMenuModalProps {
   visible: boolean;
@@ -39,6 +32,8 @@ export default function OperatorMenuModal({ visible, onClose }: OperatorMenuModa
   const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
   const iconColor = useThemeColor({}, 'icon');
   const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
+
+  type IconRenderer = (color: string) => JSX.Element;
 
   const handleLogout = async () => {
     Alert.alert(
@@ -64,13 +59,13 @@ export default function OperatorMenuModal({ visible, onClose }: OperatorMenuModa
   };
 
   const menuItems: Array<{
-    icon: React.ComponentType<any> | (() => JSX.Element);
+    icon: IconRenderer;
     label: string;
     onPress: () => void;
     destructive?: boolean;
   }> = [
     {
-      icon: UserIcon,
+      icon: (color) => <Ionicons name="person-outline" size={24} color={color} />,
       label: 'Profile',
       onPress: () => {
         onClose();
@@ -78,7 +73,7 @@ export default function OperatorMenuModal({ visible, onClose }: OperatorMenuModa
       },
     },
     {
-      icon: Wallet01Icon,
+      icon: (color) => <Ionicons name="wallet-outline" size={24} color={color} />,
       label: 'Earnings',
       onPress: () => {
         onClose();
@@ -87,7 +82,7 @@ export default function OperatorMenuModal({ visible, onClose }: OperatorMenuModa
       },
     },
     {
-      icon: () => <Ionicons name="time-outline" size={24} color={iconColor} />,
+      icon: (color) => <Ionicons name="time-outline" size={24} color={color} />,
       label: 'Trip History',
       onPress: () => {
         onClose();
@@ -95,7 +90,7 @@ export default function OperatorMenuModal({ visible, onClose }: OperatorMenuModa
       },
     },
     {
-      icon: Settings01Icon,
+      icon: (color) => <Ionicons name="settings-outline" size={24} color={color} />,
       label: 'Settings',
       onPress: () => {
         onClose();
@@ -103,7 +98,7 @@ export default function OperatorMenuModal({ visible, onClose }: OperatorMenuModa
       },
     },
     {
-      icon: Logout01Icon,
+      icon: (color) => <Ionicons name="log-out-outline" size={24} color={color} />,
       label: 'Logout',
       onPress: handleLogout,
       destructive: true,
@@ -129,15 +124,14 @@ export default function OperatorMenuModal({ visible, onClose }: OperatorMenuModa
             <View style={[styles.header, { borderBottomColor: borderColor }]}>
               <ThemedText style={styles.headerTitle}>Menu</ThemedText>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Close01Icon size={24} color={iconColor} strokeWidth={2} />
+                <Ionicons name="close" size={24} color={iconColor} />
               </TouchableOpacity>
             </View>
 
             {/* Menu Items */}
             <View style={styles.menuItems}>
               {menuItems.map((item, index) => {
-                const Icon = item.icon;
-                const isFunctionComponent = typeof Icon === 'function' && !Icon.prototype;
+                const color = item.destructive ? '#EF4444' : iconColor;
                 return (
                   <TouchableOpacity
                     key={index}
@@ -148,15 +142,7 @@ export default function OperatorMenuModal({ visible, onClose }: OperatorMenuModa
                     ]}
                     onPress={item.onPress}
                   >
-                    {isFunctionComponent ? (
-                      <Icon />
-                    ) : (
-                      <Icon
-                        size={24}
-                        color={item.destructive ? '#EF4444' : iconColor}
-                        strokeWidth={2}
-                      />
-                    )}
+                    {item.icon(color)}
                     <ThemedText
                       style={[
                         styles.menuItemText,

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import api from '../api/client';
+import apiClient from '../api/client';
 
 export interface Message {
     id: string;
@@ -19,103 +19,66 @@ export interface SendMessageData {
 }
 
 /**
- * Fetch messages for a specific towing request
+ * Fetch messages for a specific towing request.
+ * Uses backend API only (app auth is backend JWT, not Supabase).
  */
 export async function getMessagesByRequest(requestId: string): Promise<Message[]> {
     try {
-        const response = await api.get<any[]>(`/messages/request/${requestId}`);
-        if (response.data) {
-            return response.data.map(m => ({
+        const response = await apiClient.get<Message[]>(`/messages/request/${requestId}`);
+        const list = Array.isArray(response.data) ? response.data : (response.data as any)?.data;
+        if (list?.length !== undefined) {
+            return list.map((m: any) => ({
                 id: m.id,
                 requestId: m.request_id || m.requestId,
                 senderId: m.sender_id || m.senderId,
                 receiverId: m.receiver_id || m.receiverId,
                 content: m.content,
-                isRead: m.is_read || m.isRead || false,
+                isRead: m.is_read ?? m.isRead ?? false,
                 createdAt: m.created_at || m.createdAt,
             }));
         }
     } catch (error) {
-        console.warn('Backend messages API failed, falling back to Supabase direct query:', error);
-
-        // Fallback to direct Supabase query if backend is not ready
-        const { data: messages, error: sbError } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('request_id', requestId)
-            .order('created_at', { ascending: true });
-
-        if (sbError) {
-            console.error('Supabase fallback also failed:', sbError);
-            return [];
+        if (__DEV__) {
+            console.warn('Messages API failed (ensure backend is deployed with /api/messages routes):', error);
         }
-
-        return (messages || []).map(m => ({
-            id: m.id,
-            requestId: m.request_id,
-            senderId: m.sender_id,
-            receiverId: m.receiver_id,
-            content: m.content,
-            isRead: m.is_read || false,
-            createdAt: m.created_at,
-        }));
     }
     return [];
 }
 
 /**
- * Send a new message
+ * Send a new message.
+ * Uses backend API only (app uses backend JWT; Supabase fallback is not used).
  */
 export async function sendMessage(data: SendMessageData): Promise<Message> {
     try {
-        const response = await api.post<any>('/messages', data);
-        if (response.data) {
-            const m = response.data;
+        const response = await apiClient.post<any>('/messages', data);
+        const m = response.data;
+        if (m) {
             return {
                 id: m.id,
                 requestId: m.request_id || m.requestId,
                 senderId: m.sender_id || m.senderId,
                 receiverId: m.receiver_id || m.receiverId,
                 content: m.content,
-                isRead: m.is_read || m.isRead || false,
+                isRead: m.is_read ?? m.isRead ?? false,
                 createdAt: m.created_at || m.createdAt,
             };
         }
-    } catch (error) {
-        console.warn('Backend send message API failed, falling back to Supabase direct insert:', error);
-
-        // Get current user for senderId
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const { data: message, error: sbError } = await supabase
-            .from('messages')
-            .insert({
-                request_id: data.requestId,
-                sender_id: user.id,
-                receiver_id: data.receiverId,
-                content: data.content,
-                is_read: false,
-            })
-            .select()
-            .single();
-
-        if (sbError) {
-            console.error('Supabase send fallback also failed:', sbError);
-            throw new Error(sbError.message || 'Failed to send message');
+    } catch (err: any) {
+        const status = err?.status;
+        const msg = err?.message || '';
+        if (status === 404 || msg.includes('not found')) {
+            throw new Error('Chat is not available yet. Please update the app or try again later.');
         }
-
-        return {
-            id: message.id,
-            requestId: message.request_id,
-            senderId: message.sender_id,
-            receiverId: message.receiver_id,
-            content: message.content,
-            isRead: message.is_read || false,
-            createdAt: message.created_at,
-        };
+        if (status === 401) {
+            throw new Error('Please sign in again to send messages.');
+        }
+        if (status === 0 || msg.toLowerCase().includes('network')) {
+            throw new Error('Could not send message. Check your connection and try again.');
+        }
+        throw new Error(err?.message || 'Failed to send message.');
     }
-    throw new Error('Failed to send message');
+    throw new Error('Failed to send message.');
 }
 
 /**
@@ -123,18 +86,13 @@ export async function sendMessage(data: SendMessageData): Promise<Message> {
  */
 export async function markMessagesAsRead(requestId: string): Promise<void> {
     try {
-        await api.patch(`/messages/request/${requestId}/read`);
+        await apiClient.patch(`/messages/request/${requestId}/read`);
     } catch (error) {
-        console.warn('Backend mark as read API failed, falling back to Supabase direct update:', error);
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        await supabase
-            .from('messages')
-            .update({ is_read: true })
-            .eq('request_id', requestId)
-            .eq('receiver_id', user.id);
+        // For now we just log the error; messages will still be delivered
+        // and marked as read on the server when the API is available.
+        if (__DEV__) {
+            console.warn('Backend mark as read API failed:', error);
+        }
     }
 }
 

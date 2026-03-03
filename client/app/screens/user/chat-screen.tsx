@@ -122,11 +122,13 @@ export default function UserChatScreen() {
         setIsSending(true);
 
         try {
-            await sendMessage({
+            const newMessage = await sendMessage({
                 requestId,
                 receiverId,
                 content
             });
+            setMessages((prev) => [...prev, newMessage]);
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (error: any) {
             console.error('Failed to send message:', error);
             Alert.alert('Error', 'Failed to send message. Please ensure your backend is running.');

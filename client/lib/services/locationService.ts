@@ -10,6 +10,12 @@ export interface LocationData {
   address: string;
 }
 
+// Simple in-memory rate limiting / caching for reverse geocoding
+const REVERSE_GEOCODE_MIN_INTERVAL_MS = 5000; // 5s between API calls
+let lastReverseGeocodeTime = 0;
+let lastReverseGeocodeCoords: Coordinates | null = null;
+let lastReverseGeocodeAddress: string | null = null;
+
 /**
  * Request location permissions
  */
@@ -57,15 +63,35 @@ export async function getCurrentLocation(): Promise<Coordinates | null> {
 
 /**
  * Reverse geocode coordinates to address
+ * - Applies a simple rate limit to avoid hitting provider limits
+ * - Caches the last successful result for identical coordinates
  */
-export async function reverseGeocode(
-  coordinates: Coordinates
-): Promise<string> {
+export async function reverseGeocode(coordinates: Coordinates): Promise<string> {
+  const now = Date.now();
+  const fallback = `${coordinates.lat}, ${coordinates.lng}`;
+
+  // If we recently reverse-geocoded the same coordinates, return cached address
+  if (
+    lastReverseGeocodeCoords &&
+    Math.abs(lastReverseGeocodeCoords.lat - coordinates.lat) < 1e-5 &&
+    Math.abs(lastReverseGeocodeCoords.lng - coordinates.lng) < 1e-5 &&
+    lastReverseGeocodeAddress
+  ) {
+    return lastReverseGeocodeAddress;
+  }
+
+  // Simple throttle: if called too frequently, skip external call and return fallback
+  if (now - lastReverseGeocodeTime < REVERSE_GEOCODE_MIN_INTERVAL_MS) {
+    return fallback;
+  }
+
   try {
     const addresses = await Location.reverseGeocodeAsync({
       latitude: coordinates.lat,
       longitude: coordinates.lng,
     });
+
+    lastReverseGeocodeTime = Date.now();
 
     if (addresses && addresses.length > 0) {
       const addr = addresses[0];
@@ -76,13 +102,18 @@ export async function reverseGeocode(
         addr.region,
         addr.country,
       ].filter(Boolean);
-      return parts.join(', ') || `${coordinates.lat}, ${coordinates.lng}`;
+      const formatted = parts.join(', ') || fallback;
+
+      lastReverseGeocodeCoords = coordinates;
+      lastReverseGeocodeAddress = formatted;
+
+      return formatted;
     }
 
-    return `${coordinates.lat}, ${coordinates.lng}`;
+    return fallback;
   } catch (error: any) {
     console.error('Error reverse geocoding:', error);
-    return `${coordinates.lat}, ${coordinates.lng}`;
+    return fallback;
   }
 }
 

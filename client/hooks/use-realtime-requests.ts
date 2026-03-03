@@ -31,7 +31,7 @@ export function useRealtimeRequests() {
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
-    let backupInterval: NodeJS.Timeout | null = null;
+    let backupTimeout: NodeJS.Timeout | null = null;
 
     // Initial fetch
     fetchRequests();
@@ -43,8 +43,14 @@ export function useRealtimeRequests() {
       });
     } catch (error) {
       console.error('Realtime subscription error:', error);
-      // Fallback to polling if realtime fails
-      backupInterval = setInterval(fetchRequests, 15000);
+      // Fallback to polling with exponential backoff if realtime fails
+      let delay = 15000; // 15s
+      const tick = async () => {
+        await fetchRequests();
+        delay = Math.min(delay * 2, 120000); // cap at 120s
+        backupTimeout = setTimeout(tick, delay) as unknown as NodeJS.Timeout;
+      };
+      backupTimeout = setTimeout(tick, delay) as unknown as NodeJS.Timeout;
     }
 
     // Secondary backup polling (standard)
@@ -52,7 +58,7 @@ export function useRealtimeRequests() {
 
     return () => {
       if (channel) unsubscribe(channel);
-      if (backupInterval) clearInterval(backupInterval);
+      if (backupTimeout) clearTimeout(backupTimeout);
       clearInterval(standardPolling);
     };
   }, []);

@@ -102,6 +102,11 @@ export default function LiveTrackingScreen() {
         if (error.status === 0) {
           // Network error - show banner instead of toast
           setIsOffline(true);
+        } else if (error.status === 404) {
+          setIsError(true);
+        } else if (error.status === 401) {
+          showToast('Session expired. Please sign in again.', 'error');
+          router.replace('/screens/auth/login-screen');
         } else {
           showToast(error.message, 'error');
           setIsError(true);
