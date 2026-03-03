@@ -4,17 +4,20 @@
  */
 
 import { Router } from 'express';
+import { z } from 'zod';
 import * as adminController from '../controllers/admin.controller';
 import { adminMiddleware } from '../middleware/admin.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
-import { validateParams, validateBody } from '../middleware/validate.middleware';
-import { z } from 'zod';
+import { strictLimiter } from '../middleware/rateLimiter';
+import { validateBody, validateParams } from '../middleware/validate.middleware';
 
 const router = Router();
 
 // Public: login with email + password (credentials set in backend .env)
+// strictLimiter: 10 requests per 15 minutes per IP to prevent brute-force
 router.post(
   '/login',
+  strictLimiter,
   validateBody(z.object({ email: z.string().email(), password: z.string().min(1) })),
   asyncHandler(adminController.adminLogin)
 );

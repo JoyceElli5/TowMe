@@ -6,7 +6,7 @@ export const config = {
   // Server
   port: parseInt(process.env.PORT || '3001', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  
+
   // Supabase
   supabase: {
     url: process.env.SUPABASE_URL || '',
@@ -14,21 +14,21 @@ export const config = {
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
     jwtSecret: process.env.SUPABASE_JWT_SECRET || '',
   },
-  
+
   // JWT
   jwt: {
     secret: process.env.JWT_SECRET || 'development-secret-key-change-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
-  
+
   // CORS
   cors: {
-    origin: process.env.CORS_ORIGIN 
+    origin: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
       : '*',
   },
-  
+
   // Rate Limiting
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
@@ -64,6 +64,14 @@ export function validateEnv(): void {
       throw new Error(
         'JWT_SECRET must be set to a non-default value in production. ' +
         'Generate a strong secret and set the JWT_SECRET environment variable.'
+      );
+    }
+
+    // Warn about weak admin password
+    if (config.admin.password && config.admin.password.length < 12) {
+      console.warn(
+        'WARNING: ADMIN_PASSWORD is shorter than 12 characters. ' +
+        'Use a strong password in production.'
       );
     }
   }
