@@ -31,7 +31,8 @@ function haversineDistance(
 }
 
 /**
- * Find the nearest available operator for a request
+ * Find the nearest available operator for a request.
+ * Uses batch queries to avoid N+1: one query for available operators, one for recent locations.
  */
 export async function findNearestOperator(
   pickupLat: number,
@@ -39,7 +40,7 @@ export async function findNearestOperator(
 ): Promise<{ operatorId: string; distance: number } | null> {
   const supabase = getSupabaseAdmin();
 
-  // Get all online operators
+  // Step 1: Get all online operators
   const { data: operators, error: operatorsError } = await supabase
     .from('users')
     .select('id')
@@ -56,53 +57,56 @@ export async function findNearestOperator(
     return null;
   }
 
-  // Get latest location for each operator and check if they're available
+  const operatorIds = operators.map(op => op.id);
+
+  // Step 2: Batch-check which operators have active jobs
+  const { data: busyOperators } = await supabase
+    .from('towing_requests')
+    .select('operator_id')
+    .in('operator_id', operatorIds)
+    .in('status', ['accepted', 'in_progress']);
+
+  const busySet = new Set((busyOperators || []).map(r => r.operator_id));
+  const availableIds = operatorIds.filter(id => !busySet.has(id));
+
+  if (availableIds.length === 0) {
+    logger.info('All online operators are busy');
+    return null;
+  }
+
+  // Step 3: Batch-fetch latest locations for available operators
+  // Get recent locations (within last 5 minutes) for all available operators at once
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  const { data: locations } = await supabase
+    .from('operator_locations')
+    .select('operator_id, latitude, longitude, last_seen, is_available, timestamp')
+    .in('operator_id', availableIds)
+    .gte('timestamp', fiveMinutesAgo)
+    .order('timestamp', { ascending: false });
+
+  if (!locations || locations.length === 0) {
+    logger.info('No recent location data for available operators');
+    return null;
+  }
+
+  // Take only the latest location per operator
+  const latestByOperator = new Map<string, typeof locations[0]>();
+  for (const loc of locations) {
+    if (!latestByOperator.has(loc.operator_id)) {
+      latestByOperator.set(loc.operator_id, loc);
+    }
+  }
+
+  // Step 4: Calculate distances in-memory
   const operatorDistances: Array<{ operatorId: string; distance: number }> = [];
 
-  for (const operator of operators) {
-    // Check if operator has an active job
-    const { data: activeJob } = await supabase
-      .from('towing_requests')
-      .select('id')
-      .eq('operator_id', operator.id)
-      .in('status', ['accepted', 'in_progress'])
-      .limit(1)
-      .single();
-
-    if (activeJob) {
-      // Operator is busy, skip
-      continue;
-    }
-
-    // Get operator's latest location
-    const { data: location } = await supabase
-      .from('operator_locations')
-      .select('latitude, longitude, last_seen, is_available, timestamp')
-      .eq('operator_id', operator.id)
-      .order('timestamp', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (!location) {
-      // Operator has no location data, skip
-      continue;
-    }
-
-    // Check if location is recent (within last 5 minutes) and operator is available
-    const lastSeen = new Date(location.last_seen || location.timestamp);
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-    if (lastSeen < fiveMinutesAgo) {
-      // Location is too old, skip
-      continue;
-    }
-
+  for (const [operatorId, location] of latestByOperator) {
     // Check availability flag if it exists
     if (location.is_available === false) {
       continue;
     }
 
-    // Calculate distance from operator to pickup location
     const distance = haversineDistance(
       parseFloat(location.latitude.toString()),
       parseFloat(location.longitude.toString()),
@@ -110,14 +114,11 @@ export async function findNearestOperator(
       pickupLng
     );
 
-    operatorDistances.push({
-      operatorId: operator.id,
-      distance,
-    });
+    operatorDistances.push({ operatorId, distance });
   }
 
   if (operatorDistances.length === 0) {
-    logger.info('No available operators found');
+    logger.info('No available operators found with recent locations');
     return null;
   }
 

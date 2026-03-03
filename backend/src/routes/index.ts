@@ -4,6 +4,7 @@
  */
 
 import { Router } from 'express';
+import adminRoutes from './admin.routes';
 import authRoutes from './auth.routes';
 import directionsRoutes from './directions.routes';
 import inspectionsRoutes from './inspections.routes';
@@ -17,6 +18,7 @@ import usersRoutes from './users.routes';
 const router = Router();
 
 // Mount routes
+router.use('/admin', adminRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 router.use('/operators', operatorsRoutes);

@@ -11,13 +11,30 @@ import * as matchingService from './matching.service';
 import { incrementUserTrips } from './users.service';
 
 /**
- * Create a new towing request
+ * Create a new towing request.
+ * Supports optional idempotencyKey to prevent duplicate requests on network retries.
  */
 export async function createRequest(
   userId: string,
-  data: CreateTowingRequest
+  data: CreateTowingRequest,
+  idempotencyKey?: string
 ): Promise<TowingRequest> {
   const supabase = getSupabaseAdmin();
+
+  // Idempotency: if the client sent the same key before, return the existing request
+  if (idempotencyKey) {
+    const { data: existing } = await supabase
+      .from('towing_requests')
+      .select('*')
+      .eq('idempotency_key', idempotencyKey)
+      .eq('user_id', userId)
+      .single();
+
+    if (existing) {
+      logger.info({ requestId: existing.id, idempotencyKey }, 'Returning existing request for idempotency key');
+      return existing;
+    }
+  }
 
   // Check if user already has an active request
   const { data: activeRequest } = await supabase
@@ -28,13 +45,15 @@ export async function createRequest(
     .single();
 
   if (activeRequest) {
-    // If request is pending and older than 15 minutes, auto-cancel it
-    if (activeRequest.status === 'pending') {
-      const createdAt = new Date(activeRequest.created_at).getTime();
-      const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
+    const createdAt = new Date(activeRequest.created_at).getTime();
+    const now = Date.now();
+    const fifteenMinutesAgo = now - 15 * 60 * 1000;
+    const sixHoursAgo = now - 6 * 60 * 60 * 1000;
 
+    if (activeRequest.status === 'pending') {
       if (createdAt < fifteenMinutesAgo) {
-        logger.info(`Auto-cancelling stale pending request ${activeRequest.id} for user ${userId}`);
+        logger.info({ requestId: activeRequest.id, fromStatus: 'pending', toStatus: 'cancelled', actorId: 'system' },
+          'Auto-cancelling stale pending request');
 
         await supabase
           .from('towing_requests')
@@ -44,13 +63,25 @@ export async function createRequest(
             updated_at: new Date().toISOString(),
           })
           .eq('id', activeRequest.id);
-
-        // Proceed with creating the new request
       } else {
         throw createError.conflict('You already have an active request');
       }
     } else {
-      throw createError.conflict('You already have an active request');
+      if (createdAt < sixHoursAgo) {
+        logger.info({ requestId: activeRequest.id, fromStatus: activeRequest.status, toStatus: 'cancelled', actorId: 'system' },
+          'Auto-closing stale active request');
+
+        await supabase
+          .from('towing_requests')
+          .update({
+            status: REQUEST_STATUS.CANCELLED,
+            cancellation_reason: 'Auto-cancelled due to inactivity',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', activeRequest.id);
+      } else {
+        throw createError.conflict('You already have an active request');
+      }
     }
   }
 
@@ -66,22 +97,28 @@ export async function createRequest(
   const estimatedPrice = await calculateEstimatedPrice(distanceKm, data.vehicleType);
 
   // Create request
+  const insertData: Record<string, unknown> = {
+    id: uuidv4(),
+    user_id: userId,
+    pickup_address: data.pickupAddress,
+    destination_address: data.destinationAddress,
+    pickup_lat: data.pickupLat,
+    pickup_lng: data.pickupLng,
+    destination_lat: data.destinationLat,
+    destination_lng: data.destinationLng,
+    vehicle_type: data.vehicleType,
+    estimated_price: estimatedPrice,
+    distance_km: distanceKm,
+    status: REQUEST_STATUS.PENDING,
+  };
+
+  if (idempotencyKey) {
+    insertData.idempotency_key = idempotencyKey;
+  }
+
   const { data: request, error } = await supabase
     .from('towing_requests')
-    .insert({
-      id: uuidv4(),
-      user_id: userId,
-      pickup_address: data.pickupAddress,
-      destination_address: data.destinationAddress,
-      pickup_lat: data.pickupLat,
-      pickup_lng: data.pickupLng,
-      destination_lat: data.destinationLat,
-      destination_lng: data.destinationLng,
-      vehicle_type: data.vehicleType,
-      estimated_price: estimatedPrice,
-      distance_km: distanceKm,
-      status: REQUEST_STATUS.PENDING,
-    })
+    .insert(insertData)
     .select()
     .single();
 
@@ -90,9 +127,10 @@ export async function createRequest(
     throw createError.internal('Failed to create request');
   }
 
+  logger.info({ requestId: request.id, fromStatus: null, toStatus: 'pending', actorId: userId },
+    'Request created');
+
   // Attempt to automatically assign an operator
-  // This runs asynchronously and doesn't block the request creation
-  // If no operator is available, request remains in 'pending' status
   matchingService.autoAssignOperator(request.id, data.pickupLat, data.pickupLng)
     .then((match) => {
       if (match) {
@@ -102,7 +140,6 @@ export async function createRequest(
       }
     })
     .catch((error) => {
-      // Don't fail request creation if matching fails
       logger.error('Error in auto-assignment:', error);
     });
 
@@ -241,7 +278,8 @@ export async function getPendingRequests(operatorId?: string): Promise<TowingReq
     .from('towing_requests')
     .select('*')
     .eq('status', REQUEST_STATUS.PENDING)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(100); // Cap results to avoid unbounded queries at scale
 
   if (operatorId) {
     query = query.or(`operator_id.is.null,operator_id.eq.${operatorId}`);
@@ -402,7 +440,6 @@ export async function acceptRequest(
 
   if (error) {
     if (error.code === 'PGRST116') {
-      // No rows returned: request not found or no longer pending
       const { data: existing } = await supabase
         .from('towing_requests')
         .select('id, status')
@@ -416,6 +453,9 @@ export async function acceptRequest(
     logger.error('Error accepting request:', error);
     throw createError.internal('Failed to accept request');
   }
+
+  logger.info({ requestId, fromStatus: 'pending', toStatus: 'accepted', actorId: operatorId },
+    'Request accepted');
 
   return updatedRequest;
 }
@@ -536,6 +576,9 @@ export async function startRequest(
     throw createError.internal('Failed to start request');
   }
 
+  logger.info({ requestId, fromStatus: 'accepted', toStatus: 'in_progress', actorId: operatorId },
+    'Trip started');
+
   return updatedRequest;
 }
 
@@ -584,6 +627,9 @@ export async function completeRequest(
     throw createError.internal('Failed to complete request');
   }
 
+  logger.info({ requestId, fromStatus: 'in_progress', toStatus: 'completed', actorId: operatorId, finalPrice },
+    'Trip completed');
+
   // Increment trip counts for both user and operator
   await Promise.all([
     incrementUserTrips(request.user_id),
@@ -628,6 +674,8 @@ export async function cancelRequest(
     throw createError.conflict('Request is already cancelled');
   }
 
+  // Atomic cancel: works even if status changed between read and update.
+  // Cancel wins for pending/accepted (user-initiated cancellation takes priority).
   const { data: updatedRequest, error } = await supabase
     .from('towing_requests')
     .update({
@@ -636,13 +684,21 @@ export async function cancelRequest(
       updated_at: new Date().toISOString(),
     })
     .eq('id', requestId)
+    .in('status', ['pending', 'accepted', 'in_progress'])
     .select()
     .single();
 
   if (error) {
+    if (error.code === 'PGRST116') {
+      // Request was already completed or cancelled between our read and update
+      throw createError.conflict('Request can no longer be cancelled');
+    }
     logger.error('Error cancelling request:', error);
     throw createError.internal('Failed to cancel request');
   }
+
+  logger.info({ requestId, fromStatus: request.status, toStatus: 'cancelled', actorId: userId, reason },
+    'Request cancelled');
 
   return updatedRequest;
 }
