@@ -10,6 +10,7 @@ import { config, validateEnv } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { generalLimiter } from './middleware/rateLimiter';
 import routes from './routes';
+import { startStaleRequestsCron } from './services/staleRequestsCron';
 import logger from './utils/logger';
 
 // Validate environment variables
@@ -28,7 +29,7 @@ app.use(helmet({
 app.use(cors({
   origin: config.cors.origin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
   credentials: true,
 }));
 
@@ -85,6 +86,9 @@ app.listen(PORT, () => {
   logger.info(`🚀 TowMe API server running on port ${PORT}`);
   logger.info(`📍 Environment: ${config.nodeEnv}`);
   logger.info(`🔗 API Base URL: http://localhost:${PORT}/api`);
+
+  // Start background jobs
+  startStaleRequestsCron();
 });
 
 export default app;
