@@ -19,7 +19,8 @@ export async function createRequest(req: AuthenticatedRequest, res: Response): P
     return;
   }
 
-  const request = await requestsService.createRequest(req.user.id, req.body);
+  const idempotencyKey = req.headers['x-idempotency-key'] as string | undefined;
+  const request = await requestsService.createRequest(req.user.id, req.body, idempotencyKey);
 
   res.status(201).json({
     success: true,
