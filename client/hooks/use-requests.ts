@@ -3,9 +3,13 @@ import {
   getCurrentUser,
   getOperatorRequests,
   getUserRequests,
-  TowingRequest
+  TowingRequest,
 } from '@/lib/api';
-import { subscribeToOperatorRequests, subscribeToUserRequests, unsubscribe } from '@/lib/services/realtimeService';
+import {
+  subscribeToOperatorRequests,
+  subscribeToUserRequests,
+  unsubscribe,
+} from '@/lib/services/realtimeService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -30,31 +34,36 @@ export function useRequests(role: RequestRole): UseRequestsResult {
       setIsLoading(true);
       const user = await getCurrentUser();
       if (!user) {
-        setError('User not authenticated');
+        setError('Session expired. Please sign in again.');
         return;
       }
 
-      const activeStatuses = role === 'user'
-        ? ['pending', 'accepted', 'in_progress']
-        : ['accepted', 'in_progress'];
+      const activeStatuses =
+        role === 'user'
+          ? ['pending', 'accepted', 'in_progress']
+          : ['accepted', 'in_progress'];
       const pastStatuses = ['completed', 'cancelled'];
 
-      let response;
+      // getUserRequests/getOperatorRequests now return TowingRequest[]
+      let all: TowingRequest[] = [];
       if (role === 'user') {
-        response = await getUserRequests(user.id, { limit: 50 });
+        all = await getUserRequests(user.id, { limit: 50 });
       } else {
-        response = await getOperatorRequests(user.id, { limit: 50 });
+        all = await getOperatorRequests(user.id, { limit: 50 });
       }
 
-      if (response.data) {
-        const all = response.data;
-        setActiveRequests(all.filter(r => activeStatuses.includes(r.status)));
-        setPastRequests(all.filter(r => pastStatuses.includes(r.status)));
-        setError(null);
-      }
+      setActiveRequests(
+        all.filter((r: TowingRequest) => activeStatuses.includes(r.status)),
+      );
+      setPastRequests(
+        all.filter((r: TowingRequest) => pastStatuses.includes(r.status)),
+      );
+      setError(null);
     } catch (err) {
       console.error('Error fetching requests:', err);
-      setError(err instanceof ApiError ? err.message : 'Failed to fetch requests');
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to fetch requests',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -94,6 +103,6 @@ export function useRequests(role: RequestRole): UseRequestsResult {
     pastRequests,
     isLoading,
     error,
-    refresh: fetchRequests
+    refresh: fetchRequests,
   };
 }

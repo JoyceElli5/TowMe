@@ -1,10 +1,13 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts } from '@/constants/theme';
+import { useRequests } from '@/hooks/use-requests';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { TowingRequest } from '@/lib/api';
+import { getMessagesByRequest, type Message } from '@/lib/services/chatService';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Linking,
@@ -20,40 +23,70 @@ interface ChatItem {
   id: string;
   requestId: string;
   operatorName: string;
-  lastMessage: string;
   timestamp: string;
-  unread: number;
   phone: string;
+  lastMessage?: string;
 }
-
-const MOCK_CHATS: ChatItem[] = [
-  {
-    id: '1',
-    requestId: 'req-123',
-    operatorName: 'John Towing Services',
-    lastMessage: 'I am 5 minutes away from your location.',
-    timestamp: '10:30 AM',
-    unread: 2,
-    phone: '+233241234567',
-  },
-  {
-    id: '2',
-    requestId: 'req-456',
-    operatorName: 'Fast Recovery Ltd',
-    lastMessage: 'Your payment has been received. Thank you!',
-    timestamp: 'Yesterday',
-    unread: 0,
-    phone: '+233247654321',
-  },
-];
 
 export default function UserMessagesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const cardBg = useThemeColor({}, 'background');
   const inputBg = useThemeColor({ light: '#F3F4F6', dark: '#374151' }, 'background');
   const tintColor = useThemeColor({}, 'tint');
+  const { activeRequests, pastRequests, isLoading } = useRequests('user');
+  const [lastMessages, setLastMessages] = useState<Record<string, Message | null>>({});
 
-  const filteredChats = MOCK_CHATS.filter(chat =>
+  // Load the last message for each conversation (active + past requests)
+  useEffect(() => {
+    const loadLastMessages = async () => {
+      const all: TowingRequest[] = [...activeRequests, ...pastRequests];
+      const ids = Array.from(new Set(all.map((req) => req.id)));
+
+      const results: Record<string, Message | null> = {};
+
+      await Promise.all(
+        ids.map(async (id) => {
+          const messages = await getMessagesByRequest(id);
+          if (messages.length > 0) {
+            const last = messages[messages.length - 1];
+            results[id] = last;
+          } else {
+            results[id] = null;
+          }
+        }),
+      );
+
+      setLastMessages(results);
+    };
+
+    if (!isLoading) {
+      loadLastMessages().catch((err) => {
+        if (__DEV__) {
+          console.warn('Failed to load last messages for conversations:', err);
+        }
+      });
+    }
+  }, [activeRequests, pastRequests, isLoading]);
+
+  const conversations: ChatItem[] = useMemo(() => {
+    const all: TowingRequest[] = [...activeRequests, ...pastRequests];
+    return all
+      .filter((req) => !!req.operatorId && !!req.operator)
+      .map((req) => {
+        const last = lastMessages[req.id] || null;
+        const tsSource = last?.createdAt || req.completedAt || req.acceptedAt || req.createdAt;
+        return {
+          id: req.id,
+          requestId: req.id,
+          operatorName: req.operator?.fullName || 'Operator',
+          timestamp: new Date(tsSource).toLocaleString(),
+          phone: req.operator?.phone || '',
+          lastMessage: last?.content,
+        };
+      });
+  }, [activeRequests, pastRequests, lastMessages]);
+
+  const filteredChats = conversations.filter(chat =>
     chat.operatorName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -90,19 +123,11 @@ export default function UserMessagesScreen() {
         </View>
         <View style={styles.messageRow}>
           <ThemedText
-            style={[
-              styles.message,
-              item.unread > 0 && styles.unreadMessage
-            ]}
+            style={styles.message}
             numberOfLines={1}
           >
-            {item.lastMessage}
+            {item.lastMessage || 'Tap to open chat'}
           </ThemedText>
-          {item.unread > 0 && (
-            <View style={[styles.unreadBadge, { backgroundColor: tintColor }]}>
-              <ThemedText style={styles.unreadCount}>{item.unread}</ThemedText>
-            </View>
-          )}
         </View>
       </View>
 
@@ -145,10 +170,14 @@ export default function UserMessagesScreen() {
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={64} color="#9CA3AF" />
-            <ThemedText style={styles.emptyText}>No messages yet</ThemedText>
-            <ThemedText style={styles.emptySubtext}>
-              When you start a request, you'll be able to chat with your operator here.
+            <ThemedText style={styles.emptyText}>
+              {isLoading ? 'Loading conversations...' : 'No conversations yet'}
             </ThemedText>
+            {!isLoading && (
+              <ThemedText style={styles.emptySubtext}>
+                When you start a request, you'll be able to chat with your operator here.
+              </ThemedText>
+            )}
           </View>
         )}
       />

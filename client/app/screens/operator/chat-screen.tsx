@@ -110,11 +110,13 @@ export default function OperatorChatScreen() {
         setIsSending(true);
 
         try {
-            await sendMessage({
+            const newMessage = await sendMessage({
                 requestId: request.id,
                 receiverId: request.userId,
                 content
             });
+            setMessages((prev) => [...prev, newMessage]);
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (error: any) {
             console.error('Failed to send message:', error);
             Alert.alert('Error', 'Failed to send message. Please ensure your backend is running.');

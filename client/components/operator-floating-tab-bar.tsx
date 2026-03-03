@@ -18,23 +18,31 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Tab configuration for USER tabs only
 interface TabConfig {
   name: string;
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 }
 
+// Dedicated config for OPERATOR tabs
 const TAB_CONFIG: Record<string, TabConfig> = {
-  index: {
-    name: 'Home',
+  dashboard: {
+    name: 'Dashboard',
     Icon: Home01Icon,
   },
-  history: {
-    name: 'History',
+  'available-jobs': {
+    name: 'Available',
+    Icon: TransactionIcon,
+  },
+  jobs: {
+    name: 'Jobs',
+    Icon: TransactionIcon,
+  },
+  earnings: {
+    name: 'Earnings',
     Icon: TransactionIcon,
   },
   notifications: {
-    name: 'Notifications',
+    name: 'Activity',
     Icon: Notification01Icon,
   },
   messages: {
@@ -47,7 +55,6 @@ const TAB_CONFIG: Record<string, TabConfig> = {
   },
 };
 
-// Tab item component with animation
 function TabItem({
   routeName,
   isFocused,
@@ -60,7 +67,7 @@ function TabItem({
   onLongPress: () => void;
 }) {
   const scale = useSharedValue(1);
-  const config = TAB_CONFIG[routeName] || TAB_CONFIG.index;
+  const config = TAB_CONFIG[routeName] || TAB_CONFIG.dashboard;
   const Icon = config.Icon;
 
   const activeColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
@@ -88,7 +95,7 @@ function TabItem({
     const scaleValue = interpolate(
       isFocused ? 1 : 0,
       [0, 1],
-      [1, 1.1]
+      [1, 1.1],
     );
 
     return {
@@ -124,13 +131,19 @@ function TabItem({
   );
 }
 
-export function FloatingTabBar({
+export function OperatorFloatingTabBar({
   state,
   navigation,
 }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const backgroundColor = useThemeColor({ light: 'rgba(255, 255, 255, 0.95)', dark: 'rgba(31, 41, 55, 0.95)' }, 'background');
-  const borderColor = useThemeColor({ light: 'rgba(255, 255, 255, 0.8)', dark: 'rgba(55, 65, 81, 0.8)' }, 'background');
+  const backgroundColor = useThemeColor(
+    { light: 'rgba(255, 255, 255, 0.95)', dark: 'rgba(31, 41, 55, 0.95)' },
+    'background',
+  );
+  const borderColor = useThemeColor(
+    { light: 'rgba(255, 255, 255, 0.8)', dark: 'rgba(55, 65, 81, 0.8)' },
+    'background',
+  );
 
   return (
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -192,7 +205,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     width: '100%',
     maxWidth: 360,
-    // Shadow for depth
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -201,7 +213,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 12,
-    // Border for subtle definition
     borderWidth: 1,
   },
   tabItem: {
@@ -226,3 +237,4 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
 });
+
