@@ -65,32 +65,9 @@ export default function OperatorMessagesScreen() {
 
     useEffect(() => {
         let active = true;
-        subscribeToAnyMessage((msg) => {
+        subscribeToAnyMessage(() => {
             if (!active) return;
-            setConversations((prev) => {
-                const idx = prev.findIndex((c) => c.requestId === msg.requestId);
-                if (idx === -1) {
-                    load(true);
-                    return prev;
-                }
-                const updated = [...prev];
-                updated[idx] = {
-                    ...updated[idx],
-                    lastMessageContent: msg.content,
-                    lastMessageAt: msg.createdAt,
-                    lastMessageSenderId: msg.senderId,
-                    unreadCount:
-                        msg.receiverId === updated[idx].otherUserId
-                            ? updated[idx].unreadCount
-                            : updated[idx].unreadCount + 1,
-                };
-                updated.sort((a, b) => {
-                    const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
-                    const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
-                    return tb - ta;
-                });
-                return updated;
-            });
+            load(true);
         }).then((unsub) => {
             if (active) unsubscribeRef.current = unsub;
             else unsub();
