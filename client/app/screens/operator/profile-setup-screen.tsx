@@ -1,14 +1,6 @@
-import { router } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { DocumentUpload } from '@/components/document-upload';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -16,7 +8,6 @@ import { Fonts } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
 import { getCurrentUser } from '@/lib/api';
-import { getCurrentSession, getCurrentUser as getSupabaseUser } from '@/lib/services/authService';
 import {
   getOperatorProfile,
   updateOperatorProfile,
@@ -25,6 +16,7 @@ import {
 import { uploadOperatorDocument } from '@/lib/services/operatorStorageService';
 
 export default function OperatorProfileSetupScreen() {
+  const router = useRouter();
   const [ghanaCardNumber, setGhanaCardNumber] = useState('');
   const [ghanaCardPhoto, setGhanaCardPhoto] = useState<string | null>(null);
   const [ghanaCardPhotoUri, setGhanaCardPhotoUri] = useState<string | null>(null);
@@ -49,45 +41,20 @@ export default function OperatorProfileSetupScreen() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   const { showToast } = useToast();
+  const backgroundColor = useThemeColor({}, 'background');
   const textColor = useThemeColor({}, 'text');
   const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
   const buttonColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
 
-  // Helper function to get current user ID from multiple sources
-  // Prefer backend API user ID for consistency with app database
-  const getCurrentUserId = async (): Promise<string | null> => {
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
     try {
-      // 1. Backend API user (app's primary user ID)
       const user = await getCurrentUser();
-      if (user?.id) {
-        return user.id;
-      }
-
-      // 2. Supabase auth user (fallback)
-      const supabaseUser = await getSupabaseUser();
-      if (supabaseUser?.id) {
-        return supabaseUser.id;
-      }
-      
-      // 3. Session as last resort
-      const session = await getCurrentSession();
-      if (session?.user?.id) {
-        return session.user.id;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Error getting current user ID:', error);
-      return null;
-    }
-  };
-
-  const loadProfile = useCallback(async () => {
-    try {
-      const userId = await getCurrentUserId();
-      
-      if (userId) {
-        const profile = await getOperatorProfile(userId);
+      if (user) {
+        const profile = await getOperatorProfile(user.id);
         if (profile) {
           setGhanaCardNumber(profile.ghana_card_number || '');
           setGhanaCardPhoto(profile.ghana_card_photo_url);
@@ -105,34 +72,20 @@ export default function OperatorProfileSetupScreen() {
     } finally {
       setIsLoadingProfile(false);
     }
-  }, []);
-
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  };
 
   const handleUploadGhanaCard = async (uri: string) => {
     try {
       setIsUploading(true);
-      // Store local URI immediately so user sees the image was selected
-      setGhanaCardPhotoUri(uri);
-      
-      const userId = await getCurrentUserId();
-      if (!userId) {
-        showToast('Please login first', 'error');
-        setGhanaCardPhotoUri(null);
-        return;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
 
-      const photoUrl = await uploadOperatorDocument(userId, uri, 'ghana_card');
+      const photoUrl = await uploadOperatorDocument(user.id, uri, 'ghana_card');
       setGhanaCardPhoto(photoUrl);
       setGhanaCardPhotoUri(null);
       showToast('Ghana card photo uploaded', 'success');
     } catch (error: any) {
-      console.error('Error uploading Ghana card:', error);
-      showToast(error.message || 'Failed to upload photo. Please try again.', 'error');
-      // Keep the local URI so user can see the image was selected
-      // Don't clear it so they can retry
+      showToast(error.message || 'Failed to upload photo', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -141,24 +94,15 @@ export default function OperatorProfileSetupScreen() {
   const handleUploadDriversLicense = async (uri: string) => {
     try {
       setIsUploading(true);
-      // Store local URI immediately so user sees the image was selected
-      setDriversLicensePhotoUri(uri);
-      
-      const userId = await getCurrentUserId();
-      if (!userId) {
-        showToast('Please login first', 'error');
-        setDriversLicensePhotoUri(null);
-        return;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
 
-      const photoUrl = await uploadOperatorDocument(userId, uri, 'drivers_license');
+      const photoUrl = await uploadOperatorDocument(user.id, uri, 'drivers_license');
       setDriversLicensePhoto(photoUrl);
       setDriversLicensePhotoUri(null);
       showToast('Driver license photo uploaded', 'success');
     } catch (error: any) {
-      console.error('Error uploading driver license:', error);
-      showToast(error.message || 'Failed to upload photo. Please try again.', 'error');
-      // Keep the local URI so user can see the image was selected
+      showToast(error.message || 'Failed to upload photo', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -167,24 +111,15 @@ export default function OperatorProfileSetupScreen() {
   const handleUploadOperatorPhoto = async (uri: string) => {
     try {
       setIsUploading(true);
-      // Store local URI immediately so user sees the image was selected
-      setOperatorPhotoUri(uri);
-      
-      const userId = await getCurrentUserId();
-      if (!userId) {
-        showToast('Please login first', 'error');
-        setOperatorPhotoUri(null);
-        return;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
 
-      const photoUrl = await uploadOperatorDocument(userId, uri, 'operator_photo');
+      const photoUrl = await uploadOperatorDocument(user.id, uri, 'operator_photo');
       setOperatorPhoto(photoUrl);
       setOperatorPhotoUri(null);
       showToast('Operator photo uploaded', 'success');
     } catch (error: any) {
-      console.error('Error uploading operator photo:', error);
-      showToast(error.message || 'Failed to upload photo. Please try again.', 'error');
-      // Keep the local URI so user can see the image was selected
+      showToast(error.message || 'Failed to upload photo', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -193,24 +128,15 @@ export default function OperatorProfileSetupScreen() {
   const handleUploadVehicleRegistration = async (uri: string) => {
     try {
       setIsUploading(true);
-      // Store local URI immediately so user sees the image was selected
-      setVehicleRegistrationPhotoUri(uri);
-      
-      const userId = await getCurrentUserId();
-      if (!userId) {
-        showToast('Please login first', 'error');
-        setVehicleRegistrationPhotoUri(null);
-        return;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
 
-      const photoUrl = await uploadOperatorDocument(userId, uri, 'vehicle_registration');
+      const photoUrl = await uploadOperatorDocument(user.id, uri, 'vehicle_registration');
       setVehicleRegistrationPhoto(photoUrl);
       setVehicleRegistrationPhotoUri(null);
       showToast('Vehicle registration photo uploaded', 'success');
     } catch (error: any) {
-      console.error('Error uploading vehicle registration:', error);
-      showToast(error.message || 'Failed to upload photo. Please try again.', 'error');
-      // Keep the local URI so user can see the image was selected
+      showToast(error.message || 'Failed to upload photo', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -219,66 +145,40 @@ export default function OperatorProfileSetupScreen() {
   const handleUploadInsurance = async (uri: string) => {
     try {
       setIsUploading(true);
-      // Store local URI immediately so user sees the image was selected
-      setInsurancePhotoUri(uri);
-      
-      const userId = await getCurrentUserId();
-      if (!userId) {
-        showToast('Please login first', 'error');
-        setInsurancePhotoUri(null);
-        return;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
 
-      const photoUrl = await uploadOperatorDocument(userId, uri, 'insurance');
+      const photoUrl = await uploadOperatorDocument(user.id, uri, 'insurance');
       setInsurancePhoto(photoUrl);
       setInsurancePhotoUri(null);
       showToast('Insurance photo uploaded', 'success');
     } catch (error: any) {
-      console.error('Error uploading insurance:', error);
-      showToast(error.message || 'Failed to upload photo. Please try again.', 'error');
-      // Keep the local URI so user can see the image was selected
+      showToast(error.message || 'Failed to upload photo', 'error');
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleSave = async () => {
-    // Validate Ghana Card
-    if (!ghanaCardNumber || (!ghanaCardPhoto && !ghanaCardPhotoUri)) {
+    if (!ghanaCardNumber || !ghanaCardPhoto) {
       showToast('Please provide Ghana card number and photo', 'error');
       return;
     }
 
-    // Validate Driver's License
-    if (!driversLicenseNumber || (!driversLicensePhoto && !driversLicensePhotoUri)) {
+    if (!driversLicenseNumber || !driversLicensePhoto) {
       showToast('Please provide driver license number and photo', 'error');
       return;
     }
 
-    // Validate Operator Photo
-    if (!operatorPhoto && !operatorPhotoUri) {
+    if (!operatorPhoto) {
       showToast('Please upload your operator photo', 'error');
-      return;
-    }
-
-    // If there are local URIs that haven't been uploaded, try to upload them first
-    if (ghanaCardPhotoUri && !ghanaCardPhoto) {
-      showToast('Please wait for Ghana card photo to finish uploading', 'error');
-      return;
-    }
-    if (driversLicensePhotoUri && !driversLicensePhoto) {
-      showToast('Please wait for driver license photo to finish uploading', 'error');
-      return;
-    }
-    if (operatorPhotoUri && !operatorPhoto) {
-      showToast('Please wait for operator photo to finish uploading', 'error');
       return;
     }
 
     setIsLoading(true);
     try {
-      const userId = await getCurrentUserId();
-      if (!userId) {
+      const user = await getCurrentUser();
+      if (!user) {
         showToast('Please login first', 'error');
         router.back();
         return;
@@ -286,21 +186,21 @@ export default function OperatorProfileSetupScreen() {
 
       const profileData: OperatorProfileData = {
         ghana_card_number: ghanaCardNumber,
-        ghana_card_photo_url: ghanaCardPhoto || undefined,
+        ghana_card_photo_url: ghanaCardPhoto,
         drivers_license_number: driversLicenseNumber,
-        drivers_license_photo_url: driversLicensePhoto || undefined,
-        operator_photo_url: operatorPhoto || undefined,
+        drivers_license_photo_url: driversLicensePhoto,
+        operator_photo_url: operatorPhoto,
         vehicle_registration_number: vehicleRegistrationNumber || undefined,
         vehicle_registration_photo_url: vehicleRegistrationPhoto || undefined,
         insurance_policy_number: insurancePolicyNumber || undefined,
         insurance_photo_url: insurancePhoto || undefined,
       };
 
-      await updateOperatorProfile(userId, profileData);
+      await updateOperatorProfile(user.id, profileData);
       showToast('Profile saved successfully! Your profile is under review.', 'success');
 
-      // Navigate to operator dashboard
-      router.replace('/screens/operator/dashboard');
+      // Navigate to verification pending - operator must wait for admin approval
+      router.replace('/screens/operator/verification-pending');
     } catch (error: any) {
       showToast(error.message || 'Failed to save profile', 'error');
     } finally {
@@ -339,20 +239,16 @@ export default function OperatorProfileSetupScreen() {
           </View>
           <DocumentUpload
             label="Ghana Card Photo *"
-            value={ghanaCardPhoto || ghanaCardPhotoUri}
+            value={ghanaCardPhoto}
             onUpload={handleUploadGhanaCard}
-            onRemove={() => {
-              setGhanaCardPhoto(null);
-              setGhanaCardPhotoUri(null);
-            }}
+            onRemove={() => setGhanaCardPhoto(null)}
             documentType="ghana_card"
-            isUploading={isUploading}
           />
         </View>
 
         {/* Driver's License */}
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Drivers&apos; License *</ThemedText>
+          <ThemedText style={styles.sectionTitle}>Driver's License *</ThemedText>
           <View style={styles.inputGroup}>
             <ThemedText style={styles.label}>License Number</ThemedText>
             <TextInput
@@ -365,14 +261,10 @@ export default function OperatorProfileSetupScreen() {
           </View>
           <DocumentUpload
             label="Driver's License Photo *"
-            value={driversLicensePhoto || driversLicensePhotoUri}
+            value={driversLicensePhoto}
             onUpload={handleUploadDriversLicense}
-            onRemove={() => {
-              setDriversLicensePhoto(null);
-              setDriversLicensePhotoUri(null);
-            }}
+            onRemove={() => setDriversLicensePhoto(null)}
             documentType="drivers_license"
-            isUploading={isUploading}
           />
         </View>
 
@@ -381,15 +273,11 @@ export default function OperatorProfileSetupScreen() {
           <ThemedText style={styles.sectionTitle}>Your Photo *</ThemedText>
           <DocumentUpload
             label="Upload your photo"
-            value={operatorPhoto || operatorPhotoUri}
+            value={operatorPhoto}
             onUpload={handleUploadOperatorPhoto}
-            onRemove={() => {
-              setOperatorPhoto(null);
-              setOperatorPhotoUri(null);
-            }}
+            onRemove={() => setOperatorPhoto(null)}
             documentType="operator_photo"
             allowCamera={true}
-            isUploading={isUploading}
           />
         </View>
 
@@ -408,14 +296,10 @@ export default function OperatorProfileSetupScreen() {
           </View>
           <DocumentUpload
             label="Registration Document"
-            value={vehicleRegistrationPhoto || vehicleRegistrationPhotoUri}
+            value={vehicleRegistrationPhoto}
             onUpload={handleUploadVehicleRegistration}
-            onRemove={() => {
-              setVehicleRegistrationPhoto(null);
-              setVehicleRegistrationPhotoUri(null);
-            }}
+            onRemove={() => setVehicleRegistrationPhoto(null)}
             documentType="vehicle_registration"
-            isUploading={isUploading}
           />
         </View>
 
@@ -434,14 +318,10 @@ export default function OperatorProfileSetupScreen() {
           </View>
           <DocumentUpload
             label="Insurance Document"
-            value={insurancePhoto || insurancePhotoUri}
+            value={insurancePhoto}
             onUpload={handleUploadInsurance}
-            onRemove={() => {
-              setInsurancePhoto(null);
-              setInsurancePhotoUri(null);
-            }}
+            onRemove={() => setInsurancePhoto(null)}
             documentType="insurance"
-            isUploading={isUploading}
           />
         </View>
 
@@ -539,3 +419,4 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 });
+

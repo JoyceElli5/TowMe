@@ -2,12 +2,15 @@
  * Notifications & Activity Screen
  * 
  * Displays alerts, activity logs, and system notices for the operator.
+ * Fetches real data from the notifications API.
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     FlatList,
+    RefreshControl,
     StatusBar,
     StyleSheet,
     Text,
@@ -19,133 +22,146 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import {
+    getCurrentUser,
+    getNotifications,
+    markAllNotificationsAsRead,
+    markNotificationAsRead,
+} from '@/lib/api';
+import type { AppNotification } from '@/lib/api';
 
-// Types
-type NotificationType = 'job' | 'payment' | 'system' | 'missed';
+// Map backend notification types to icon categories
+type IconCategory = 'job' | 'payment' | 'system' | 'missed';
 
-interface NotificationItem {
-    id: string;
-    type: NotificationType;
-    title: string;
-    message: string;
-    timestamp: string;
-    read: boolean;
-    actionUrl?: string;
+function getIconCategory(type: string): IconCategory {
+    switch (type) {
+        case 'request':
+        case 'status_update':
+            return 'job';
+        case 'payment':
+            return 'payment';
+        case 'rating':
+        case 'system':
+            return 'system';
+        default:
+            return 'system';
+    }
 }
 
-// Mock Data
-const MOCK_NOTIFICATIONS: NotificationItem[] = [
-    {
-        id: '1',
-        type: 'job',
-        title: 'New Job Request',
-        message: 'Tow request nearby: Toyota Camry needs assistance at Achimota Mall.',
-        timestamp: '2 mins ago',
-        read: false,
-    },
-    {
-        id: '2',
-        type: 'payment',
-        title: 'Payment Received',
-        message: 'You received GH₵ 150.00 for trip #TR-88392 via Mobile Money.',
-        timestamp: '1 hour ago',
-        read: false,
-    },
-    {
-        id: '3',
-        type: 'missed',
-        title: 'Missed Request',
-        message: 'You missed a job request while you were offline in East Legon.',
-        timestamp: '3 hours ago',
-        read: true,
-    },
-    {
-        id: '4',
-        type: 'system',
-        title: 'Document Expiry Warning',
-        message: 'Your vehicle insurance is due for renewal in 5 days. Please update it to avoid suspension.',
-        timestamp: 'Yesterday',
-        read: true,
-    },
-    {
-        id: '5',
-        type: 'job',
-        title: 'Job Cancelled',
-        message: 'Trip #TR-99201 was cancelled by the user. Cancellation fee applied.',
-        timestamp: 'Yesterday',
-        read: true,
-    },
-    {
-        id: '6',
-        type: 'system',
-        title: 'Weekly Report',
-        message: 'Your weekly performance report is ready. You completed 25 trips this week!',
-        timestamp: '2 days ago',
-        read: true,
-    },
-];
+function formatTimeAgo(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+}
 
 const FILTER_TABS = ['All', 'Alerts', 'Payment', 'System'] as const;
 
 export default function NotificationsScreen() {
     const backgroundColor = useThemeColor({}, 'background');
     const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
-    const cardBg = useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background');
-    const textColor = useThemeColor({}, 'text');
     const subtitleColor = useThemeColor({ light: '#6b7280', dark: '#9ca3af' }, 'text');
     const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
 
     const [activeTab, setActiveTab] = useState<typeof FILTER_TABS[number]>('All');
-    const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const getIcon = (type: NotificationType) => {
-        switch (type) {
+    const fetchNotifications = useCallback(async () => {
+        try {
+            const user = await getCurrentUser();
+            if (!user?.id) return;
+
+            const result = await getNotifications(1, 50);
+            setNotifications(result.notifications);
+            setUnreadCount(result.unreadCount);
+        } catch (error) {
+            if (__DEV__) console.warn('Failed to fetch notifications:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchNotifications();
+    }, [fetchNotifications]);
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchNotifications();
+    }, [fetchNotifications]);
+
+    const getIcon = (type: string) => {
+        const category = getIconCategory(type);
+        switch (category) {
             case 'job':
-                return <Ionicons name="notifications-outline" size={24} color="#003554" />; // Job alerts
+                return <Ionicons name="notifications-outline" size={24} color="#003554" />;
             case 'payment':
-                return <Ionicons name="card-outline" size={24} color="#16a34a" />; // Success green
+                return <Ionicons name="card-outline" size={24} color="#16a34a" />;
             case 'missed':
-                return <Ionicons name="alert-circle-outline" size={24} color="#dc2626" />; // Warning red
+                return <Ionicons name="alert-circle-outline" size={24} color="#dc2626" />;
             case 'system':
-                return <Ionicons name="settings-outline" size={24} color="#6b7280" />; // Neutral grey
+                return <Ionicons name="settings-outline" size={24} color="#6b7280" />;
             default:
                 return <Ionicons name="notifications-outline" size={24} color={tintColor} />;
         }
     };
 
-    const getIconBg = (type: NotificationType) => {
-        switch (type) {
-            case 'job': return '#bae6fd'; // Light blue
-            case 'payment': return '#dcfce7'; // Light green
-            case 'missed': return '#fee2e2'; // Light red
-            case 'system': return '#f3f4f6'; // Light grey
+    const getIconBg = (type: string) => {
+        const category = getIconCategory(type);
+        switch (category) {
+            case 'job': return '#bae6fd';
+            case 'payment': return '#dcfce7';
+            case 'missed': return '#fee2e2';
+            case 'system': return '#f3f4f6';
             default: return '#f3f4f6';
         }
     };
 
-    const markAsRead = (id: string) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    const handleMarkAsRead = async (id: string) => {
+        // Optimistic update
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        // Fire-and-forget API call
+        markNotificationAsRead(id);
     };
 
-    const markAllAsRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    const handleMarkAllAsRead = async () => {
+        // Optimistic update
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        setUnreadCount(0);
+        // Fire-and-forget API call
+        markAllNotificationsAsRead();
     };
 
     const filteredNotifications = notifications.filter(n => {
+        const category = getIconCategory(n.type);
         if (activeTab === 'All') return true;
-        if (activeTab === 'Alerts') return n.type === 'job' || n.type === 'missed';
-        if (activeTab === 'Payment') return n.type === 'payment';
-        if (activeTab === 'System') return n.type === 'system';
+        if (activeTab === 'Alerts') return category === 'job' || category === 'missed';
+        if (activeTab === 'Payment') return category === 'payment';
+        if (activeTab === 'System') return category === 'system';
         return true;
     });
 
-    const renderItem = ({ item }: { item: NotificationItem }) => (
+    const renderItem = ({ item }: { item: AppNotification }) => (
         <TouchableOpacity
             style={[
                 styles.notificationItem,
-                { backgroundColor: item.read ? 'transparent' : `${tintColor}08` } // Slight tint for unread
+                { backgroundColor: item.isRead ? 'transparent' : `${tintColor}08` }
             ]}
-            onPress={() => markAsRead(item.id)}
+            onPress={() => !item.isRead && handleMarkAsRead(item.id)}
         >
             <View style={[styles.iconContainer, { backgroundColor: getIconBg(item.type) }]}>
                 {getIcon(item.type)}
@@ -153,10 +169,12 @@ export default function NotificationsScreen() {
 
             <View style={styles.contentContainer}>
                 <View style={styles.headerRow}>
-                    <ThemedText style={[styles.itemTitle, !item.read && styles.unreadTitle]}>
+                    <ThemedText style={[styles.itemTitle, !item.isRead && styles.unreadTitle]}>
                         {item.title}
                     </ThemedText>
-                    <ThemedText style={styles.timestamp}>{item.timestamp}</ThemedText>
+                    <ThemedText style={styles.timestamp}>
+                        {formatTimeAgo(item.createdAt)}
+                    </ThemedText>
                 </View>
 
                 <ThemedText style={styles.message} numberOfLines={2}>
@@ -164,11 +182,28 @@ export default function NotificationsScreen() {
                 </ThemedText>
             </View>
 
-            {!item.read && (
+            {!item.isRead && (
                 <View style={[styles.unreadDot, { backgroundColor: tintColor }]} />
             )}
         </TouchableOpacity>
     );
+
+    if (loading) {
+        return (
+            <ThemedView style={[styles.container, { backgroundColor }]}>
+                <StatusBar barStyle={backgroundColor === '#151718' ? 'light-content' : 'dark-content'} />
+                <SafeAreaView edges={['top']} style={styles.safeArea}>
+                    <View style={styles.header}>
+                        <ThemedText style={styles.headerTitle}>Activity</ThemedText>
+                    </View>
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={tintColor} />
+                        <ThemedText style={styles.loadingText}>Loading notifications...</ThemedText>
+                    </View>
+                </SafeAreaView>
+            </ThemedView>
+        );
+    }
 
     return (
         <ThemedView style={[styles.container, { backgroundColor }]}>
@@ -177,8 +212,15 @@ export default function NotificationsScreen() {
 
                 {/* Header */}
                 <View style={styles.header}>
-                    <ThemedText style={styles.headerTitle}>Activity</ThemedText>
-                    <TouchableOpacity onPress={markAllAsRead}>
+                    <View style={styles.headerLeft}>
+                        <ThemedText style={styles.headerTitle}>Activity</ThemedText>
+                        {unreadCount > 0 && (
+                            <View style={[styles.badge, { backgroundColor: tintColor }]}>
+                                <Text style={styles.badgeText}>{unreadCount}</Text>
+                            </View>
+                        )}
+                    </View>
+                    <TouchableOpacity onPress={handleMarkAllAsRead}>
                         <Ionicons name="checkmark-done-outline" size={24} color={tintColor} />
                     </TouchableOpacity>
                 </View>
@@ -218,10 +260,23 @@ export default function NotificationsScreen() {
                     renderItem={renderItem}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor={tintColor}
+                            colors={[tintColor]}
+                        />
+                    }
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
                             <Ionicons name="checkmark-circle-outline" size={48} color="#d1d5db" />
-                            <ThemedText style={styles.emptyText}>No notifications here!</ThemedText>
+                            <ThemedText style={styles.emptyTitle}>
+                                {"You're all caught up!"}
+                            </ThemedText>
+                            <ThemedText style={styles.emptyText}>
+                                No notifications to show right now.
+                            </ThemedText>
                         </View>
                     }
                     ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: borderColor }]} />}
@@ -246,8 +301,27 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
     },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
     headerTitle: {
         fontSize: 24,
+        fontFamily: 'Gilroy-Bold',
+        fontWeight: '700',
+    },
+    badge: {
+        minWidth: 22,
+        height: 22,
+        borderRadius: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 6,
+    },
+    badgeText: {
+        color: '#ffffff',
+        fontSize: 12,
         fontFamily: 'Gilroy-Bold',
         fontWeight: '700',
     },
@@ -267,7 +341,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     listContent: {
-        paddingBottom: 40,
+        paddingBottom: 100,
     },
     notificationItem: {
         flexDirection: 'row',
@@ -320,17 +394,33 @@ const styles = StyleSheet.create({
     },
     separator: {
         height: 1,
-        marginLeft: 84, // Align with text content
+        marginLeft: 84,
+    },
+    loadingContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 16,
+    },
+    loadingText: {
+        color: '#9ca3af',
+        fontFamily: 'Gilroy-Medium',
+        fontSize: 16,
     },
     emptyState: {
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 60,
-        gap: 16,
+        gap: 12,
+    },
+    emptyTitle: {
+        fontFamily: 'Gilroy-SemiBold',
+        fontSize: 18,
+        marginTop: 4,
     },
     emptyText: {
         color: '#9ca3af',
         fontFamily: 'Gilroy-Medium',
-        fontSize: 16,
+        fontSize: 14,
     },
 });

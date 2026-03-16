@@ -1,4 +1,3 @@
-
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -33,7 +32,7 @@ export default function EarningsModal({
                 <TouchableOpacity style={styles.backdrop} onPress={onClose} />
                 <ThemedView style={[styles.container, { backgroundColor }]}>
                     <View style={styles.header}>
-                        <ThemedText style={styles.title}>Today's Earnings</ThemedText>
+                        <ThemedText style={styles.title}>{"Today's Earnings"}</ThemedText>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <Ionicons name="close" size={24} color={tintColor} />
                         </TouchableOpacity>

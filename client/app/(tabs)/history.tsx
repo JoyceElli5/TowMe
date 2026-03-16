@@ -1,7 +1,9 @@
 
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -13,75 +15,66 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Fonts } from '@/constants/theme';
+import { getCurrentUser } from '@/lib/api';
+import { getUserRequests, TowingRequest } from '@/lib/api/requests';
 
-// Mock trip data
-const MOCK_TRIPS = [
-  {
-    id: '1',
-    date: 'Today, 2:30 PM',
-    pickup: 'Ring Road Central, Accra',
-    destination: 'Accra Mall',
-    distance: '12.5 km',
-    earnings: 'GHS 156',
-    rating: 5,
-  },
-  {
-    id: '2',
-    date: 'Yesterday, 10:15 AM',
-    pickup: 'Osu Oxford Street',
-    destination: 'Kotoka Airport',
-    distance: '8.2 km',
-    earnings: 'GHS 98',
-    rating: 4,
-  },
-  {
-    id: '3',
-    date: 'Nov 24, 4:45 PM',
-    pickup: 'East Legon',
-    destination: 'University of Ghana',
-    distance: '15.0 km',
-    earnings: 'GHS 180',
-    rating: 5,
-  },
-];
+type TimeFilter = 'today' | 'week' | 'month';
 
-function TripCard({ trip }: { trip: typeof MOCK_TRIPS[0] }) {
+function TripCard({ trip }: { trip: TowingRequest }) {
   const iconColor = useThemeColor({}, 'icon');
   const cardBg = useThemeColor({}, 'background');
+
+  const tripDate = new Date(trip.completedAt || trip.createdAt);
+  const now = new Date();
+  const isToday = tripDate.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = tripDate.toDateString() === yesterday.toDateString();
+
+  const dateLabel = isToday
+    ? `Today, ${tripDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    : isYesterday
+    ? `Yesterday, ${tripDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    : `${tripDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${tripDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
   return (
     <TouchableOpacity>
       <ThemedView style={[styles.tripCard, { backgroundColor: cardBg }]}>
-      <View style={styles.tripHeader}>
-        <ThemedText style={styles.tripDate}>{trip.date}</ThemedText>
-        <View style={styles.ratingContainer}>
-          <StarIcon size={14} color="#F59E0B" strokeWidth={2} />
-          <ThemedText style={styles.ratingText}>{trip.rating}</ThemedText>
+        <View style={styles.tripHeader}>
+          <ThemedText style={styles.tripDate}>{dateLabel}</ThemedText>
+          <View style={styles.ratingContainer}>
+            <StarIcon size={14} color="#F59E0B" strokeWidth={2} />
+            <ThemedText style={styles.ratingText}>
+              {trip.operator?.averageRating?.toFixed(1) || '-'}
+            </ThemedText>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.addressContainer}>
-        <View style={styles.addressRow}>
-          <View style={styles.pickupDot} />
-          <ThemedText style={styles.addressText} numberOfLines={1}>
-            {trip.pickup}
+        <View style={styles.addressContainer}>
+          <View style={styles.addressRow}>
+            <View style={styles.pickupDot} />
+            <ThemedText style={styles.addressText} numberOfLines={1}>
+              {trip.pickupAddress}
+            </ThemedText>
+          </View>
+          <View style={styles.addressLine} />
+          <View style={styles.addressRow}>
+            <View style={styles.destinationDot} />
+            <ThemedText style={styles.addressText} numberOfLines={1}>
+              {trip.destinationAddress}
+            </ThemedText>
+          </View>
+        </View>
+
+        <View style={styles.tripFooter}>
+          <View style={styles.distanceContainer}>
+            <Route01Icon size={16} color={iconColor} strokeWidth={2} />
+            <ThemedText style={styles.distanceText}>{trip.distanceKm?.toFixed(1) || '0'} km</ThemedText>
+          </View>
+          <ThemedText style={styles.earningsText}>
+            GH₵ {(trip.finalPrice || trip.estimatedPrice || 0).toFixed(0)}
           </ThemedText>
         </View>
-        <View style={styles.addressLine} />
-        <View style={styles.addressRow}>
-          <View style={styles.destinationDot} />
-          <ThemedText style={styles.addressText} numberOfLines={1}>
-            {trip.destination}
-          </ThemedText>
-        </View>
-      </View>
-
-      <View style={styles.tripFooter}>
-        <View style={styles.distanceContainer}>
-          <Route01Icon size={16} color={iconColor} strokeWidth={2} />
-          <ThemedText style={styles.distanceText}>{trip.distance}</ThemedText>
-        </View>
-        <ThemedText style={styles.earningsText}>{trip.earnings}</ThemedText>
-      </View>
       </ThemedView>
     </TouchableOpacity>
   );
@@ -91,6 +84,66 @@ export default function HistoryScreen() {
   const backgroundColor = useThemeColor({}, 'background');
   const filterButtonBg = useThemeColor({ light: '#EBF5FF', dark: '#1E3A5F' }, 'background');
   
+  const [trips, setTrips] = useState<TowingRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<TimeFilter>('today');
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const fetchTrips = useCallback(async (showLoader = true) => {
+    if (showLoader) setIsLoading(true);
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+      setUserId(user.id);
+
+      const response = await getUserRequests(user.id, {
+        status: 'completed',
+        limit: 100,
+      });
+
+      if (response.data) {
+        setTrips(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch trip history:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTrips();
+  }, [fetchTrips]);
+
+  const onRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchTrips(false);
+  }, [fetchTrips]);
+
+  // Filter trips by time period
+  const filteredTrips = trips.filter((trip) => {
+    const tripDate = new Date(trip.completedAt || trip.createdAt);
+    const now = new Date();
+
+    if (activeFilter === 'today') {
+      return tripDate.toDateString() === now.toDateString();
+    } else if (activeFilter === 'week') {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return tripDate >= weekAgo;
+    } else {
+      const monthAgo = new Date(now);
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+      return tripDate >= monthAgo;
+    }
+  });
+
+  // Compute summary from filtered trips
+  const totalEarnings = filteredTrips.reduce((sum, t) => sum + (t.finalPrice || t.estimatedPrice || 0), 0);
+  const totalDistance = filteredTrips.reduce((sum, t) => sum + (t.distanceKm || 0), 0);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]}>
       {/* Header */}
@@ -104,44 +157,61 @@ export default function HistoryScreen() {
       {/* Summary Card */}
       <ThemedView style={styles.summaryCard}>
         <View style={styles.summaryItem}>
-          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>GHS 434</ThemedText>
-          <ThemedText style={styles.summaryLabel}>Total Earnings</ThemedText>
+          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>GH₵ {totalEarnings.toFixed(0)}</ThemedText>
+          <ThemedText style={styles.summaryLabel}>Total Spent</ThemedText>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
-          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>3</ThemedText>
+          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>{filteredTrips.length}</ThemedText>
           <ThemedText style={styles.summaryLabel}>Trips</ThemedText>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
-          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>35.7 km</ThemedText>
+          <ThemedText type="defaultSemiBold" style={styles.summaryValue}>{totalDistance.toFixed(1)} km</ThemedText>
           <ThemedText style={styles.summaryLabel}>Distance</ThemedText>
         </View>
       </ThemedView>
 
       {/* Filter Tabs */}
       <View style={styles.filterTabs}>
-        <TouchableOpacity style={[styles.filterTab, styles.filterTabActive]}>
-          <ThemedText style={[styles.filterTabText, styles.filterTabTextActive]}>Today</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterTab}>
-          <ThemedText style={styles.filterTabText}>This Week</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterTab}>
-          <ThemedText style={styles.filterTabText}>This Month</ThemedText>
-        </TouchableOpacity>
+        {(['today', 'week', 'month'] as TimeFilter[]).map((filter) => (
+          <TouchableOpacity
+            key={filter}
+            style={[styles.filterTab, activeFilter === filter && styles.filterTabActive]}
+            onPress={() => setActiveFilter(filter)}
+          >
+            <ThemedText style={[styles.filterTabText, activeFilter === filter && styles.filterTabTextActive]}>
+              {filter === 'today' ? 'Today' : filter === 'week' ? 'This Week' : 'This Month'}
+            </ThemedText>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Trip List */}
-      <ScrollView
-        style={styles.tripList}
-        contentContainerStyle={styles.tripListContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {MOCK_TRIPS.map((trip) => (
-          <TripCard key={trip.id} trip={trip} />
-        ))}
-      </ScrollView>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#003554" />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.tripList}
+          contentContainerStyle={styles.tripListContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+          }
+        >
+          {filteredTrips.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <ThemedText style={styles.emptyText}>No trips found for this period</ThemedText>
+            </View>
+          ) : (
+            filteredTrips.map((trip) => (
+              <TripCard key={trip.id} trip={trip} />
+            ))
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -309,5 +379,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: Fonts.semiBold,
     color: '#10B981',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#9ca3af',
+    fontFamily: Fonts.regular,
   },
 });

@@ -28,6 +28,8 @@ interface Props {
   onSelect: (address: string, coordinates: Coordinates) => void;
   initialLocation?: Coordinates;
   title?: string;
+  /** If true, auto-detects current location when no initialLocation is provided. Default: true */
+  autoDetectLocation?: boolean;
 }
 
 export default function LocationPickerModal({
@@ -36,6 +38,7 @@ export default function LocationPickerModal({
   onSelect,
   initialLocation,
   title = 'Select Location',
+  autoDetectLocation = true,
 }: Props) {
   const [selectedLocation, setSelectedLocation] =
     useState<Coordinates | null>(null);
@@ -79,7 +82,8 @@ export default function LocationPickerModal({
             latitudeDelta: 0.05,
             longitudeDelta: 0.05,
           });
-        } else {
+        } else if (autoDetectLocation) {
+          // Only auto-detect current location if explicitly enabled
           const loc = await getCurrentLocationWithAddress();
 
           if (loc) {
@@ -94,6 +98,17 @@ export default function LocationPickerModal({
               longitudeDelta: 0.05,
             });
           }
+        } else {
+          // Default to Accra, Ghana for destination picker without auto-detect
+          setMapRegion({
+            latitude: 5.6037,
+            longitude: -0.187,
+            latitudeDelta: 0.1,
+            longitudeDelta: 0.1,
+          });
+          setSelectedLocation(null);
+          setAddress('');
+          setSearchQuery('');
         }
       } finally {
         setLoading(false);
@@ -101,7 +116,7 @@ export default function LocationPickerModal({
     };
 
     load();
-  }, [visible, initialLocation]);
+  }, [visible, initialLocation, autoDetectLocation]);
 
   /**
    * Search handler

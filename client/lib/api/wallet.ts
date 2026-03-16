@@ -7,7 +7,7 @@ export interface WalletTransaction {
     amount: number;
     currency: string;
     status: 'pending' | 'completed' | 'failed' | 'cancelled';
-    referenceId?: string; // e.g. trip ID or external payment ref
+    referenceId?: string;
     description: string;
     metadata?: Record<string, any>;
     createdAt: string;

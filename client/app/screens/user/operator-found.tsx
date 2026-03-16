@@ -307,13 +307,33 @@ export default function OperatorFoundScreen() {
             <Car01Icon size={32} color="#003554" strokeWidth={2} />
           </View>
           <View style={styles.vehicleInfo}>
-            <ThemedText style={styles.vehicleName}>
-              {request.vehicleType.charAt(0).toUpperCase() + request.vehicleType.slice(1)}
-            </ThemedText>
-            <ThemedText style={styles.vehiclePlate}>
-              {request.distanceKm?.toFixed(1) || '0'} km • GH₵ {request.estimatedPrice?.toFixed(2) || '0.00'}
-            </ThemedText>
+            {request.vehicle ? (
+              <>
+                <ThemedText style={styles.vehicleName}>
+                  {request.vehicle.color} {request.vehicle.make} {request.vehicle.model}
+                </ThemedText>
+                <ThemedText style={styles.vehiclePlate}>
+                  {request.vehicle.plateNumber}
+                </ThemedText>
+              </>
+            ) : (
+              <>
+                <ThemedText style={styles.vehicleName}>
+                  {request.vehicleType.charAt(0).toUpperCase() + request.vehicleType.slice(1)}
+                </ThemedText>
+                <ThemedText style={styles.vehiclePlate}>
+                  {request.distanceKm?.toFixed(1) || '0'} km • GH₵ {request.estimatedPrice?.toFixed(2) || '0.00'}
+                </ThemedText>
+              </>
+            )}
           </View>
+        </View>
+
+        {/* Trip Distance & Price */}
+        <View style={styles.tripInfoRow}>
+          <ThemedText style={styles.tripInfoText}>
+            {request.distanceKm?.toFixed(1) || '0'} km • GH₵ {request.estimatedPrice?.toFixed(2) || '0.00'}
+          </ThemedText>
         </View>
 
         {/* Track Button */}
@@ -523,7 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 32,
+    marginBottom: 8,
   },
   vehicleIconContainer: {
     width: 48,
@@ -544,6 +564,15 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   vehiclePlate: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  tripInfoRow: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  tripInfoText: {
     fontSize: 14,
     color: '#6b7280',
   },

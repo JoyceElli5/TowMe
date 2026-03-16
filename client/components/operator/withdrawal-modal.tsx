@@ -1,13 +1,10 @@
-
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Ionicons } from '@expo/vector-icons';
 import {
     ArrowRight01Icon,
-    Cancel01Icon,
-    CreditCardIcon,
-    SmartPhone01Icon
+    Close01Icon,
 } from 'hugeicons-react-native';
 import React, { useState } from 'react';
 import {
@@ -58,8 +55,7 @@ export default function WithdrawalModal({
             setTimeout(() => {
                 handleClose();
             }, 2000);
-        } catch (error) {
-            // Error handling is managed by parent or toast
+        } catch {
             setIsSubmitting(false);
         }
     };
@@ -102,7 +98,7 @@ export default function WithdrawalModal({
             <View style={styles.inputGroup}>
                 <ThemedText style={styles.label}>Phone Number</ThemedText>
                 <View style={[styles.inputContainer, { borderColor: '#e5e7eb' }]}>
-                    <SmartPhone01Icon size={20} color="#9ca3af" />
+                    <Ionicons name="phone-portrait-outline" size={20} color="#9ca3af" />
                     <TextInput
                         style={[styles.input, { color: textColor }]}
                         placeholder="024 123 4567"
@@ -177,7 +173,7 @@ export default function WithdrawalModal({
                     ) : (
                         <>
                             <ThemedText style={styles.submitButtonText}>Confirm</ThemedText>
-                            <CreditCardIcon size={18} color="#ffffff" />
+                            <Ionicons name="card-outline" size={18} color="#ffffff" />
                         </>
                     )}
                 </TouchableOpacity>
@@ -218,7 +214,7 @@ export default function WithdrawalModal({
                                             {step === 'input' ? 'Withdraw Funds' : 'Confirm Withdrawal'}
                                         </ThemedText>
                                         <TouchableOpacity onPress={handleClose}>
-                                            <Cancel01Icon size={24} color={textColor} />
+                                            <Close01Icon size={24} color={textColor} />
                                         </TouchableOpacity>
                                     </View>
                                 )}

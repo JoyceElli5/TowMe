@@ -12,17 +12,14 @@ import {
     TransactionIcon,
     Wallet01Icon
 } from 'hugeicons-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     RefreshControl,
     ScrollView,
     StatusBar,
     StyleSheet,
-    Text // Explicitly imported
-    ,
-
-
+    Text,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -39,13 +36,10 @@ import {
     WalletBalance,
     WalletTransaction
 } from '@/lib/api/wallet';
+import { getCurrentUser } from '@/lib/api';
 
 const PERIODS = ['Daily', 'Weekly', 'Monthly'] as const;
 type Period = typeof PERIODS[number];
-
-// Use a hardcoded user ID for now since we don't have auth context easily accessible yet
-// In a real app this would come from useAuth()
-const MOCK_USER_ID = '36398504-646f-45e8-9b96-a23921cf5ad2';
 
 export default function EarningsWalletScreen() {
     const backgroundColor = useThemeColor({}, 'background');
@@ -59,12 +53,20 @@ export default function EarningsWalletScreen() {
     const [balance, setBalance] = useState<WalletBalance | null>(null);
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [withdrawalModalVisible, setWithdrawalModalVisible] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
+            let uid = userId;
+            if (!uid) {
+                const user = await getCurrentUser();
+                if (!user) return;
+                uid = user.id;
+                setUserId(uid);
+            }
             const [balanceData, transactionsData] = await Promise.all([
-                getWalletBalance(MOCK_USER_ID),
-                getWalletTransactions(MOCK_USER_ID, { limit: 10 })
+                getWalletBalance(uid),
+                getWalletTransactions(uid, { limit: 10 })
             ]);
             setBalance(balanceData);
             setTransactions(transactionsData);
@@ -74,11 +76,11 @@ export default function EarningsWalletScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    };
+    }, [userId]);
 
     useEffect(() => {
         fetchData();
-    }, [selectedPeriod]); // Reload when period changes (dummy for now)
+    }, [fetchData]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -86,9 +88,9 @@ export default function EarningsWalletScreen() {
     };
 
     const handleWithdrawal = async (amount: number, provider: string, phone: string) => {
+        if (!userId) return;
         try {
-            await requestWithdrawal(MOCK_USER_ID, amount, { provider, phoneNumber: phone });
-            // Refresh data to show updated balance/transaction
+            await requestWithdrawal(userId, amount, { provider, phoneNumber: phone });
             onRefresh();
         } catch (error) {
             console.error('Withdrawal failed:', error);
@@ -131,14 +133,8 @@ export default function EarningsWalletScreen() {
 
             <View style={styles.mainEarnings}>
                 <ThemedText style={styles.earningsLabel}>Total Earnings ({selectedPeriod})</ThemedText>
-                <ThemedText 
-                    style={[styles.earningsValue, { color: tintColor }]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.7}
-                >
-                    {/* Calculate dynamically later */}
-                    GH₵ 1,240.00
+                <ThemedText style={[styles.earningsValue, { color: tintColor }]}>
+                    {balance?.currency || 'GH₵'} {(balance?.available ?? 0).toFixed(2)}
                 </ThemedText>
             </View>
 
@@ -147,17 +143,23 @@ export default function EarningsWalletScreen() {
             <View style={styles.breakdownRow}>
                 <View style={styles.breakdownItem}>
                     <ThemedText style={styles.breakdownLabel}>Gross</ThemedText>
-                    <ThemedText style={styles.breakdownValue}>GH₵ 1,550</ThemedText>
+                    <ThemedText style={styles.breakdownValue}>
+                        {balance?.currency || 'GH₵'} {((balance?.available ?? 0) / 0.8).toFixed(0)}
+                    </ThemedText>
                 </View>
                 <View style={[styles.verticalDivider, { backgroundColor: borderColor }]} />
                 <View style={styles.breakdownItem}>
                     <ThemedText style={styles.breakdownLabel}>Fees (20%)</ThemedText>
-                    <ThemedText style={[styles.breakdownValue, { color: '#ef4444' }]}>-GH₵ 310</ThemedText>
+                    <ThemedText style={[styles.breakdownValue, { color: '#ef4444' }]}>
+                        -{balance?.currency || 'GH₵'} {(((balance?.available ?? 0) / 0.8) * 0.2).toFixed(0)}
+                    </ThemedText>
                 </View>
                 <View style={[styles.verticalDivider, { backgroundColor: borderColor }]} />
                 <View style={styles.breakdownItem}>
                     <ThemedText style={styles.breakdownLabel}>Net Payout</ThemedText>
-                    <ThemedText style={[styles.breakdownValue, { color: '#22c55e' }]}>GH₵ 1,240</ThemedText>
+                    <ThemedText style={[styles.breakdownValue, { color: '#22c55e' }]}>
+                        {balance?.currency || 'GH₵'} {(balance?.available ?? 0).toFixed(0)}
+                    </ThemedText>
                 </View>
             </View>
         </ThemedView>
@@ -171,12 +173,7 @@ export default function EarningsWalletScreen() {
                     {loading ? (
                         <ActivityIndicator color="white" />
                     ) : (
-                        <ThemedText 
-                            style={styles.walletBalance}
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.6}
-                        >
+                        <ThemedText style={styles.walletBalance}>
                             {balance?.currency} {balance?.available.toFixed(2)}
                         </ThemedText>
                     )}
@@ -268,26 +265,26 @@ export default function EarningsWalletScreen() {
                     {renderWalletCard()}
                     {renderEarningsSummary()}
 
-                    {/* Incentives Section - Keeping static as placeholder for now */}
+                    {/* Incentives Section — shown only when transactions exist */}
+                    {transactions.length > 0 && (
                     <ThemedView style={[styles.card, { backgroundColor: cardBg }]}>
                         <View style={styles.cardHeader}>
-                            <ThemedText style={styles.cardTitle}>Active Bonus</ThemedText>
-                            <View style={styles.bonusBadge}>
-                                <ThemedText style={styles.bonusBadgeText}>+50 GHS</ThemedText>
-                            </View>
+                            <ThemedText style={styles.cardTitle}>Activity Overview</ThemedText>
                         </View>
 
                         <View style={styles.bonusContent}>
-                            <ThemedText style={styles.bonusDescription}>Complete 5 more trips this week to unlock your bonus!</ThemedText>
+                            <ThemedText style={styles.bonusDescription}>
+                                {`You've completed ${transactions.filter(t => t.type === 'trip_payment' && t.status === 'completed').length} trips recently. Keep it up!`}
+                            </ThemedText>
                             <View style={styles.progressBarContainer}>
-                                <View style={[styles.progressBar, { width: '60%', backgroundColor: '#22c55e' }]} />
-                            </View>
-                            <View style={styles.progressLabels}>
-                                <ThemedText style={styles.progressText}>15/20 Trips</ThemedText>
-                                <ThemedText style={styles.progressText}>3 days left</ThemedText>
+                                <View style={[styles.progressBar, {
+                                    width: `${Math.min(100, transactions.filter(t => t.type === 'trip_payment' && t.status === 'completed').length * 10)}%`,
+                                    backgroundColor: '#22c55e'
+                                }]} />
                             </View>
                         </View>
                     </ThemedView>
+                    )}
 
                     <View style={styles.sectionHeader}>
                         <ThemedText style={styles.sectionTitle}>Recent Activity</ThemedText>
@@ -398,8 +395,6 @@ const styles = StyleSheet.create({
         fontSize: 32,
         fontFamily: 'Gilroy-Bold',
         fontWeight: '700',
-        flexShrink: 1,
-        flexWrap: 'wrap',
     },
     divider: {
         height: 1,
@@ -427,9 +422,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: 'Gilroy-SemiBold',
         fontWeight: '600',
-        flexShrink: 1,
-        flexWrap: 'wrap',
-        textAlign: 'center',
     },
     walletCard: {
         borderRadius: 24,
@@ -459,8 +451,6 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontFamily: 'Gilroy-Bold',
         fontWeight: '700',
-        flexShrink: 1,
-        flexWrap: 'wrap',
     },
     walletIconContainer: {
         width: 48,
