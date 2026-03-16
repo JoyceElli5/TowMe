@@ -23,7 +23,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useToast } from '@/hooks/use-toast';
-import { getCurrentUser, getRequestById, startRequest, type TowingRequest } from '@/lib/api';
+import { ApiError, getCurrentUser, getRequestById, startRequest, type TowingRequest } from '@/lib/api';
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
 import { calculateDistance } from '@/lib/services/locationService';
 import { getCurrentOperatorLocation, startLocationTracking, type OperatorLocation } from '@/lib/services/operatorLocationService';
@@ -65,8 +65,23 @@ export default function NavigationToPickupScreen() {
         }
       } catch (error) {
         console.error('Failed to fetch request:', error);
-        Alert.alert('Error', 'Failed to load request details');
-        router.back();
+        if (error instanceof ApiError) {
+          if (error.status === 404) {
+            Alert.alert('Request not found', 'This tow request is no longer available.', [
+              { text: 'OK', onPress: () => router.back() },
+            ]);
+          } else if (error.status === 401) {
+            Alert.alert('Session expired', 'Please sign in again.', [
+              { text: 'OK', onPress: () => router.replace('/screens/auth/login-screen') },
+            ]);
+          } else {
+            Alert.alert('Error', error.message || 'Failed to load request details');
+            router.back();
+          }
+        } else {
+          Alert.alert('Error', 'Failed to load request details');
+          router.back();
+        }
       } finally {
         setIsLoading(false);
       }
@@ -107,7 +122,7 @@ export default function NavigationToPickupScreen() {
         stopTracking();
       }
     };
-  }, []);
+  }, [showToast]);
 
   // Update route when operator location or request changes
   useEffect(() => {

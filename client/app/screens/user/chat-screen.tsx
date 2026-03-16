@@ -32,7 +32,6 @@ import {
     Message,
     sendMessage,
     subscribeToMessages,
-    unsubscribeFromMessages
 } from '@/lib/services/chatService';
 
 export default function UserChatScreen() {
@@ -52,7 +51,7 @@ export default function UserChatScreen() {
     const textColor = useThemeColor({}, 'text');
 
     useEffect(() => {
-        let channel: any = null;
+        let unsubscribe: (() => void) | null = null;
 
         const initChat = async () => {
             if (!params.requestId) {
@@ -61,11 +60,9 @@ export default function UserChatScreen() {
             }
 
             try {
-                // Get current user (client)
                 const user = await getCurrentUser();
                 if (user) setCurrentUserId(user.id);
 
-                // Load request and messages
                 const [requestData, messagesData] = await Promise.all([
                     getRequestById(params.requestId),
                     getMessagesByRequest(params.requestId)
@@ -76,10 +73,8 @@ export default function UserChatScreen() {
                     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
                 ));
 
-                // Subscribe to new messages
-                channel = subscribeToMessages(params.requestId, (newMessage) => {
+                unsubscribe = await subscribeToMessages(params.requestId, (newMessage) => {
                     setMessages((prev) => {
-                        // Avoid duplicates
                         if (prev.find(m => m.id === newMessage.id)) return prev;
                         return [...prev, newMessage];
                     });
@@ -96,7 +91,7 @@ export default function UserChatScreen() {
         initChat();
 
         return () => {
-            if (channel) unsubscribeFromMessages(channel);
+            unsubscribe?.();
         };
     }, [params.requestId]);
 
@@ -122,11 +117,13 @@ export default function UserChatScreen() {
         setIsSending(true);
 
         try {
-            await sendMessage({
+            const newMessage = await sendMessage({
                 requestId,
                 receiverId,
                 content
             });
+            setMessages((prev) => [...prev, newMessage]);
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (error: any) {
             console.error('Failed to send message:', error);
             Alert.alert('Error', 'Failed to send message. Please ensure your backend is running.');

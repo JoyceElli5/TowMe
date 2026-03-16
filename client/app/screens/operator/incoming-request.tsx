@@ -54,8 +54,23 @@ export default function IncomingRequestScreen() {
         setRequest(requestData);
       } catch (error) {
         console.error('Failed to fetch request:', error);
-        Alert.alert('Error', 'Failed to load request details');
-        router.back();
+        if (error instanceof ApiError) {
+          if (error.status === 404) {
+            Alert.alert('Request not found', 'This tow request is no longer available.', [
+              { text: 'OK', onPress: () => router.back() },
+            ]);
+          } else if (error.status === 401) {
+            Alert.alert('Session expired', 'Please sign in again.', [
+              { text: 'OK', onPress: () => router.replace('/screens/auth/login-screen') },
+            ]);
+          } else {
+            Alert.alert('Error', error.message || 'Failed to load request details');
+            router.back();
+          }
+        } else {
+          Alert.alert('Error', 'Failed to load request details');
+          router.back();
+        }
       } finally {
         setIsLoading(false);
       }
@@ -77,7 +92,13 @@ export default function IncomingRequestScreen() {
     } catch (error) {
       console.error('Failed to accept request:', error);
       if (error instanceof ApiError) {
-        Alert.alert('Error', error.message || 'Failed to accept request');
+        if (error.status === 401) {
+          Alert.alert('Session expired', 'Please sign in again.', [
+            { text: 'OK', onPress: () => router.replace('/screens/auth/login-screen') },
+          ]);
+        } else {
+          Alert.alert('Error', error.message || 'Failed to accept request');
+        }
       } else {
         Alert.alert('Error', 'An unexpected error occurred');
       }

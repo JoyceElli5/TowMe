@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabaseAdmin } from '../config/database';
 import { createError } from '../middleware/error.middleware';
+import { emitNewMessage } from './socket.service';
 import { MessageResponse, SendMessageRequest } from '../types/api.types';
 import { Message } from '../types/database.types';
 import logger from '../utils/logger';
@@ -88,7 +89,12 @@ export async function sendMessage(senderId: string, data: SendMessageRequest): P
         throw createError.internal('Failed to send message');
     }
 
-    return mapMessageToResponse(message);
+    const response = mapMessageToResponse(message);
+
+    // Broadcast via Socket.io so connected clients get it instantly
+    emitNewMessage(data.requestId, response);
+
+    return response;
 }
 
 /**

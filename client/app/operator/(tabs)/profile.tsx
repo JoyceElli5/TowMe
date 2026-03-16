@@ -58,17 +58,17 @@ export default function OperatorProfileScreen() {
       setProfile(operatorProfile);
 
       // Fetch earnings and trip history
-      const tripsResponse = await getOperatorRequests(currentUser.id, {
+      const trips = await getOperatorRequests(currentUser.id, {
         status: 'completed',
         limit: 10,
       });
 
-      if (tripsResponse.data) {
-        setRecentTrips(tripsResponse.data);
-        setTotalTrips(tripsResponse.data.length);
+      if (trips) {
+        setRecentTrips(trips);
+        setTotalTrips(trips.length);
 
         // Calculate total earnings
-        const total = tripsResponse.data.reduce((sum, trip) => {
+        const total = trips.reduce((sum, trip) => {
           return sum + (trip.finalPrice || trip.estimatedPrice || 0);
         }, 0);
         setEarnings(total);

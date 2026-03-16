@@ -20,7 +20,12 @@ import * as emailService from './email.service';
 
 const SALT_ROUNDS = 10;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // 1 hour
-const VERIFICATION_TOKEN_EXPIRY_HOURS = 24; // 24 hours
+const VERIFICATION_OTP_EXPIRY_MINUTES = 10; // 10 minutes
+
+/** Generate a 6-digit numeric OTP */
+function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 /**
  * Register a new user
@@ -45,10 +50,10 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
   // Create user ID
   const userId = uuidv4();
 
-  // Generate email verification token
-  const verificationToken = crypto.randomBytes(32).toString('hex');
+  // Generate 6-digit OTP for email verification
+  const verificationToken = generateOTP();
   const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + VERIFICATION_TOKEN_EXPIRY_HOURS);
+  expiresAt.setMinutes(expiresAt.getMinutes() + VERIFICATION_OTP_EXPIRY_MINUTES);
 
   // Create user in database with password hash
   const { data: user, error } = await supabase
@@ -311,6 +316,51 @@ export async function resetPassword(token: string, newPassword: string): Promise
     .eq('token', token);
 
   logger.info(`Password reset successful for user: ${resetTokenData.user_id}`);
+}
+
+/**
+ * Resend email verification OTP
+ */
+export async function resendVerificationEmail(email: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+
+  const { data: user } = await supabase
+    .from('users')
+    .select('id, full_name, is_verified')
+    .eq('email', email.toLowerCase())
+    .single();
+
+  if (!user) {
+    // Don't reveal if email exists
+    return;
+  }
+
+  if (user.is_verified) {
+    // Already verified – silently succeed so we don't leak info
+    return;
+  }
+
+  // Invalidate old tokens for this user
+  await supabase
+    .from('email_verification_tokens')
+    .update({ used: true })
+    .eq('user_id', user.id)
+    .eq('used', false);
+
+  // Generate new OTP
+  const otp = generateOTP();
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + VERIFICATION_OTP_EXPIRY_MINUTES);
+
+  await supabase.from('email_verification_tokens').insert({
+    user_id: user.id,
+    token: otp,
+    expires_at: expiresAt.toISOString(),
+    used: false,
+  });
+
+  await emailService.sendVerificationEmail(email, user.full_name, otp);
+  logger.info(`Verification OTP resent to: ${email}`);
 }
 
 /**

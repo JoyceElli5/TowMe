@@ -99,6 +99,21 @@ export async function resetPassword(req: AuthenticatedRequest, res: Response): P
 }
 
 /**
+ * POST /api/auth/resend-verification
+ */
+export async function resendVerification(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    await authService.resendVerificationEmail(req.body.email);
+    res.json({
+      success: true,
+      message: 'If your email is registered and unverified, a new code has been sent',
+    });
+  } catch (error) {
+    throw error;
+  }
+}
+
+/**
  * POST /api/auth/verify-email
  */
 export async function verifyEmail(req: AuthenticatedRequest, res: Response): Promise<void> {

@@ -66,19 +66,19 @@ export function useOperatorDashboard() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const tripsResponse = await getOperatorRequests(user.id, {
+      const trips = await getOperatorRequests(user.id, {
         status: 'completed',
         limit: 100,
       });
 
-      if (!tripsResponse.data) return;
+      if (!trips) return;
 
-      const todayTrips = tripsResponse.data.filter((trip) => {
+      const todayTrips = trips.filter((trip) => {
         const tripDate = new Date(trip.completedAt || trip.createdAt);
         return tripDate >= today;
       });
 
-      const totalEarnings = tripsResponse.data.reduce((sum, trip) => {
+      const totalEarnings = trips.reduce((sum, trip) => {
         return sum + (trip.finalPrice || trip.estimatedPrice || 0);
       }, 0);
 
@@ -93,7 +93,7 @@ export function useOperatorDashboard() {
         limit: 50,
       });
 
-      const currentActiveJob = recentJobs.data.find(job =>
+      const currentActiveJob = recentJobs.find(job =>
         job.status === 'accepted' || job.status === 'in_progress'
       );
 

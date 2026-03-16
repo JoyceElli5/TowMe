@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   scrollContentContainer: {
     padding: 20,
     gap: 16,
-    paddingBottom: 40,
+    paddingBottom: 220,
   },
 
   headerTitle: {
@@ -678,5 +678,21 @@ const styles = StyleSheet.create({
 
   sessionActions: {
     marginTop: 8,
+  },
+  cancelRequestButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cancelButtonText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
