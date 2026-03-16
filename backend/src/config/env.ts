@@ -36,6 +36,13 @@ export const config = {
     authMaxRequests: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || '100', 10),
   },
 
+  // Email (Resend)
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY || '',
+    from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:8081',
+  },
+
   // Admin dashboard: set ADMIN_SECRET + ADMIN_EMAIL + ADMIN_PASSWORD to enable login
   admin: {
     secret: process.env.ADMIN_SECRET || '',
