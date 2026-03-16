@@ -24,6 +24,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "@types/node": "^25.0.9",
+    "@types/nodemailer": "^7.0.11",
     "axios": "^1.13.5",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -33,6 +34,7 @@
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^8.0.2",
     "pino": "^8.17.0",
     "pino-pretty": "^10.3.0",
     "socket.io": "^4.8.3",

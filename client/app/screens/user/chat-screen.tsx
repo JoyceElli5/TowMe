@@ -29,6 +29,7 @@ import { getCurrentUser } from '@/lib/api';
 import { getRequestById, TowingRequest } from '@/lib/api/requests';
 import {
     getMessagesByRequest,
+    markMessagesAsRead,
     Message,
     sendMessage,
     subscribeToMessages,
@@ -72,6 +73,9 @@ export default function UserChatScreen() {
                 setMessages(messagesData.sort((a, b) =>
                     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
                 ));
+
+                // Mark existing messages as read (non-blocking)
+                markMessagesAsRead(params.requestId).catch(() => {});
 
                 unsubscribe = await subscribeToMessages(params.requestId, (newMessage) => {
                     setMessages((prev) => {
@@ -122,7 +126,10 @@ export default function UserChatScreen() {
                 receiverId,
                 content
             });
-            setMessages((prev) => [...prev, newMessage]);
+            setMessages((prev) => {
+                if (prev.find((m) => m.id === newMessage.id)) return prev;
+                return [...prev, newMessage];
+            });
             setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (error: any) {
             console.error('Failed to send message:', error);
