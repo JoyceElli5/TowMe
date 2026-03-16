@@ -97,6 +97,79 @@ export async function sendMessage(senderId: string, data: SendMessageRequest): P
     return response;
 }
 
+export interface ConversationSummary {
+    requestId: string;
+    otherUserId: string;
+    otherUserName: string;
+    otherUserPhone: string | null;
+    otherUserAvatarUrl: string | null;
+    lastMessageContent: string | null;
+    lastMessageAt: string | null;
+    lastMessageSenderId: string | null;
+    unreadCount: number;
+}
+
+/**
+ * Return one summary row per request the caller participates in,
+ * including the last message preview and unread count.
+ */
+export async function getConversations(userId: string): Promise<ConversationSummary[]> {
+    const supabase = getSupabaseAdmin();
+
+    // Fetch all requests where the user is involved (as owner or operator)
+    const { data: requests, error: reqError } = await supabase
+        .from('towing_requests')
+        .select('id, user_id, operator_id, users!towing_requests_user_id_fkey(id, full_name, phone, avatar_url), operators:users!towing_requests_operator_id_fkey(id, full_name, phone, avatar_url)')
+        .or(`user_id.eq.${userId},operator_id.eq.${userId}`)
+        .not('operator_id', 'is', null)
+        .order('created_at', { ascending: false });
+
+    if (reqError || !requests || requests.length === 0) {
+        return [];
+    }
+
+    // For each request, fetch last message + unread count
+    const summaries = await Promise.all(
+        requests.map(async (req: any) => {
+            const isOwner = req.user_id === userId;
+            const other = isOwner ? req.operators : req.users;
+            if (!other) return null;
+
+            // Last message
+            const { data: lastMsgs } = await supabase
+                .from('messages')
+                .select('content, created_at, sender_id')
+                .eq('request_id', req.id)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            const last = lastMsgs?.[0] ?? null;
+
+            // Unread count (messages sent to this user that aren't read)
+            const { count: unread } = await supabase
+                .from('messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('request_id', req.id)
+                .eq('receiver_id', userId)
+                .eq('is_read', false);
+
+            return {
+                requestId: req.id,
+                otherUserId: other.id,
+                otherUserName: other.full_name || 'User',
+                otherUserPhone: other.phone ?? null,
+                otherUserAvatarUrl: other.avatar_url ?? null,
+                lastMessageContent: last?.content ?? null,
+                lastMessageAt: last?.created_at ?? null,
+                lastMessageSenderId: last?.sender_id ?? null,
+                unreadCount: unread ?? 0,
+            } satisfies ConversationSummary;
+        })
+    );
+
+    return summaries.filter((s): s is ConversationSummary => s !== null);
+}
+
 /**
  * Mark messages as read
  */
