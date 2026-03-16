@@ -126,7 +126,10 @@ export default function UserChatScreen() {
                 receiverId,
                 content
             });
-            setMessages((prev) => [...prev, newMessage]);
+            setMessages((prev) => {
+                if (prev.find((m) => m.id === newMessage.id)) return prev;
+                return [...prev, newMessage];
+            });
             setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (error: any) {
             console.error('Failed to send message:', error);
