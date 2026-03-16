@@ -29,6 +29,7 @@ import { getCurrentUser } from '@/lib/api';
 import { getRequestById, TowingRequest } from '@/lib/api/requests';
 import {
     getMessagesByRequest,
+    markMessagesAsRead,
     Message,
     sendMessage,
     subscribeToMessages,
@@ -71,6 +72,9 @@ export default function OperatorChatScreen() {
                 setMessages(messagesData.sort((a, b) =>
                     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
                 ));
+
+                // Mark as read on open (non-blocking)
+                markMessagesAsRead(params.requestId).catch(() => {});
 
                 // Subscribe via Socket.io
                 unsubscribe = await subscribeToMessages(params.requestId, (newMessage) => {

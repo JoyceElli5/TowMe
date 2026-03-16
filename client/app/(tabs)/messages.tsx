@@ -1,16 +1,19 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts } from '@/constants/theme';
-import { useRequests } from '@/hooks/use-requests';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { TowingRequest } from '@/lib/api';
-import { getMessagesByRequest, type Message } from '@/lib/services/chatService';
+import {
+  ConversationSummary,
+  getConversations,
+  subscribeToAnyMessage,
+} from '@/lib/services/chatService';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Linking,
+  RefreshControl,
   StatusBar,
   StyleSheet,
   TextInput,
@@ -19,121 +22,159 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface ChatItem {
-  id: string;
-  requestId: string;
-  operatorName: string;
-  timestamp: string;
-  phone: string;
-  lastMessage?: string;
-}
-
 export default function UserMessagesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const cardBg = useThemeColor({}, 'background');
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const cardBg = useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background');
   const inputBg = useThemeColor({ light: '#F3F4F6', dark: '#374151' }, 'background');
   const tintColor = useThemeColor({}, 'tint');
-  const { activeRequests, pastRequests, isLoading } = useRequests('user');
-  const [lastMessages, setLastMessages] = useState<Record<string, Message | null>>({});
 
-  // Load the last message for each conversation (active + past requests)
-  useEffect(() => {
-    const loadLastMessages = async () => {
-      const all: TowingRequest[] = [...activeRequests, ...pastRequests];
-      const ids = Array.from(new Set(all.map((req) => req.id)));
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
-      const results: Record<string, Message | null> = {};
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    const data = await getConversations();
+    // Sort by latest message
+    data.sort((a, b) => {
+      const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return tb - ta;
+    });
+    setConversations(data);
+    if (!silent) setIsLoading(false);
+  }, []);
 
-      await Promise.all(
-        ids.map(async (id) => {
-          const messages = await getMessagesByRequest(id);
-          if (messages.length > 0) {
-            const last = messages[messages.length - 1];
-            results[id] = last;
-          } else {
-            results[id] = null;
-          }
-        }),
-      );
-
-      setLastMessages(results);
-    };
-
-    if (!isLoading) {
-      loadLastMessages().catch((err) => {
-        if (__DEV__) {
-          console.warn('Failed to load last messages for conversations:', err);
-        }
-      });
-    }
-  }, [activeRequests, pastRequests, isLoading]);
-
-  const conversations: ChatItem[] = useMemo(() => {
-    const all: TowingRequest[] = [...activeRequests, ...pastRequests];
-    return all
-      .filter((req) => !!req.operatorId && !!req.operator)
-      .map((req) => {
-        const last = lastMessages[req.id] || null;
-        const tsSource = last?.createdAt || req.completedAt || req.acceptedAt || req.createdAt;
-        return {
-          id: req.id,
-          requestId: req.id,
-          operatorName: req.operator?.fullName || 'Operator',
-          timestamp: new Date(tsSource).toLocaleString(),
-          phone: req.operator?.phone || '',
-          lastMessage: last?.content,
-        };
-      });
-  }, [activeRequests, pastRequests, lastMessages]);
-
-  const filteredChats = conversations.filter(chat =>
-    chat.operatorName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleCall = (phone: string) => {
-    Linking.openURL(`tel:${phone}`);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
   };
 
-  const handleChatPress = (chat: ChatItem) => {
+  // Reload when tab comes into focus (e.g. after returning from chat)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  // Live-update the preview when any message arrives via socket
+  useEffect(() => {
+    let active = true;
+    subscribeToAnyMessage((msg) => {
+      if (!active) return;
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => c.requestId === msg.requestId);
+        if (idx === -1) {
+          // New conversation appeared — do a full reload
+          load(true);
+          return prev;
+        }
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          lastMessageContent: msg.content,
+          lastMessageAt: msg.createdAt,
+          lastMessageSenderId: msg.senderId,
+          // Increment unread only if we are the receiver
+          unreadCount:
+            msg.receiverId === updated[idx].otherUserId
+              ? updated[idx].unreadCount
+              : updated[idx].unreadCount + 1,
+        };
+        // Re-sort to bubble latest to top
+        updated.sort((a, b) => {
+          const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+          const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+          return tb - ta;
+        });
+        return updated;
+      });
+    }).then((unsub) => {
+      if (active) unsubscribeRef.current = unsub;
+      else unsub();
+    });
+
+    return () => {
+      active = false;
+      unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
+    };
+  }, [load]);
+
+  const handleChatPress = (item: ConversationSummary) => {
+    // Clear the local unread badge immediately for snappiness
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.requestId === item.requestId ? { ...c, unreadCount: 0 } : c
+      )
+    );
     router.push({
       pathname: '/screens/user/chat-screen',
       params: {
-        requestId: chat.requestId,
-        operatorName: chat.operatorName,
-        operatorPhone: chat.phone
-      }
+        requestId: item.requestId,
+        operatorName: item.otherUserName,
+        operatorPhone: item.otherUserPhone ?? '',
+      },
     });
   };
 
-  const renderItem = ({ item }: { item: ChatItem }) => (
+  const filtered = conversations.filter((c) =>
+    c.otherUserName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const formatTime = (iso: string | null) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    return isToday
+      ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  const renderItem = ({ item }: { item: ConversationSummary }) => (
     <TouchableOpacity
       style={[styles.chatItem, { backgroundColor: cardBg }]}
       onPress={() => handleChatPress(item)}
+      activeOpacity={0.7}
     >
       <View style={[styles.avatar, { backgroundColor: tintColor + '20' }]}>
         <ThemedText style={[styles.avatarText, { color: tintColor }]}>
-          {item.operatorName.charAt(0)}
+          {item.otherUserName.charAt(0).toUpperCase()}
         </ThemedText>
       </View>
 
       <View style={styles.contentContainer}>
         <View style={styles.headerRow}>
-          <ThemedText style={styles.name}>{item.operatorName}</ThemedText>
-          <ThemedText style={styles.timestamp}>{item.timestamp}</ThemedText>
+          <ThemedText style={[styles.name, item.unreadCount > 0 && styles.bold]}>
+            {item.otherUserName}
+          </ThemedText>
+          <ThemedText style={styles.timestamp}>{formatTime(item.lastMessageAt)}</ThemedText>
         </View>
         <View style={styles.messageRow}>
           <ThemedText
-            style={styles.message}
+            style={[styles.message, item.unreadCount > 0 && styles.unreadMessage]}
             numberOfLines={1}
           >
-            {item.lastMessage || 'Tap to open chat'}
+            {item.lastMessageContent || 'Tap to open chat'}
           </ThemedText>
+          {item.unreadCount > 0 && (
+            <View style={[styles.unreadBadge, { backgroundColor: tintColor }]}>
+              <ThemedText style={styles.unreadCount}>
+                {item.unreadCount > 99 ? '99+' : item.unreadCount}
+              </ThemedText>
+            </View>
+          )}
         </View>
       </View>
 
       <TouchableOpacity
         style={styles.callButton}
-        onPress={() => handleCall(item.phone)}
+        onPress={() => item.otherUserPhone && Linking.openURL(`tel:${item.otherUserPhone}`)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Ionicons name="call-outline" size={20} color={tintColor} />
       </TouchableOpacity>
@@ -145,7 +186,7 @@ export default function UserMessagesScreen() {
       <StatusBar barStyle="default" />
       <ThemedView style={styles.header}>
         <ThemedText type="title" style={styles.title}>Messages</ThemedText>
-        <ThemedText style={styles.subtitle}>Recent chats with operators</ThemedText>
+        <ThemedText style={styles.subtitle}>Your conversations</ThemedText>
       </ThemedView>
 
       <View style={styles.searchContainer}>
@@ -162,11 +203,12 @@ export default function UserMessagesScreen() {
       </View>
 
       <FlatList
-        data={filteredChats}
+        data={filtered}
         renderItem={renderItem}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.requestId}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={64} color="#9CA3AF" />
@@ -175,7 +217,7 @@ export default function UserMessagesScreen() {
             </ThemedText>
             {!isLoading && (
               <ThemedText style={styles.emptySubtext}>
-                When you start a request, you'll be able to chat with your operator here.
+                Once an operator accepts your request, you can chat with them here.
               </ThemedText>
             )}
           </View>
@@ -186,26 +228,11 @@ export default function UserMessagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 15,
-  },
-  title: {
-    fontFamily: Fonts.semiBold,
-  },
-  subtitle: {
-    fontSize: 14,
-    opacity: 0.6,
-    marginTop: 2,
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 15,
-  },
+  container: { flex: 1 },
+  header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
+  title: { fontFamily: Fonts.semiBold },
+  subtitle: { fontSize: 14, opacity: 0.6, marginTop: 2 },
+  searchContainer: { paddingHorizontal: 20, marginBottom: 15 },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -214,15 +241,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    height: '100%',
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
-  },
+  searchInput: { flex: 1, fontSize: 16, height: '100%' },
+  listContent: { paddingHorizontal: 20, paddingBottom: 100 },
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -243,42 +263,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  avatarText: {
-    fontSize: 18,
-    fontFamily: Fonts.semiBold,
-  },
-  contentContainer: {
-    flex: 1,
-  },
+  avatarText: { fontSize: 18, fontFamily: Fonts.semiBold },
+  contentContainer: { flex: 1 },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
-  name: {
-    fontSize: 16,
-    fontFamily: Fonts.semiBold,
-  },
-  timestamp: {
-    fontSize: 12,
-    opacity: 0.5,
-  },
+  name: { fontSize: 16, fontFamily: Fonts.semiBold },
+  bold: { fontFamily: Fonts.bold ?? Fonts.semiBold },
+  timestamp: { fontSize: 12, opacity: 0.5 },
   messageRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  message: {
-    flex: 1,
-    fontSize: 14,
-    opacity: 0.6,
-    marginRight: 8,
-  },
-  unreadMessage: {
-    opacity: 1,
-    fontFamily: Fonts.medium,
-  },
+  message: { flex: 1, fontSize: 14, opacity: 0.6, marginRight: 8 },
+  unreadMessage: { opacity: 1, fontFamily: Fonts.semiBold },
   unreadBadge: {
     minWidth: 20,
     height: 20,
@@ -287,11 +289,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
-  unreadCount: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontFamily: Fonts.semiBold,
-  },
+  unreadCount: { color: '#FFFFFF', fontSize: 10, fontFamily: Fonts.semiBold },
   callButton: {
     width: 36,
     height: 36,
@@ -301,16 +299,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 12,
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 100,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontFamily: Fonts.semiBold,
-    marginTop: 16,
-  },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
+  emptyText: { fontSize: 18, fontFamily: Fonts.semiBold, marginTop: 16 },
   emptySubtext: {
     fontSize: 14,
     opacity: 0.5,
