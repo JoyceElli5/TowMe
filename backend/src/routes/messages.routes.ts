@@ -7,6 +7,13 @@ import { schemas } from '../middleware/validate.middleware';
 
 const router = Router();
 
+// Get conversation list with last message + unread count (protected)
+router.get(
+    '/conversations',
+    authMiddleware,
+    asyncHandler(messagesController.getConversations)
+);
+
 // Get messages for a request (protected)
 router.get(
     '/request/:requestId',
