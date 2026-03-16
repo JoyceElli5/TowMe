@@ -1,5 +1,5 @@
 import apiClient from '../api/client';
-import { subscribeToChat } from './socketService';
+import { subscribeToChat, connectSocket, getSocket } from './socketService';
 
 export interface Message {
     id: string;
@@ -15,6 +15,61 @@ export interface SendMessageData {
     requestId: string;
     receiverId: string;
     content: string;
+}
+
+export interface ConversationSummary {
+    requestId: string;
+    otherUserId: string;
+    otherUserName: string;
+    otherUserPhone: string | null;
+    otherUserAvatarUrl: string | null;
+    lastMessageContent: string | null;
+    lastMessageAt: string | null;
+    lastMessageSenderId: string | null;
+    unreadCount: number;
+}
+
+/**
+ * Fetch conversation summaries (last message + unread count) for the current user.
+ * Single API call – replaces N calls to getMessagesByRequest on the list screen.
+ */
+export async function getConversations(): Promise<ConversationSummary[]> {
+    try {
+        const response = await apiClient.get<ConversationSummary[]>('/messages/conversations');
+        const list = Array.isArray(response.data) ? response.data : (response.data as any)?.data;
+        return Array.isArray(list) ? list : [];
+    } catch (error) {
+        if (__DEV__) console.warn('[Chat] getConversations failed:', error);
+        return [];
+    }
+}
+
+/**
+ * Subscribe to socket `new_message` events globally (not room-specific).
+ * Used by the conversations list to refresh the preview when any message arrives.
+ * Returns an unsubscribe function.
+ */
+export async function subscribeToAnyMessage(
+    callback: (message: Message) => void
+): Promise<() => void> {
+    try {
+        const s = await connectSocket();
+        const handler = (raw: any) => {
+            callback({
+                id: raw.id,
+                requestId: raw.requestId || raw.request_id,
+                senderId: raw.senderId || raw.sender_id,
+                receiverId: raw.receiverId || raw.receiver_id,
+                content: raw.content,
+                isRead: raw.isRead ?? raw.is_read ?? false,
+                createdAt: raw.createdAt || raw.created_at,
+            });
+        };
+        s.on('new_message', handler);
+        return () => s.off('new_message', handler);
+    } catch {
+        return () => {};
+    }
 }
 
 /**
