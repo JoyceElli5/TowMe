@@ -1,144 +1,153 @@
 /**
  * Operator Messages Screen
- * 
- * Lists active conversations with clients and support.
- * Allows initiating calls directly.
+ * Lists conversations with clients, with live unread counts and socket-driven updates.
  */
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useRequests } from '@/hooks/use-requests';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { TowingRequest } from '@/lib/api';
-import { getMessagesByRequest, type Message } from '@/lib/services/chatService';
+import {
+    ConversationSummary,
+    getConversations,
+    subscribeToAnyMessage,
+} from '@/lib/services/chatService';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     FlatList,
     Linking,
+    RefreshControl,
     StatusBar,
     StyleSheet,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-interface ChatItem {
-    id: string;
-    name: string;
-    timestamp: string;
-    phone: string;
-    lastMessage?: string;
-}
 
 export default function OperatorMessagesScreen() {
     const backgroundColor = useThemeColor({}, 'background');
     const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
     const cardBg = useThemeColor({ light: '#ffffff', dark: '#1F2937' }, 'background');
     const textColor = useThemeColor({}, 'text');
-    const subtitleColor = useThemeColor({ light: '#6b7280', dark: '#9ca3af' }, 'text');
-    const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
 
     const [searchQuery, setSearchQuery] = useState('');
-    const { activeRequests, pastRequests, isLoading } = useRequests('operator');
-    const [lastMessages, setLastMessages] = useState<Record<string, Message | null>>({});
+    const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    // Load the last message for each conversation (active + past jobs)
-    useEffect(() => {
-        const loadLastMessages = async () => {
-            const all: TowingRequest[] = [...activeRequests, ...pastRequests];
-            const ids = Array.from(new Set(all.map((req) => req.id)));
+    const unsubscribeRef = useRef<(() => void) | null>(null);
 
-            const results: Record<string, Message | null> = {};
+    const load = useCallback(async (silent = false) => {
+        if (!silent) setIsLoading(true);
+        const data = await getConversations();
+        data.sort((a, b) => {
+            const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+            const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+            return tb - ta;
+        });
+        setConversations(data);
+        if (!silent) setIsLoading(false);
+    }, []);
 
-            await Promise.all(
-                ids.map(async (id) => {
-                    const messages = await getMessagesByRequest(id);
-                    if (messages.length > 0) {
-                        const last = messages[messages.length - 1];
-                        results[id] = last;
-                    } else {
-                        results[id] = null;
-                    }
-                }),
-            );
-
-            setLastMessages(results);
-        };
-
-        if (!isLoading) {
-            loadLastMessages().catch((err) => {
-                if (__DEV__) {
-                    console.warn('Failed to load last messages for operator conversations:', err);
-                }
-            });
-        }
-    }, [activeRequests, pastRequests, isLoading]);
-
-    const conversations: ChatItem[] = useMemo(() => {
-        const all: TowingRequest[] = [...activeRequests, ...pastRequests];
-        return all
-            .filter((req) => !!req.user)
-            .map((req) => {
-                const last = lastMessages[req.id] || null;
-                const tsSource = last?.createdAt || req.completedAt || req.startedAt || req.createdAt;
-                return {
-                    id: req.id,
-                    name: req.user?.fullName || 'Client',
-                    timestamp: new Date(tsSource).toLocaleString(),
-                    phone: req.user?.phone || '',
-                    lastMessage: last?.content,
-                };
-            });
-    }, [activeRequests, pastRequests, lastMessages]);
-
-    const handleCall = (phone: string) => {
-        Linking.openURL(`tel:${phone}`);
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await load(true);
+        setRefreshing(false);
     };
 
-    const filteredChats = conversations.filter(chat =>
-        chat.name.toLowerCase().includes(searchQuery.toLowerCase())
+    useFocusEffect(
+        useCallback(() => {
+            load();
+        }, [load])
     );
 
-    const renderItem = ({ item }: { item: ChatItem }) => (
+    useEffect(() => {
+        let active = true;
+        subscribeToAnyMessage(() => {
+            if (!active) return;
+            load(true);
+        }).then((unsub) => {
+            if (active) unsubscribeRef.current = unsub;
+            else unsub();
+        });
+
+        return () => {
+            active = false;
+            unsubscribeRef.current?.();
+            unsubscribeRef.current = null;
+        };
+    }, [load]);
+
+    const handleChatPress = (item: ConversationSummary) => {
+        setConversations((prev) =>
+            prev.map((c) =>
+                c.requestId === item.requestId ? { ...c, unreadCount: 0 } : c
+            )
+        );
+        router.push({
+            pathname: '/screens/operator/chat-screen',
+            params: { requestId: item.requestId },
+        });
+    };
+
+    const formatTime = (iso: string | null) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        const now = new Date();
+        const isToday = d.toDateString() === now.toDateString();
+        return isToday
+            ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    };
+
+    const filtered = conversations.filter((c) =>
+        c.otherUserName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const renderItem = ({ item }: { item: ConversationSummary }) => (
         <TouchableOpacity
             style={[styles.chatItem, { backgroundColor: cardBg }]}
-            onPress={() => router.push({
-                pathname: '/screens/operator/chat-screen',
-                params: { requestId: item.id } // In a real app, this would be a conversation or request ID
-            })}
+            onPress={() => handleChatPress(item)}
+            activeOpacity={0.7}
         >
             <View style={styles.avatarContainer}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: '#e5e7eb' }]}>
-                    <ThemedText style={[styles.avatarText, { color: '#6b7280' }]}>
-                        {item.name.split(' ').map(n => n[0]).join('')}
+                <View style={[styles.avatarPlaceholder, { backgroundColor: tintColor + '20' }]}>
+                    <ThemedText style={[styles.avatarText, { color: tintColor }]}>
+                        {item.otherUserName.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
                     </ThemedText>
                 </View>
             </View>
 
             <View style={styles.contentContainer}>
                 <View style={styles.headerRow}>
-                    <ThemedText style={styles.name}>{item.name}</ThemedText>
-                    <ThemedText style={styles.timestamp}>{item.timestamp}</ThemedText>
+                    <ThemedText style={[styles.name, item.unreadCount > 0 && styles.nameBold]}>
+                        {item.otherUserName}
+                    </ThemedText>
+                    <ThemedText style={styles.timestamp}>{formatTime(item.lastMessageAt)}</ThemedText>
                 </View>
-
                 <View style={styles.messageRow}>
                     <ThemedText
-                        style={[
-                            styles.message,
-                        ]}
+                        style={[styles.message, item.unreadCount > 0 && styles.unreadMessage]}
                         numberOfLines={1}
                     >
-                        {item.lastMessage || 'Tap to open chat'}
+                        {item.lastMessageContent || 'Tap to open chat'}
                     </ThemedText>
+                    {item.unreadCount > 0 && (
+                        <View style={[styles.unreadBadge, { backgroundColor: tintColor }]}>
+                            <ThemedText style={styles.unreadText}>
+                                {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                            </ThemedText>
+                        </View>
+                    )}
                 </View>
             </View>
 
             <TouchableOpacity
                 style={styles.callButton}
-                onPress={() => handleCall(item.phone)}
+                onPress={() => item.otherUserPhone && Linking.openURL(`tel:${item.otherUserPhone}`)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
                 <Ionicons name="call-outline" size={20} color={tintColor} />
             </TouchableOpacity>
@@ -150,15 +159,11 @@ export default function OperatorMessagesScreen() {
             <StatusBar barStyle={backgroundColor === '#151718' ? 'light-content' : 'dark-content'} />
             <SafeAreaView edges={['top']} style={styles.safeArea}>
 
-                {/* Header */}
                 <View style={styles.header}>
                     <ThemedText style={styles.headerTitle}>Messages</ThemedText>
-                    <TouchableOpacity>
-                        <Ionicons name="chatbubbles-outline" size={24} color={tintColor} />
-                    </TouchableOpacity>
+                    <Ionicons name="chatbubbles-outline" size={24} color={tintColor} />
                 </View>
 
-                {/* Search Bar */}
                 <View style={[styles.searchContainer, { backgroundColor: '#f3f4f6' }]}>
                     <Ionicons name="search-outline" size={20} color="#9ca3af" />
                     <TextInput
@@ -170,34 +175,30 @@ export default function OperatorMessagesScreen() {
                     />
                 </View>
 
-                {/* Chat List */}
                 <FlatList
-                    data={filteredChats}
-                    keyExtractor={item => item.id}
+                    data={filtered}
+                    keyExtractor={(item) => item.requestId}
                     renderItem={renderItem}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
+                            <Ionicons name="chatbubbles-outline" size={48} color="#9ca3af" />
                             <ThemedText style={styles.emptyText}>
-                                {isLoading ? 'Loading conversations...' : 'No messages found'}
+                                {isLoading ? 'Loading conversations...' : 'No messages yet'}
                             </ThemedText>
                         </View>
                     }
                 />
-
             </SafeAreaView>
         </ThemedView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    safeArea: {
-        flex: 1,
-    },
+    container: { flex: 1 },
+    safeArea: { flex: 1 },
     header: {
         paddingHorizontal: 20,
         paddingVertical: 16,
@@ -205,11 +206,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    headerTitle: {
-        fontSize: 24,
-        fontFamily: 'Gilroy-Bold',
-        fontWeight: '700',
-    },
+    headerTitle: { fontSize: 24, fontFamily: 'Gilroy-Bold', fontWeight: '700' },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -219,15 +216,8 @@ const styles = StyleSheet.create({
         height: 48,
         borderRadius: 16,
     },
-    searchInput: {
-        flex: 1,
-        marginLeft: 10,
-        fontFamily: 'Gilroy-Medium',
-        fontSize: 16,
-    },
-    listContent: {
-        paddingBottom: 40,
-    },
+    searchInput: { flex: 1, marginLeft: 10, fontFamily: 'Gilroy-Medium', fontSize: 16 },
+    listContent: { paddingBottom: 40 },
     chatItem: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -235,17 +225,13 @@ const styles = StyleSheet.create({
         marginHorizontal: 20,
         marginBottom: 12,
         borderRadius: 16,
-        // Shadow
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 8,
         elevation: 2,
     },
-    avatarContainer: {
-        position: 'relative',
-        marginRight: 16,
-    },
+    avatarContainer: { position: 'relative', marginRight: 16 },
     avatarPlaceholder: {
         width: 48,
         height: 48,
@@ -253,56 +239,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    avatarText: {
-        color: '#ffffff',
-        fontFamily: 'Gilroy-Bold',
-        fontSize: 16,
-    },
-    onlineBadge: {
-        position: 'absolute',
-        bottom: 2,
-        right: 2,
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: '#22c55e',
-        borderWidth: 2,
-        borderColor: '#ffffff',
-    },
-    contentContainer: {
-        flex: 1,
-        marginRight: 12,
-    },
+    avatarText: { fontFamily: 'Gilroy-Bold', fontSize: 16 },
+    contentContainer: { flex: 1, marginRight: 12 },
     headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginBottom: 4,
     },
-    name: {
-        fontSize: 16,
-        fontFamily: 'Gilroy-SemiBold',
-    },
-    timestamp: {
-        fontSize: 12,
-        color: '#9ca3af',
-        fontFamily: 'Gilroy-Regular',
-    },
-    messageRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    message: {
-        fontSize: 14,
-        color: '#6b7280',
-        fontFamily: 'Gilroy-Regular',
-        flex: 1,
-        marginRight: 8,
-    },
-    unreadMessage: {
-        color: '#1f2937',
-        fontFamily: 'Gilroy-SemiBold',
-    },
+    name: { fontSize: 16, fontFamily: 'Gilroy-SemiBold' },
+    nameBold: { fontFamily: 'Gilroy-Bold' },
+    timestamp: { fontSize: 12, color: '#9ca3af', fontFamily: 'Gilroy-Regular' },
+    messageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    message: { fontSize: 14, color: '#6b7280', fontFamily: 'Gilroy-Regular', flex: 1, marginRight: 8 },
+    unreadMessage: { color: '#1f2937', fontFamily: 'Gilroy-SemiBold' },
     unreadBadge: {
         minWidth: 20,
         height: 20,
@@ -311,11 +260,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingHorizontal: 5,
     },
-    unreadText: {
-        color: '#ffffff',
-        fontSize: 10,
-        fontFamily: 'Gilroy-Bold',
-    },
+    unreadText: { color: '#ffffff', fontSize: 10, fontFamily: 'Gilroy-Bold' },
     callButton: {
         width: 40,
         height: 40,
@@ -324,13 +269,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    emptyState: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 60,
-    },
-    emptyText: {
-        color: '#9ca3af',
-        fontFamily: 'Gilroy-Medium',
-    },
+    emptyState: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
+    emptyText: { color: '#9ca3af', fontFamily: 'Gilroy-Medium' },
 });

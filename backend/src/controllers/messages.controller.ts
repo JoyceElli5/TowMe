@@ -2,6 +2,20 @@ import { NextFunction, Request, Response } from 'express';
 import * as messagesService from '../services/messages.service';
 
 /**
+ * GET /api/messages/conversations
+ * Returns conversation summaries (last message + unread count) for the current user
+ */
+export async function getConversations(req: Request, res: Response, next: NextFunction) {
+    try {
+        const userId = (req as any).user.id;
+        const conversations = await messagesService.getConversations(userId);
+        res.json({ success: true, data: conversations });
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
  * Get messages by request ID
  */
 export async function getMessagesByRequest(req: Request, res: Response, next: NextFunction) {

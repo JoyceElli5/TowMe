@@ -29,6 +29,7 @@ import { getCurrentUser } from '@/lib/api';
 import { getRequestById, TowingRequest } from '@/lib/api/requests';
 import {
     getMessagesByRequest,
+    markMessagesAsRead,
     Message,
     sendMessage,
     subscribeToMessages,
@@ -72,6 +73,9 @@ export default function OperatorChatScreen() {
                     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
                 ));
 
+                // Mark as read on open (non-blocking)
+                markMessagesAsRead(params.requestId).catch(() => {});
+
                 // Subscribe via Socket.io
                 unsubscribe = await subscribeToMessages(params.requestId, (newMessage) => {
                     setMessages((prev) => {
@@ -113,7 +117,10 @@ export default function OperatorChatScreen() {
                 receiverId: request.userId,
                 content
             });
-            setMessages((prev) => [...prev, newMessage]);
+            setMessages((prev) => {
+                if (prev.find((m) => m.id === newMessage.id)) return prev;
+                return [...prev, newMessage];
+            });
             setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (error: any) {
             console.error('Failed to send message:', error);
