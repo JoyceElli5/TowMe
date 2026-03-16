@@ -287,8 +287,12 @@ class ApiClient {
       const isTimeoutError =
         error instanceof Error &&
         (error.name === "AbortError" || error.name === "TimeoutError");
+      const isRegisterEndpoint = endpoint.startsWith("/auth/register");
 
-      if ((isNetworkError || isTimeoutError) && retryCount < MAX_RETRIES) {
+      // For registration, avoid automatic network retries to prevent
+      // confusing "email already registered" if the first attempt succeeded
+      // on the server but the client experienced a transient network error.
+      if (!isRegisterEndpoint && (isNetworkError || isTimeoutError) && retryCount < MAX_RETRIES) {
         const delay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
         if (__DEV__) console.log(`📡 Network error, retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
