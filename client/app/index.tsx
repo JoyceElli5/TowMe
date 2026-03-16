@@ -1,72 +1,110 @@
 import { ThemedView } from '@/components/themed-view';
-import { getCurrentSession, getCurrentUser } from '@/lib/services/authService';
-import { isProfileComplete } from '@/lib/services/operatorService';
+import { getCurrentUser as getApiUser } from '@/lib/api/auth';
+import { getAccessToken, getRefreshToken, setAccessToken } from '@/lib/api/client';
+import { getCurrentSession } from '@/lib/services/authService';
 import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator } from 'react-native';
 
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:3001/api';
+
+/** Try to refresh the JWT access token using the stored refresh token */
+async function tryRefreshToken(): Promise<boolean> {
+  try {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) return false;
+
+    const res = await fetch(`${API_BASE}/auth/refresh-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    if (!res.ok) return false;
+
+    const data = await res.json();
+    const token = data?.data?.accessToken ?? data?.accessToken;
+    if (token) {
+      await setAccessToken(token);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/** Navigate based on the user's role and profile state */
+async function navigateByRole(
+  userId: string,
+  role: string,
+  profileCompleted?: boolean
+): Promise<void> {
+  if (role === 'tow_operator') {
+    router.replace('/operator/(tabs)/dashboard');
+  } else {
+    router.replace('/(tabs)');
+  }
+}
+
 export default function IndexScreen() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // ── Step 1: Try Supabase session (phone OTP users) ──────────────────
         const session = await getCurrentSession();
-        console.log('Auth check - Session:', session ? 'exists' : 'none');
-        
-        if (session && session.user) {
-          // Check user role and profile completion
-          const user = await getCurrentUser();
-          console.log('Auth check - User:', user ? user.id : 'none');
-          
-          if (user) {
-            try {
-              const { data: userData, error: userError } = await supabase
-                .from('users')
-                .select('role, profile_completed')
-                .eq('id', user.id)
-                .maybeSingle();
 
-              if (userError) {
-                console.error('Error fetching user data:', userError);
-                // If user doesn't exist in users table, redirect to onboarding
-                router.replace('/screens/onboarding/onboarding-screen');
-                return;
-              }
+        if (session?.user) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('role, profile_completed')
+            .eq('id', session.user.id)
+            .maybeSingle();
 
-              if (!userData) {
-                // No row in users table for this auth user yet
-                router.replace('/screens/onboarding/onboarding-screen');
-                return;
-              }
-
-              if (userData.role === 'tow_operator') {
-                // For now, always send operators to their dashboard.
-                // They can complete profile from the Profile tab/settings.
-                router.replace('/operator/(tabs)/dashboard');
-              } else {
-                // Regular user - go to tabs
-                router.replace('/(tabs)');
-              }
-            } catch (dbError) {
-              console.error('Database error:', dbError);
-              // On error, redirect to onboarding
-              router.replace('/screens/onboarding/onboarding-screen');
-            }
-          } else {
-            // No user found - redirect to onboarding
-            router.replace('/screens/onboarding/onboarding-screen');
+          if (userData) {
+            await navigateByRole(session.user.id, userData.role, userData.profile_completed);
+            return;
           }
-        } else {
-          // No session - redirect to onboarding
-          console.log('No session found, redirecting to onboarding');
+          // User in Supabase auth but no profile yet – onboard them
           router.replace('/screens/onboarding/onboarding-screen');
+          return;
         }
+
+        // ── Step 2: Try JWT token (email/password users) ─────────────────────
+        let accessToken = await getAccessToken();
+
+        if (accessToken) {
+          try {
+            const user = await getApiUser();
+            if (user) {
+              await navigateByRole(user.id, user.role);
+              return;
+            }
+          } catch (err: any) {
+            // 401 means the token is expired – try refreshing
+            if (err?.status === 401) {
+              const refreshed = await tryRefreshToken();
+              if (refreshed) {
+                const user = await getApiUser();
+                if (user) {
+                  await navigateByRole(user.id, user.role);
+                  return;
+                }
+              }
+            }
+            // Token invalid/expired and refresh failed – fall through to onboarding
+          }
+        }
+
+        // ── Step 3: No valid auth – go to onboarding ─────────────────────────
+        router.replace('/screens/onboarding/onboarding-screen');
       } catch (error) {
         console.error('Auth check error:', error);
-        // On any error, redirect to onboarding
         router.replace('/screens/onboarding/onboarding-screen');
       }
     };
+
     checkAuth();
   }, []);
 

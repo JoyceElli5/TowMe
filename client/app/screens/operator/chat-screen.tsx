@@ -32,7 +32,6 @@ import {
     Message,
     sendMessage,
     subscribeToMessages,
-    unsubscribeFromMessages
 } from '@/lib/services/chatService';
 
 export default function OperatorChatScreen() {
@@ -52,7 +51,7 @@ export default function OperatorChatScreen() {
     const textColor = useThemeColor({}, 'text');
 
     useEffect(() => {
-        let channel: any = null;
+        let unsubscribe: (() => void) | null = null;
 
         const initChat = async () => {
             if (!params.requestId) return;
@@ -62,7 +61,7 @@ export default function OperatorChatScreen() {
                 const user = await getCurrentUser();
                 if (user) setCurrentUserId(user.id);
 
-                // Load request and messages
+                // Load request and messages in parallel
                 const [requestData, messagesData] = await Promise.all([
                     getRequestById(params.requestId),
                     getMessagesByRequest(params.requestId)
@@ -73,10 +72,9 @@ export default function OperatorChatScreen() {
                     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
                 ));
 
-                // Subscribe to new messages
-                channel = subscribeToMessages(params.requestId, (newMessage) => {
+                // Subscribe via Socket.io
+                unsubscribe = await subscribeToMessages(params.requestId, (newMessage) => {
                     setMessages((prev) => {
-                        // Avoid duplicates if we manually added or it came from both directions
                         if (prev.find(m => m.id === newMessage.id)) return prev;
                         return [...prev, newMessage];
                     });
@@ -93,7 +91,7 @@ export default function OperatorChatScreen() {
         initChat();
 
         return () => {
-            if (channel) unsubscribeFromMessages(channel);
+            unsubscribe?.();
         };
     }, [params.requestId]);
 

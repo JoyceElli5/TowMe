@@ -1,6 +1,5 @@
-import { supabase } from '@/lib/supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 import apiClient from '../api/client';
+import { subscribeToChat } from './socketService';
 
 export interface Message {
     id: string;
@@ -19,14 +18,13 @@ export interface SendMessageData {
 }
 
 /**
- * Fetch messages for a specific towing request.
- * Uses backend API only (app auth is backend JWT, not Supabase).
+ * Fetch all messages for a towing request via the REST API.
  */
 export async function getMessagesByRequest(requestId: string): Promise<Message[]> {
     try {
         const response = await apiClient.get<Message[]>(`/messages/request/${requestId}`);
         const list = Array.isArray(response.data) ? response.data : (response.data as any)?.data;
-        if (list?.length !== undefined) {
+        if (Array.isArray(list)) {
             return list.map((m: any) => ({
                 id: m.id,
                 requestId: m.request_id || m.requestId,
@@ -39,15 +37,15 @@ export async function getMessagesByRequest(requestId: string): Promise<Message[]
         }
     } catch (error) {
         if (__DEV__) {
-            console.warn('Messages API failed (ensure backend is deployed with /api/messages routes):', error);
+            console.warn('[Chat] getMessagesByRequest failed:', error);
         }
     }
     return [];
 }
 
 /**
- * Send a new message.
- * Uses backend API only (app uses backend JWT; Supabase fallback is not used).
+ * Send a message via the REST API.
+ * The backend will broadcast it over Socket.io after saving.
  */
 export async function sendMessage(data: SendMessageData): Promise<Message> {
     try {
@@ -68,13 +66,13 @@ export async function sendMessage(data: SendMessageData): Promise<Message> {
         const status = err?.status;
         const msg = err?.message || '';
         if (status === 404 || msg.includes('not found')) {
-            throw new Error('Chat is not available yet. Please update the app or try again later.');
+            throw new Error('Chat is not available yet. Please try again later.');
         }
         if (status === 401) {
             throw new Error('Please sign in again to send messages.');
         }
         if (status === 0 || msg.toLowerCase().includes('network')) {
-            throw new Error('Could not send message. Check your connection and try again.');
+            throw new Error('No connection. Check your internet and try again.');
         }
         throw new Error(err?.message || 'Failed to send message.');
     }
@@ -82,59 +80,37 @@ export async function sendMessage(data: SendMessageData): Promise<Message> {
 }
 
 /**
- * Mark all messages in a request as read
+ * Mark all messages in a request as read (for the current user).
  */
 export async function markMessagesAsRead(requestId: string): Promise<void> {
     try {
         await apiClient.patch(`/messages/request/${requestId}/read`);
     } catch (error) {
-        // For now we just log the error; messages will still be delivered
-        // and marked as read on the server when the API is available.
         if (__DEV__) {
-            console.warn('Backend mark as read API failed:', error);
+            console.warn('[Chat] markMessagesAsRead failed:', error);
         }
     }
 }
 
 /**
- * Subscribe to new messages for a specific request
+ * Subscribe to real-time messages via Socket.io.
+ * Returns a function that, when called, unsubscribes and leaves the room.
  */
-export function subscribeToMessages(
+export async function subscribeToMessages(
     requestId: string,
     callback: (message: Message) => void
-): RealtimeChannel {
-    const channel = supabase
-        .channel(`chat:${requestId}`)
-        .on(
-            'postgres_changes',
-            {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-                filter: `request_id=eq.${requestId}`,
-            },
-            (payload) => {
-                const newMessage = payload.new as any;
-                // Map snake_case from DB to camelCase for UI
-                callback({
-                    id: newMessage.id,
-                    requestId: newMessage.request_id,
-                    senderId: newMessage.sender_id,
-                    receiverId: newMessage.receiver_id,
-                    content: newMessage.content,
-                    isRead: newMessage.is_read || false,
-                    createdAt: newMessage.created_at,
-                });
-            }
-        )
-        .subscribe();
-
-    return channel;
-}
-
-/**
- * Unsubscribe from a message channel
- */
-export function unsubscribeFromMessages(channel: RealtimeChannel): void {
-    supabase.removeChannel(channel);
+): Promise<() => void> {
+    const unsubscribe = await subscribeToChat(requestId, (raw: any) => {
+        const msg: Message = {
+            id: raw.id,
+            requestId: raw.requestId || raw.request_id,
+            senderId: raw.senderId || raw.sender_id,
+            receiverId: raw.receiverId || raw.receiver_id,
+            content: raw.content,
+            isRead: raw.isRead ?? raw.is_read ?? false,
+            createdAt: raw.createdAt || raw.created_at,
+        };
+        callback(msg);
+    });
+    return unsubscribe;
 }
