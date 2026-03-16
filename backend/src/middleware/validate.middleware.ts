@@ -127,6 +127,10 @@ export const schemas = {
     token: z.string().min(1, 'Verification token is required'),
   }),
 
+  resendVerification: z.object({
+    email: z.string().email('Please enter a valid email address'),
+  }),
+
   // Create profile schema (for Supabase auth flow)
   createProfile: z.object({
     userId: z.string().uuid('Invalid user ID'),
