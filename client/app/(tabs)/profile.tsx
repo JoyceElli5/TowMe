@@ -173,11 +173,11 @@ export default function ProfileScreen() {
       const user = await getCurrentUser();
       if (user) {
         setIsLoadingTrips(true);
-        const response = await getUserRequests(user.id, {
+        const trips = await getUserRequests(user.id, {
           status: 'completed',
           limit: 10,
         });
-        setTripHistory(response.data || []);
+        setTripHistory(trips || []);
       }
     } catch (error) {
       console.error('Error loading trip history:', error);

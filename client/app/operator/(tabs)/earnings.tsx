@@ -31,7 +31,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useOperatorEarnings } from '@/hooks/use-operator-earnings';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { WalletTransaction } from '@/lib/api/wallet';
+import {
+    WalletTransaction
+} from '@/lib/api/wallet';
 
 const PERIODS = ['Daily', 'Weekly', 'Monthly'] as const;
 type Period = typeof PERIODS[number];
@@ -59,10 +61,12 @@ export default function EarningsWalletScreen() {
         try {
             await handleWithdrawal(amount, provider, phone);
             Alert.alert('Success', 'Withdrawal request submitted successfully.');
+            setWithdrawalModalVisible(false);
         } catch (error) {
-            Alert.alert('Withdrawal failed', 'Please try again later.');
+            Alert.alert('Error', 'Failed to submit withdrawal request.');
         }
     };
+
 
     const renderPeriodSelector = () => (
         <View style={styles.periodContainer}>

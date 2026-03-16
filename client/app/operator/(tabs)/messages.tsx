@@ -7,10 +7,13 @@
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useRequests } from '@/hooks/use-requests';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { TowingRequest } from '@/lib/api';
+import { getMessagesByRequest, type Message } from '@/lib/services/chatService';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     FlatList,
     Linking,
@@ -25,57 +28,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 interface ChatItem {
     id: string;
     name: string;
-    message: string;
     timestamp: string;
-    unread: number;
-    avatar?: string;
     phone: string;
-    online: boolean;
-    type: 'client' | 'support';
+    lastMessage?: string;
 }
-
-const MOCK_CHATS: ChatItem[] = [
-    {
-        id: '11111111-1111-1111-1111-111111111111',
-        name: 'Kwame Mensah',
-        message: 'I am at the shell station near the roundabout.',
-        timestamp: '2 min ago',
-        unread: 2,
-        phone: '+233241234567',
-        online: true,
-        type: 'client'
-    },
-    {
-        id: '22222222-2222-2222-2222-222222222222',
-        name: 'TowMe Support',
-        message: 'Your verification documents have been approved.',
-        timestamp: '10:30 AM',
-        unread: 0,
-        phone: '+233302123456',
-        online: true,
-        type: 'support'
-    },
-    {
-        id: '33333333-3333-3333-3333-333333333333',
-        name: 'Ama Serwaa',
-        message: 'Thanks for the quick service!',
-        timestamp: 'Yesterday',
-        unread: 0,
-        phone: '+233209876543',
-        online: false,
-        type: 'client'
-    },
-    {
-        id: '44444444-4444-4444-4444-444444444444',
-        name: 'Joseph Osei',
-        message: 'Is it possible to pay with cash?',
-        timestamp: 'Yesterday',
-        unread: 0,
-        phone: '+233554321098',
-        online: false,
-        type: 'client'
-    }
-];
 
 export default function OperatorMessagesScreen() {
     const backgroundColor = useThemeColor({}, 'background');
@@ -86,14 +42,64 @@ export default function OperatorMessagesScreen() {
     const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
 
     const [searchQuery, setSearchQuery] = useState('');
+    const { activeRequests, pastRequests, isLoading } = useRequests('operator');
+    const [lastMessages, setLastMessages] = useState<Record<string, Message | null>>({});
+
+    // Load the last message for each conversation (active + past jobs)
+    useEffect(() => {
+        const loadLastMessages = async () => {
+            const all: TowingRequest[] = [...activeRequests, ...pastRequests];
+            const ids = Array.from(new Set(all.map((req) => req.id)));
+
+            const results: Record<string, Message | null> = {};
+
+            await Promise.all(
+                ids.map(async (id) => {
+                    const messages = await getMessagesByRequest(id);
+                    if (messages.length > 0) {
+                        const last = messages[messages.length - 1];
+                        results[id] = last;
+                    } else {
+                        results[id] = null;
+                    }
+                }),
+            );
+
+            setLastMessages(results);
+        };
+
+        if (!isLoading) {
+            loadLastMessages().catch((err) => {
+                if (__DEV__) {
+                    console.warn('Failed to load last messages for operator conversations:', err);
+                }
+            });
+        }
+    }, [activeRequests, pastRequests, isLoading]);
+
+    const conversations: ChatItem[] = useMemo(() => {
+        const all: TowingRequest[] = [...activeRequests, ...pastRequests];
+        return all
+            .filter((req) => !!req.user)
+            .map((req) => {
+                const last = lastMessages[req.id] || null;
+                const tsSource = last?.createdAt || req.completedAt || req.startedAt || req.createdAt;
+                return {
+                    id: req.id,
+                    name: req.user?.fullName || 'Client',
+                    timestamp: new Date(tsSource).toLocaleString(),
+                    phone: req.user?.phone || '',
+                    lastMessage: last?.content,
+                };
+            });
+    }, [activeRequests, pastRequests, lastMessages]);
 
     const handleCall = (phone: string) => {
         Linking.openURL(`tel:${phone}`);
     };
 
-    const filteredChats = MOCK_CHATS.filter(chat =>
-        chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        chat.message.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredChats = conversations.filter(chat =>
+        chat.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const renderItem = ({ item }: { item: ChatItem }) => (
@@ -105,18 +111,11 @@ export default function OperatorMessagesScreen() {
             })}
         >
             <View style={styles.avatarContainer}>
-                {item.type === 'support' ? (
-                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#003554' }]}>
-                        <ThemedText style={styles.avatarText}>TS</ThemedText>
-                    </View>
-                ) : (
-                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#e5e7eb' }]}>
-                        <ThemedText style={[styles.avatarText, { color: '#6b7280' }]}>
-                            {item.name.split(' ').map(n => n[0]).join('')}
-                        </ThemedText>
-                    </View>
-                )}
-                {item.online && <View style={styles.onlineBadge} />}
+                <View style={[styles.avatarPlaceholder, { backgroundColor: '#e5e7eb' }]}>
+                    <ThemedText style={[styles.avatarText, { color: '#6b7280' }]}>
+                        {item.name.split(' ').map(n => n[0]).join('')}
+                    </ThemedText>
+                </View>
             </View>
 
             <View style={styles.contentContainer}>
@@ -129,17 +128,11 @@ export default function OperatorMessagesScreen() {
                     <ThemedText
                         style={[
                             styles.message,
-                            item.unread > 0 && styles.unreadMessage
                         ]}
                         numberOfLines={1}
                     >
-                        {item.message}
+                        {item.lastMessage || 'Tap to open chat'}
                     </ThemedText>
-                    {item.unread > 0 && (
-                        <View style={[styles.unreadBadge, { backgroundColor: tintColor }]}>
-                            <ThemedText style={styles.unreadText}>{item.unread}</ThemedText>
-                        </View>
-                    )}
                 </View>
             </View>
 
@@ -186,7 +179,9 @@ export default function OperatorMessagesScreen() {
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
-                            <ThemedText style={styles.emptyText}>No messages found</ThemedText>
+                            <ThemedText style={styles.emptyText}>
+                                {isLoading ? 'Loading conversations...' : 'No messages found'}
+                            </ThemedText>
                         </View>
                     }
                 />

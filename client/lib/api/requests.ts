@@ -96,18 +96,40 @@ export async function getRequestById(id: string): Promise<TowingRequest> {
   throw new Error(response.error || 'Failed to fetch request');
 }
 
-export async function getUserRequests(userId: string, filters?: RequestFilters): Promise<PaginatedResponse<TowingRequest>> {
-  const response = await api.get<PaginatedResponse<TowingRequest>>(`/requests/user/${userId}`, filters as Record<string, string | number | undefined>);
+/**
+ * Get all requests for a specific user.
+ * The backend returns an array of requests in the `data` field, so we
+ * expose this as a simple `TowingRequest[]` on the client.
+ */
+export async function getUserRequests(
+  userId: string,
+  filters?: RequestFilters,
+): Promise<TowingRequest[]> {
+  const response = await api.get<TowingRequest[]>(
+    `/requests/user/${userId}`,
+    filters as Record<string, string | number | undefined>,
+  );
   if (response.data) {
-    return response.data as unknown as PaginatedResponse<TowingRequest>;
+    return response.data;
   }
   throw new Error(response.error || 'Failed to fetch user requests');
 }
 
-export async function getOperatorRequests(operatorId: string, filters?: RequestFilters): Promise<PaginatedResponse<TowingRequest>> {
-  const response = await api.get<PaginatedResponse<TowingRequest>>(`/requests/operator/${operatorId}`, filters as Record<string, string | number | undefined>);
+/**
+ * Get all requests for a specific operator.
+ * The backend returns an array of requests in the `data` field, so we
+ * expose this as a simple `TowingRequest[]` on the client.
+ */
+export async function getOperatorRequests(
+  operatorId: string,
+  filters?: RequestFilters,
+): Promise<TowingRequest[]> {
+  const response = await api.get<TowingRequest[]>(
+    `/requests/operator/${operatorId}`,
+    filters as Record<string, string | number | undefined>,
+  );
   if (response.data) {
-    return response.data as unknown as PaginatedResponse<TowingRequest>;
+    return response.data;
   }
   throw new Error(response.error || 'Failed to fetch operator requests');
 }

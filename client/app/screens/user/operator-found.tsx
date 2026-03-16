@@ -87,11 +87,20 @@ export default function OperatorFoundScreen() {
     } catch (error) {
       console.error('Error loading request:', error);
       if (error instanceof ApiError) {
-        showToast(error.message, 'error');
+        if (error.status === 404) {
+          showToast('This request is no longer available.', 'error');
+          router.replace('/screens/user/home-screen');
+        } else if (error.status === 401) {
+          showToast('Session expired. Please sign in again.', 'error');
+          router.replace('/screens/auth/login-screen');
+        } else {
+          showToast(error.message || 'Failed to load request details', 'error');
+          router.back();
+        }
       } else {
         showToast('Failed to load request details', 'error');
+        router.back();
       }
-      router.back();
     } finally {
       setIsLoading(false);
     }

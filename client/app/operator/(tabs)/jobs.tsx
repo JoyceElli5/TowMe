@@ -142,6 +142,15 @@ export default function OperatorJobsScreen() {
                     <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={tintColor} />
                 }
             >
+                {error && !isLoading && !isRefreshing && (
+                    <View style={styles.errorCard}>
+                        <Ionicons name="alert-circle-outline" size={18} color="#b91c1c" />
+                        <ThemedText style={styles.errorText}>{error}</ThemedText>
+                        <TouchableOpacity onPress={onRefresh}>
+                            <ThemedText style={styles.errorAction}>Tap to retry</ThemedText>
+                        </TouchableOpacity>
+                    </View>
+                )}
                 {activeRequests.length > 0 && (
                     <View style={styles.section}>
                         <ThemedText style={styles.sectionTitle}>Active Jobs</ThemedText>
@@ -189,6 +198,27 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 20,
         paddingBottom: 40,
+    },
+    errorCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: '#fee2e2',
+        borderWidth: 1,
+        borderColor: '#fecaca',
+        marginBottom: 16,
+    },
+    errorText: {
+        flex: 1,
+        fontSize: 13,
+        color: '#991b1b',
+    },
+    errorAction: {
+        fontSize: 13,
+        color: '#b91c1c',
+        fontWeight: '600',
     },
     section: {
         marginBottom: 24,

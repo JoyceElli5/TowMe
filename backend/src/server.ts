@@ -1,15 +1,17 @@
 /**
  * TowMe Backend Server
- * Express.js server with Supabase integration
+ * Express.js server with Supabase integration and Socket.io for real-time chat
  */
 
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import { createServer } from 'http';
 import { config, validateEnv } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { generalLimiter } from './middleware/rateLimiter';
 import routes from './routes';
+import { initializeSocket } from './services/socket.service';
 import { startStaleRequestsCron } from './services/staleRequestsCron';
 import logger from './utils/logger';
 
@@ -79,13 +81,18 @@ app.use(notFoundHandler);
 // Error handler
 app.use(errorHandler);
 
+// Create HTTP server and attach Socket.io
+const httpServer = createServer(app);
+initializeSocket(httpServer);
+
 // Start server
 const PORT = config.port;
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   logger.info(`🚀 TowMe API server running on port ${PORT}`);
   logger.info(`📍 Environment: ${config.nodeEnv}`);
   logger.info(`🔗 API Base URL: http://localhost:${PORT}/api`);
+  logger.info(`⚡ Socket.io ready for real-time connections`);
 
   // Start background jobs
   startStaleRequestsCron();
