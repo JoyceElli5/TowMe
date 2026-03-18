@@ -2,7 +2,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
-import { Home01Icon, Notification01Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
+import { Home01Icon, MoneyReceive02Icon, TransactionIcon, UserIcon } from 'hugeicons-react-native';
 import React, { useCallback } from 'react';
 import {
   Platform,
@@ -23,31 +23,23 @@ interface TabConfig {
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 }
 
-// Dedicated config for OPERATOR tabs
+// Dedicated config for OPERATOR tabs (5 tabs)
 const TAB_CONFIG: Record<string, TabConfig> = {
   dashboard: {
-    name: 'Dashboard',
+    name: 'Home',
     Icon: Home01Icon,
   },
   'available-jobs': {
     name: 'Available',
-    Icon: TransactionIcon,
+    Icon: (props: any) => <Ionicons name="briefcase-outline" {...props} />,
   },
   jobs: {
-    name: 'Jobs',
+    name: 'My Jobs',
     Icon: TransactionIcon,
   },
   earnings: {
     name: 'Earnings',
-    Icon: TransactionIcon,
-  },
-  notifications: {
-    name: 'Activity',
-    Icon: Notification01Icon,
-  },
-  messages: {
-    name: 'Messages',
-    Icon: (props: any) => <Ionicons name="chatbubble-ellipses-outline" {...props} />,
+    Icon: MoneyReceive02Icon,
   },
   profile: {
     name: 'Profile',

@@ -7,6 +7,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { operatorSafeBack } from '@/lib/navigation';
 import { CheckmarkCircle01Icon } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -40,7 +41,7 @@ export default function ArrivedAtPickupScreen() {
     const fetchRequest = async () => {
       if (!params.requestId) {
         Alert.alert('Error', 'Request ID is missing');
-        router.back();
+        operatorSafeBack();
         return;
       }
 
@@ -50,7 +51,7 @@ export default function ArrivedAtPickupScreen() {
       } catch (error) {
         console.error('Failed to fetch request:', error);
         Alert.alert('Error', 'Failed to load request details');
-        router.back();
+        operatorSafeBack();
       } finally {
         setIsLoading(false);
       }

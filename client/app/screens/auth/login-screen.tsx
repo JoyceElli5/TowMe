@@ -19,6 +19,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, login as loginApi } from '@/lib/api';
 import { signInWithEmail } from '@/lib/supabase';
+import { initPushNotifications } from '@/lib/services/pushNotificationService';
 import { LoginFormData, loginSchema, UserRole } from '@/schemas/auth';
 
 export default function LoginScreen() {
@@ -68,6 +69,11 @@ export default function LoginScreen() {
       }
 
       showToast('Login successful!', 'success');
+
+      // Register push notification token in the background (non-blocking)
+      initPushNotifications().catch((err) =>
+        console.warn('[Push] Init failed after login:', err)
+      );
 
       // Navigate to appropriate dashboard based on user role from API response
       setTimeout(async () => {

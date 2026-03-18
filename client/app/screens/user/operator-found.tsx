@@ -59,6 +59,7 @@ export default function OperatorFoundScreen() {
       setRequest(trackingData.request);
       setOperatorLocation(trackingData.operatorLocation);
 
+
       // Get operator location address if available
       if (trackingData.operatorLocation) {
         try {

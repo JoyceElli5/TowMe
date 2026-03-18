@@ -1,27 +1,30 @@
 /**
  * Trip Completed (Operator) Screen
- * 
+ *
  * Shows trip completion summary for operator.
  * Displays earnings and prompts for user rating.
  */
 
+import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Ionicons } from '@expo/vector-icons';
-
 import { useToast } from '@/hooks/use-toast';
-import { getRequestById, type TowingRequest } from '@/lib/api';
+import { getAccessToken, getRequestById, type TowingRequest } from '@/lib/api';
+import { API_BASE_URL } from '@/lib/api/client';
 
 export default function TripCompletedOperatorScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
@@ -34,7 +37,7 @@ export default function TripCompletedOperatorScreen() {
     const fetchRequest = async () => {
       if (!params.requestId) {
         Alert.alert('Error', 'Request ID is missing');
-        router.back();
+        handleDone();
         return;
       }
 
@@ -44,7 +47,7 @@ export default function TripCompletedOperatorScreen() {
       } catch (error) {
         console.error('Failed to fetch request:', error);
         Alert.alert('Error', 'Failed to load trip details');
-        router.back();
+        handleDone();
       } finally {
         setIsLoading(false);
       }
@@ -63,16 +66,49 @@ export default function TripCompletedOperatorScreen() {
   };
 
   const handleDone = () => {
-    router.replace('/screens/operator/dashboard');
+    router.replace('/operator/(tabs)/dashboard');
   };
 
-  const handleDownloadReceipt = async (id: string) => {
+  const handleDownloadReceipt = async () => {
+    if (!params.requestId) {
+      showToast('Request ID not found', 'error');
+      return;
+    }
+
     setIsDownloading(true);
     try {
-      // Mock download delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      showToast('Receipt downloaded successfully', 'success');
+      const token = await getAccessToken();
+      const response = await fetch(`${API_BASE_URL}/requests/${params.requestId}/receipt`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download receipt');
+      }
+
+      const receiptText = await response.text();
+
+      const fileUri = `${FileSystem.documentDirectory}receipt-${params.requestId}.txt`;
+      await FileSystem.writeAsStringAsync(fileUri, receiptText, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/plain',
+          dialogTitle: 'Save Receipt',
+        });
+        showToast('Receipt downloaded successfully', 'success');
+      } else {
+        Alert.alert('Receipt Saved', `Receipt saved to: ${fileUri}`);
+        showToast('Receipt saved to device', 'success');
+      }
     } catch (error) {
+      console.error('Receipt download error:', error);
       showToast('Failed to download receipt', 'error');
     } finally {
       setIsDownloading(false);
@@ -91,7 +127,6 @@ export default function TripCompletedOperatorScreen() {
     );
   }
 
-  // Calculate duration in minutes
   const getDuration = () => {
     if (!request.startedAt || !request.completedAt) return 'N/A';
     const start = new Date(request.startedAt).getTime();
@@ -104,7 +139,15 @@ export default function TripCompletedOperatorScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      <View style={styles.content}>
+      {/* Dismiss X button */}
+      <TouchableOpacity style={styles.dismissButton} onPress={handleDone} activeOpacity={0.7}>
+        <Ionicons name="close" size={22} color="#6b7280" />
+      </TouchableOpacity>
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Success Icon */}
         <View style={styles.iconContainer}>
           <Text style={styles.checkIcon}>💰</Text>
@@ -118,7 +161,9 @@ export default function TripCompletedOperatorScreen() {
         {/* Earnings Card */}
         <View style={styles.earningsCard}>
           <Text style={styles.earningsLabel}>Your Earnings</Text>
-          <Text style={styles.earningsValue}>GH₵ {(request.finalPrice || request.estimatedPrice).toFixed(2)}</Text>
+          <Text style={styles.earningsValue}>
+            GH₵ {(request.finalPrice || request.estimatedPrice || 0).toFixed(2)}
+          </Text>
           <Text style={styles.earningsNote}>Will be added to your balance</Text>
         </View>
 
@@ -141,7 +186,7 @@ export default function TripCompletedOperatorScreen() {
         {/* Download Receipt Button */}
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={() => handleDownloadReceipt(params.requestId)}
+          onPress={handleDownloadReceipt}
           disabled={isDownloading}
           activeOpacity={0.8}
         >
@@ -164,15 +209,11 @@ export default function TripCompletedOperatorScreen() {
           <Text style={styles.rateButtonText}>Rate Customer</Text>
         </TouchableOpacity>
 
-        {/* Done Button */}
-        <TouchableOpacity
-          style={styles.doneButton}
-          onPress={handleDone}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.doneButtonText}>Back to Dashboard</Text>
+        {/* Skip / Done link */}
+        <TouchableOpacity style={styles.skipButton} onPress={handleDone} activeOpacity={0.7}>
+          <Text style={styles.skipButtonText}>Skip for now</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -182,10 +223,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  dismissButton: {
+    position: 'absolute',
+    top: 56,
+    right: 20,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
-    flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 48,
+    paddingBottom: 40,
     alignItems: 'center',
   },
   iconContainer: {
@@ -297,14 +350,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
   },
-  doneButton: {
+  skipButton: {
     paddingVertical: 14,
     paddingHorizontal: 32,
   },
-  doneButtonText: {
+  skipButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   loadingContainer: {
     flex: 1,

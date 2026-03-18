@@ -26,6 +26,7 @@ import { completeRequest, getRequestById, type TowingRequest } from '@/lib/api';
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
 import { calculateDistance } from '@/lib/services/locationService';
 import { getCurrentOperatorLocation, type OperatorLocation } from '@/lib/services/operatorLocationService';
+import { operatorSafeBack } from '@/lib/navigation';
 
 export default function TowingInProgressScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
@@ -46,7 +47,7 @@ export default function TowingInProgressScreen() {
     const fetchRequest = async () => {
       if (!params.requestId) {
         Alert.alert('Error', 'Request ID is missing');
-        router.back();
+        operatorSafeBack();
         return;
       }
 
@@ -66,7 +67,7 @@ export default function TowingInProgressScreen() {
       } catch (error) {
         console.error('Failed to fetch request:', error);
         Alert.alert('Error', 'Failed to load request details');
-        router.back();
+        operatorSafeBack();
       } finally {
         setIsLoading(false);
       }

@@ -1,15 +1,19 @@
 /**
- * TripCompleted Screen (Placeholder)
- * 
+ * TripCompleted Screen
+ *
  * Displayed when the towing service is complete.
  * Shows trip summary and prompts for rating.
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -21,7 +25,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { API_BASE_URL, ApiError, getAccessToken, getRequestById, type TowingRequest } from '@/lib/api';
+import { ApiError, getAccessToken, getRequestById, type TowingRequest } from '@/lib/api';
+import { API_BASE_URL } from '@/lib/api/client';
 
 export default function TripCompletedScreen() {
   const params = useLocalSearchParams<{ requestId?: string }>();
@@ -37,13 +42,12 @@ export default function TripCompletedScreen() {
       loadRequest();
     } else {
       showToast('Request ID not found', 'error');
-      router.back();
+      handleHome();
     }
   }, [requestId]);
 
   const loadRequest = async () => {
     if (!requestId) return;
-
     try {
       setIsLoading(true);
       const data = await getRequestById(requestId);
@@ -70,7 +74,7 @@ export default function TripCompletedScreen() {
   };
 
   const handleHome = () => {
-    router.replace('/screens/user/home-screen');
+    router.replace('/(tabs)');
   };
 
   const handleDownloadReceipt = async () => {
@@ -85,7 +89,7 @@ export default function TripCompletedScreen() {
       const response = await fetch(`${API_BASE_URL}/requests/${requestId}/receipt`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -94,14 +98,12 @@ export default function TripCompletedScreen() {
       }
 
       const receiptText = await response.text();
-      
-      // Save to file system
+
       const fileUri = `${FileSystem.documentDirectory}receipt-${requestId}.txt`;
       await FileSystem.writeAsStringAsync(fileUri, receiptText, {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
-      // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
         await Sharing.shareAsync(fileUri, {
@@ -139,15 +141,14 @@ export default function TripCompletedScreen() {
         <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
         <View style={styles.loadingContainer}>
           <ThemedText style={styles.errorText}>Trip information not available</ThemedText>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>Go Back</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleHome}>
+            <Text style={styles.primaryButtonText}>Go Home</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Calculate duration if we have start and completion times
   const getDuration = () => {
     if (request.startedAt && request.completedAt) {
       const start = new Date(request.startedAt).getTime();
@@ -155,7 +156,6 @@ export default function TripCompletedScreen() {
       const minutes = Math.floor((end - start) / 60000);
       return `${minutes} min`;
     }
-    // Fallback estimate based on distance
     return `~${Math.ceil((request.distanceKm || 0) * 2)} min`;
   };
 
@@ -163,7 +163,15 @@ export default function TripCompletedScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      <View style={styles.content}>
+      {/* Dismiss X button */}
+      <TouchableOpacity style={styles.dismissButton} onPress={handleHome} activeOpacity={0.7}>
+        <Ionicons name="close" size={22} color="#6b7280" />
+      </TouchableOpacity>
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Success Icon */}
         <View style={styles.iconContainer}>
           <Ionicons name="checkmark-circle" size={64} color="#10B981" />
@@ -213,7 +221,7 @@ export default function TripCompletedScreen() {
         {/* Download Receipt Button */}
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={() => handleDownloadReceipt(requestId)}
+          onPress={handleDownloadReceipt}
           disabled={isDownloading}
           activeOpacity={0.8}
         >
@@ -236,15 +244,11 @@ export default function TripCompletedScreen() {
           <Text style={styles.rateButtonText}>Rate Your Experience</Text>
         </TouchableOpacity>
 
-        {/* Home Button */}
-        <TouchableOpacity
-          style={styles.homeButton}
-          onPress={handleHome}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.homeButtonText}>Back to Home</Text>
+        {/* Skip / Home link */}
+        <TouchableOpacity style={styles.skipButton} onPress={handleHome} activeOpacity={0.7}>
+          <Text style={styles.skipButtonText}>Skip for now</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -254,17 +258,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  dismissButton: {
+    position: 'absolute',
+    top: 56,
+    right: 20,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
-    flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 48,
+    paddingBottom: 40,
     alignItems: 'center',
   },
   iconContainer: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#fef3c7',
+    backgroundColor: '#dcfce7',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
@@ -371,14 +387,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
   },
-  homeButton: {
+  skipButton: {
     paddingVertical: 14,
     paddingHorizontal: 32,
   },
-  homeButtonText: {
+  skipButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   loadingContainer: {
     flex: 1,
@@ -397,13 +413,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-  backButton: {
+  primaryButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
     backgroundColor: '#003554',
-    borderRadius: 8,
+    borderRadius: 28,
   },
-  backButtonText: {
+  primaryButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',

@@ -38,11 +38,26 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#003554",
+          "defaultChannel": "default"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": false
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d05ddb32-98dd-4f20-8ec3-1b6aa26ebb0a"
+      }
+    },
+    "owner": "joyceelli1"
   }
 }

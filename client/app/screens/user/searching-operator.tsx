@@ -7,6 +7,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import React, { useEffect, useState } from 'react';
 import {
   StatusBar,
@@ -38,7 +39,7 @@ export default function SearchingOperatorScreen() {
     if (!requestId) {
       // If for some reason we don't have a requestId, just go back after a short delay
       const timer = setTimeout(() => {
-        router.back();
+        safeBack('/(tabs)');
       }, 3000);
       return () => clearTimeout(timer);
     }

@@ -68,6 +68,23 @@ export async function updateUserAvatar(userId: string, avatarUrl: string): Promi
 }
 
 /**
+ * Save FCM/Expo push token for a user
+ */
+export async function savePushToken(userId: string, pushToken: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+
+  const { error } = await supabase
+    .from('users')
+    .update({ push_token: pushToken, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (error) {
+    logger.error('Error saving push token:', error);
+    throw createError.internal('Failed to save push token');
+  }
+}
+
+/**
  * Get user statistics
  */
 export async function getUserStats(userId: string): Promise<{

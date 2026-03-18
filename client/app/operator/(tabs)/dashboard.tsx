@@ -55,11 +55,9 @@ export default function OperatorDashboardScreen() {
     isLoadingStatus,
     incomingRequest,
     isAccepting,
-    requestTimeLeft,
     handleOnlineToggle,
     handleAcceptRequest,
     handleDeclineRequest,
-    simulateRequest,
     activeJob,
   } = useOperatorDashboard();
 
@@ -123,9 +121,10 @@ export default function OperatorDashboardScreen() {
                 {isOnline ? 'You\'re Online' : 'You\'re Offline'}
               </ThemedText>
               {isOnline && (
-                <ThemedText style={styles.demandLabel}>
-                  🔥 High Demand Area
-                </ThemedText>
+                <View style={styles.demandRow}>
+                  <Ionicons name="flame" size={11} color="#ef4444" />
+                  <ThemedText style={styles.demandLabel}> High Demand Area</ThemedText>
+                </View>
               )}
             </View>
             <Switch
@@ -144,16 +143,6 @@ export default function OperatorDashboardScreen() {
             <Ionicons name="menu-outline" size={24} color={tintColor} />
           </TouchableOpacity>
         </View>
-
-        {/* Dev: Simulate Request Button */}
-        {__DEV__ && !incomingRequest && (
-          <TouchableOpacity
-            style={styles.devSimulateButton}
-            onPress={simulateRequest}
-          >
-            <ThemedText style={styles.devButtonText}>Simulate Job</ThemedText>
-          </TouchableOpacity>
-        )}
 
         {/* Stats Card - Clickable for Earnings */}
         {!incomingRequest && (
@@ -313,6 +302,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     fontFamily: 'Gilroy-SemiBold',
+  },
+  demandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   demandLabel: {
     fontSize: 10,

@@ -9,7 +9,6 @@ import { ArrowLeft01Icon, Mail01Icon } from 'hugeicons-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
-  Alert,
   Linking,
   ScrollView,
   StyleSheet,
@@ -24,6 +23,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
+import { API_BASE_URL, getAccessToken } from '@/lib/api/client';
 
 export default function ContactSupportScreen() {
   const [subject, setSubject] = useState('');
@@ -44,32 +44,25 @@ export default function ContactSupportScreen() {
 
     setIsSubmitting(true);
     try {
-      // In a real app, this would send to your backend
-      // For now, we'll open email client
-      const email = 'support@towme.com';
-      const emailSubject = encodeURIComponent(subject);
-      const emailBody = encodeURIComponent(message);
-      const mailtoUrl = `mailto:${email}?subject=${emailSubject}&body=${emailBody}`;
+      const token = await getAccessToken();
+      const response = await fetch(`${API_BASE_URL}/support/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ subject: subject.trim(), message: message.trim() }),
+      });
 
-      const canOpen = await Linking.canOpenURL(mailtoUrl);
-      if (canOpen) {
-        await Linking.openURL(mailtoUrl);
-        showToast('Opening email client...', 'success');
-        // Clear form after a delay
-        setTimeout(() => {
-          setSubject('');
-          setMessage('');
-        }, 1000);
-      } else {
-        Alert.alert(
-          'Email Not Available',
-          'Please contact us at support@towme.com or call +233 24 123 4567',
-          [{ text: 'OK' }]
-        );
+      if (!response.ok) {
+        throw new Error('Server error');
       }
-    } catch (error) {
-      console.error('Error opening email:', error);
-      showToast('Failed to open email client', 'error');
+
+      showToast('Message sent successfully!', 'success');
+      setSubject('');
+      setMessage('');
+    } catch {
+      showToast('Failed to send message. Please try again.', 'error');
     } finally {
       setIsSubmitting(false);
     }

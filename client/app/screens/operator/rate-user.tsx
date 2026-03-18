@@ -70,7 +70,7 @@ export default function RateUserScreen() {
         comment: comment || undefined,
       });
       showToast('Rating submitted successfully!', 'success');
-      router.replace('/screens/operator/dashboard');
+      router.replace('/operator/(tabs)/dashboard');
     } catch (error) {
       console.error('Error submitting rating:', error);
       showToast('Failed to submit rating', 'error');
@@ -80,7 +80,7 @@ export default function RateUserScreen() {
   };
 
   const handleSkip = () => {
-    router.replace('/screens/operator/dashboard');
+    router.replace('/operator/(tabs)/dashboard');
   };
 
   const getUserInitials = (name?: string) => {

@@ -2,14 +2,13 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { acceptRequest, getPendingRequests, TowingRequest } from '@/lib/api';
+import { getPendingRequests, TowingRequest } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Platform,
     RefreshControl,
     ScrollView,
@@ -23,7 +22,6 @@ export default function OperatorAvailableJobsScreen() {
     const [availableRequests, setAvailableRequests] = useState<TowingRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [isAccepting, setIsAccepting] = useState<string | null>(null);
     const { showToast } = useToast();
 
     const tintColor = useThemeColor({ light: '#003554', dark: '#60A5FA' }, 'tint');
@@ -55,40 +53,12 @@ export default function OperatorAvailableJobsScreen() {
         setIsRefreshing(false);
     };
 
-    const handleAcceptJob = (requestId: string) => {
-        Alert.alert(
-            'Accept Job',
-            'Are you sure you want to accept this job?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Yes, Accept',
-                    onPress: async () => {
-                        try {
-                            setIsAccepting(requestId);
-                            await acceptRequest(requestId);
-                            showToast('Job accepted successfully!', 'success');
-                            
-                            // Remove from list
-                            setAvailableRequests(prev => prev.filter(req => req.id !== requestId));
-                            
-                            // Navigate to navigation screen
-                            router.push({
-                                pathname: '/screens/operator/navigation-to-pickup',
-                                params: { requestId },
-                            });
-                        } catch (err: any) {
-                            console.error('Error accepting job:', err);
-                            showToast(err.message || 'Failed to accept job', 'error');
-                            // Refresh just in case it was taken
-                            fetchRequests();
-                        } finally {
-                            setIsAccepting(null);
-                        }
-                    }
-                }
-            ]
-        );
+    const handleViewJob = (requestId: string) => {
+        // Navigate to incoming-request screen so operator sees full details before accepting
+        router.push({
+            pathname: '/screens/operator/incoming-request',
+            params: { requestId },
+        });
     };
 
     const RequestCard = ({ request }: { request: TowingRequest }) => (
@@ -128,14 +98,9 @@ export default function OperatorAvailableJobsScreen() {
                 
                 <TouchableOpacity
                     style={[styles.acceptButton, { backgroundColor: tintColor }]}
-                    onPress={() => handleAcceptJob(request.id)}
-                    disabled={isAccepting === request.id}
+                    onPress={() => handleViewJob(request.id)}
                 >
-                    {isAccepting === request.id ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                        <ThemedText style={styles.acceptText}>Accept Job</ThemedText>
-                    )}
+                    <ThemedText style={styles.acceptText}>View & Accept</ThemedText>
                 </TouchableOpacity>
             </View>
         </ThemedView>

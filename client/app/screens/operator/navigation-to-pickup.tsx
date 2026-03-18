@@ -27,6 +27,7 @@ import { ApiError, getCurrentUser, getRequestById, startRequest, type TowingRequ
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
 import { calculateDistance } from '@/lib/services/locationService';
 import { getCurrentOperatorLocation, startLocationTracking, type OperatorLocation } from '@/lib/services/operatorLocationService';
+import { operatorSafeBack } from '@/lib/navigation';
 
 export default function NavigationToPickupScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
@@ -46,7 +47,7 @@ export default function NavigationToPickupScreen() {
     const fetchRequest = async () => {
       if (!params.requestId) {
         Alert.alert('Error', 'Request ID is missing');
-        router.back();
+        operatorSafeBack();
         return;
       }
 

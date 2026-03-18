@@ -1,14 +1,19 @@
 /**
- * Rating Screen (Placeholder)
- * 
+ * Rating Screen
+ *
  * Allows users to rate the tow operator after trip completion.
- * Features a star rating system and optional comment.
+ * Features a 5-star rating system and optional comment.
+ * Uses KeyboardAvoidingView so the submit button is never hidden by the keyboard.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -22,6 +27,9 @@ import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, createRating, getRequestById, type TowingRequest } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
+
+const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent!'];
 
 export default function RatingScreen() {
   const params = useLocalSearchParams<{ requestId?: string }>();
@@ -33,16 +41,16 @@ export default function RatingScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const backgroundColor = useThemeColor({}, 'background');
+  const inputBg = useThemeColor({ light: '#f9fafb', dark: '#1F2937' }, 'background');
+  const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
 
   const loadRequest = React.useCallback(async () => {
     if (!requestId) return;
-
     try {
       setIsLoading(true);
       const data = await getRequestById(requestId);
       setRequest(data);
     } catch (error) {
-      console.error('Error loading request:', error);
       if (error instanceof ApiError) {
         showToast(error.message, 'error');
       } else {
@@ -58,16 +66,15 @@ export default function RatingScreen() {
       loadRequest();
     } else {
       showToast('Request ID not found', 'error');
-      router.back();
+      safeBack('/(tabs)');
     }
   }, [requestId, loadRequest, showToast]);
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      showToast('Please select a rating', 'error');
+      showToast('Please select a rating first', 'error');
       return;
     }
-
     if (!requestId || !request?.operatorId) {
       showToast('Invalid request data', 'error');
       return;
@@ -81,10 +88,9 @@ export default function RatingScreen() {
         rating,
         comment: comment.trim() || undefined,
       });
-      showToast('Rating submitted successfully!', 'success');
-      router.replace('/screens/user/home-screen');
+      showToast('Rating submitted — thank you!', 'success');
+      router.replace('/(tabs)');
     } catch (error) {
-      console.error('Error submitting rating:', error);
       if (error instanceof ApiError) {
         showToast(error.message || 'Failed to submit rating', 'error');
       } else {
@@ -95,26 +101,16 @@ export default function RatingScreen() {
     }
   };
 
-  const handleSkip = () => {
-    router.replace('/screens/user/home-screen');
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const getInitials = (name: string) =>
+    name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]}>
         <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-        <View style={styles.loadingContainer}>
+        <View style={styles.centered}>
           <ActivityIndicator size="large" color="#003554" />
-          <ThemedText style={styles.loadingText}>Loading operator details...</ThemedText>
+          <ThemedText style={styles.loadingText}>Loading...</ThemedText>
         </View>
       </SafeAreaView>
     );
@@ -124,10 +120,10 @@ export default function RatingScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]}>
         <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-        <View style={styles.loadingContainer}>
+        <View style={styles.centered}>
           <ThemedText style={styles.errorText}>Operator information not available</ThemedText>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>Go Back</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={() => safeBack('/(tabs)')}>
+            <Text style={styles.backBtnText}>Go Home</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -135,218 +131,152 @@ export default function RatingScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      <View style={styles.content}>
-        {/* Operator Avatar */}
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getInitials(request.operator.fullName)}</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Operator Avatar */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{getInitials(request.operator.fullName)}</Text>
+            </View>
+            <ThemedText style={styles.operatorName}>{request.operator.fullName}</ThemedText>
+            <ThemedText style={styles.subtitle}>How was your experience?</ThemedText>
           </View>
-          <ThemedText style={styles.operatorName}>{request.operator.fullName}</ThemedText>
-          <ThemedText style={styles.subtitle}>How was your experience?</ThemedText>
-        </View>
 
-        {/* Star Rating */}
-        <View style={styles.starsContainer}>
-          {[1, 2, 3, 4, 5].map((star) => (
-            <TouchableOpacity
-              key={star}
-              onPress={() => setRating(star)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.star,
-                  star <= rating && styles.starSelected,
-                ]}
+          {/* Star Rating */}
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <TouchableOpacity
+                key={star}
+                onPress={() => setRating(star)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               >
-                ★
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Ionicons
+                  name={star <= rating ? 'star' : 'star-outline'}
+                  size={44}
+                  color={star <= rating ? '#fbbf24' : '#d1d5db'}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
 
-        {/* Rating Label */}
-        <ThemedText style={styles.ratingLabel}>
-          {rating === 0 && 'Tap to rate'}
-          {rating === 1 && 'Poor'}
-          {rating === 2 && 'Fair'}
-          {rating === 3 && 'Good'}
-          {rating === 4 && 'Very Good'}
-          {rating === 5 && 'Excellent!'}
-        </ThemedText>
+          {/* Rating label */}
+          <ThemedText style={[styles.ratingLabel, rating > 0 && styles.ratingLabelActive]}>
+            {rating === 0 ? 'Tap a star to rate' : RATING_LABELS[rating]}
+          </ThemedText>
 
-        {/* Comment Input */}
-        <View style={styles.commentContainer}>
+          {/* Comment */}
           <TextInput
-            style={styles.commentInput}
+            style={[styles.commentInput, { backgroundColor: inputBg, borderColor, color: '#111827' }]}
             placeholder="Add a comment (optional)"
             placeholderTextColor="#9ca3af"
             multiline
             numberOfLines={4}
             value={comment}
             onChangeText={setComment}
+            textAlignVertical="top"
           />
-        </View>
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[styles.submitButton, (rating === 0 || isSubmitting) && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={rating === 0 || isSubmitting}
-          activeOpacity={0.8}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#ffffff" size="small" />
-          ) : (
-            <Text style={styles.submitButtonText}>Submit Rating</Text>
-          )}
-        </TouchableOpacity>
+          {/* Submit */}
+          <TouchableOpacity
+            style={[styles.submitBtn, (rating === 0 || isSubmitting) && styles.btnDisabled]}
+            onPress={handleSubmit}
+            disabled={rating === 0 || isSubmitting}
+            activeOpacity={0.8}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.submitBtnText}>Submit Rating</Text>
+            )}
+          </TouchableOpacity>
 
-        {/* Skip Button */}
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={handleSkip}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.skipButtonText}>Skip</Text>
-        </TouchableOpacity>
-      </View>
+          {/* Skip */}
+          <TouchableOpacity
+            style={styles.skipBtn}
+            onPress={() => router.replace('/(tabs)')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.skipBtnText}>Skip for now</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  content: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: '#ffffff' },
+  flex: { flex: 1 },
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 48,
+    paddingBottom: 40,
     alignItems: 'center',
   },
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  avatarSection: { alignItems: 'center', marginBottom: 32 },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     backgroundColor: '#003554',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  operatorName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  star: {
-    fontSize: 48,
-    color: '#e5e7eb',
-  },
-  starSelected: {
-    color: '#fbbf24',
-  },
+  avatarText: { fontSize: 28, fontFamily: 'Gilroy-Bold', color: '#ffffff' },
+  operatorName: { fontSize: 22, fontFamily: 'Gilroy-Bold', color: '#111827', marginBottom: 4 },
+  subtitle: { fontSize: 15, fontFamily: 'Gilroy-Regular', color: '#6b7280' },
+  starsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   ratingLabel: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 32,
+    fontSize: 17,
+    fontFamily: 'Gilroy-Medium',
+    color: '#9ca3af',
+    marginBottom: 28,
   },
-  commentContainer: {
-    width: '100%',
-    marginBottom: 32,
-  },
+  ratingLabelActive: { color: '#003554', fontFamily: 'Gilroy-SemiBold' },
   commentInput: {
-    backgroundColor: '#f9fafb',
+    width: '100%',
     borderRadius: 16,
     padding: 16,
-    fontSize: 16,
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    minHeight: 120,
-    textAlignVertical: 'top',
+    fontSize: 15,
+    fontFamily: 'Gilroy-Regular',
+    borderWidth: 1.5,
+    minHeight: 110,
+    marginBottom: 24,
   },
-  submitButton: {
+  submitBtn: {
     width: '100%',
     height: 56,
     backgroundColor: '#003554',
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#003554',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  skipButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-  },
-  skipButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ef4444',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  backButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: '#003554',
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  btnDisabled: { opacity: 0.45 },
+  submitBtnText: { fontSize: 16, fontFamily: 'Gilroy-SemiBold', color: '#ffffff' },
+  skipBtn: { paddingVertical: 14, paddingHorizontal: 32 },
+  skipBtnText: { fontSize: 15, fontFamily: 'Gilroy-Medium', color: '#9ca3af' },
+  loadingText: { marginTop: 12, fontSize: 15, fontFamily: 'Gilroy-Regular', color: '#6b7280' },
+  errorText: { fontSize: 15, fontFamily: 'Gilroy-Medium', color: '#ef4444', textAlign: 'center', marginBottom: 20 },
+  backBtn: { paddingVertical: 12, paddingHorizontal: 24, backgroundColor: '#003554', borderRadius: 28 },
+  backBtnText: { color: '#ffffff', fontSize: 15, fontFamily: 'Gilroy-SemiBold' },
 });

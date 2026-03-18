@@ -47,15 +47,31 @@ export async function registerForPushNotifications(): Promise<string | null> {
       return null;
     }
 
-    // Android requires a notification channel
+    // Android requires notification channels
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'TowMe Notifications',
-        importance: Notifications.AndroidImportance.MAX,
+        importance: Notifications.AndroidImportance.DEFAULT,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#003554',
         enableLights: true,
         enableVibrate: true,
+        showBadge: true,
+      });
+      await Notifications.setNotificationChannelAsync('tow-requests', {
+        name: 'New Tow Requests',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#22c55e',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
+      });
+      await Notifications.setNotificationChannelAsync('trip-updates', {
+        name: 'Trip Updates',
+        importance: Notifications.AndroidImportance.HIGH,
+        lightColor: '#003554',
+        enableLights: true,
         showBadge: true,
       });
     }

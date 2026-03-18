@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -55,41 +53,41 @@ function TripCard({ trip }: { trip: TowingRequest }) {
     0;
 
   return (
-    <TouchableOpacity>
+    <TouchableOpacity activeOpacity={0.8}>
       <ThemedView style={[styles.tripCard, { backgroundColor: cardBg }]}>
-      <View style={styles.tripHeader}>
-        <ThemedText style={styles.tripDate}>{formatTripDate(trip)}</ThemedText>
-        <View style={styles.ratingContainer}>
-          <StarIcon size={14} color="#F59E0B" strokeWidth={2} />
-          <ThemedText style={styles.ratingText}>
-            {rating ? rating.toFixed(1) : '—'}
-          </ThemedText>
+        <View style={styles.tripHeader}>
+          <ThemedText style={styles.tripDate}>{formatTripDate(trip)}</ThemedText>
+          <View style={styles.ratingContainer}>
+            <StarIcon size={14} color="#F59E0B" strokeWidth={2} />
+            <ThemedText style={styles.ratingText}>
+              {rating ? rating.toFixed(1) : '—'}
+            </ThemedText>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.addressContainer}>
-        <View style={styles.addressRow}>
-          <View style={styles.pickupDot} />
-          <ThemedText style={styles.addressText} numberOfLines={1}>
-            {trip.pickupAddress}
-          </ThemedText>
+        <View style={styles.addressContainer}>
+          <View style={styles.addressRow}>
+            <View style={styles.pickupDot} />
+            <ThemedText style={styles.addressText} numberOfLines={1}>
+              {trip.pickupAddress}
+            </ThemedText>
+          </View>
+          <View style={styles.addressLine} />
+          <View style={styles.addressRow}>
+            <View style={styles.destinationDot} />
+            <ThemedText style={styles.addressText} numberOfLines={1}>
+              {trip.destinationAddress}
+            </ThemedText>
+          </View>
         </View>
-        <View style={styles.addressLine} />
-        <View style={styles.addressRow}>
-          <View style={styles.destinationDot} />
-          <ThemedText style={styles.addressText} numberOfLines={1}>
-            {trip.destinationAddress}
-          </ThemedText>
-        </View>
-      </View>
 
-      <View style={styles.tripFooter}>
-        <View style={styles.distanceContainer}>
-          <Route01Icon size={16} color={iconColor} strokeWidth={2} />
-          <ThemedText style={styles.distanceText}>{distanceText}</ThemedText>
+        <View style={styles.tripFooter}>
+          <View style={styles.distanceContainer}>
+            <Route01Icon size={16} color={iconColor} strokeWidth={2} />
+            <ThemedText style={styles.distanceText}>{distanceText}</ThemedText>
+          </View>
+          <ThemedText style={styles.earningsText}>{earningsText}</ThemedText>
         </View>
-        <ThemedText style={styles.earningsText}>{earningsText}</ThemedText>
-      </View>
       </ThemedView>
     </TouchableOpacity>
   );
@@ -119,7 +117,7 @@ export default function HistoryScreen() {
           limit: 100,
         });
 
-        setTrips(response.data ?? []);
+        setTrips(response ?? []);
       } catch (error) {
         console.error('Error loading trip history:', error);
         const message =
@@ -164,7 +162,6 @@ export default function HistoryScreen() {
 
   const summary = useMemo(() => {
     const totalTrips = filteredTrips.length;
-
     let totalDistance = 0;
     let totalEarnings = 0;
 
@@ -180,13 +177,9 @@ export default function HistoryScreen() {
       }
     }
 
-    return {
-      totalTrips,
-      totalDistance,
-      totalEarnings,
-    };
+    return { totalTrips, totalDistance, totalEarnings };
   }, [filteredTrips]);
-  
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]}>
       {/* Header */}
@@ -203,7 +196,7 @@ export default function HistoryScreen() {
           <ThemedText type="defaultSemiBold" style={styles.summaryValue}>
             GHS {summary.totalEarnings.toFixed(0)}
           </ThemedText>
-          <ThemedText style={styles.summaryLabel}>Total Earnings</ThemedText>
+          <ThemedText style={styles.summaryLabel}>Total Spend</ThemedText>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
@@ -223,54 +216,19 @@ export default function HistoryScreen() {
 
       {/* Filter Tabs */}
       <View style={styles.filterTabs}>
-        <TouchableOpacity
-          style={[
-            styles.filterTab,
-            selectedFilter === 'today' && styles.filterTabActive,
-          ]}
-          onPress={() => setSelectedFilter('today')}
-        >
-          <ThemedText
-            style={[
-              styles.filterTabText,
-              selectedFilter === 'today' && styles.filterTabTextActive,
-            ]}
+        {(['today', 'week', 'month'] as HistoryFilter[]).map((f) => (
+          <TouchableOpacity
+            key={f}
+            style={[styles.filterTab, selectedFilter === f && styles.filterTabActive]}
+            onPress={() => setSelectedFilter(f)}
           >
-            Today
-          </ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterTab,
-            selectedFilter === 'week' && styles.filterTabActive,
-          ]}
-          onPress={() => setSelectedFilter('week')}
-        >
-          <ThemedText
-            style={[
-              styles.filterTabText,
-              selectedFilter === 'week' && styles.filterTabTextActive,
-            ]}
-          >
-            This Week
-          </ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterTab,
-            selectedFilter === 'month' && styles.filterTabActive,
-          ]}
-          onPress={() => setSelectedFilter('month')}
-        >
-          <ThemedText
-            style={[
-              styles.filterTabText,
-              selectedFilter === 'month' && styles.filterTabTextActive,
-            ]}
-          >
-            This Month
-          </ThemedText>
-        </TouchableOpacity>
+            <ThemedText
+              style={[styles.filterTabText, selectedFilter === f && styles.filterTabTextActive]}
+            >
+              {f === 'today' ? 'Today' : f === 'week' ? 'This Week' : 'This Month'}
+            </ThemedText>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Trip List */}
@@ -308,20 +266,104 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   title: {
     fontFamily: Fonts.semiBold,
   },
-  section: {
-    marginBottom: 24,
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontFamily: Fonts.medium,
+  summaryCard: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontFamily: Fonts.semiBold,
+    marginBottom: 4,
+  },
+  summaryLabel: {
+    fontSize: 12,
     color: '#9ca3af',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontFamily: Fonts.regular,
+  },
+  summaryDivider: {
+    width: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 4,
+  },
+  filterTabs: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    borderRadius: 12,
+    padding: 4,
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  filterTabActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontFamily: Fonts.medium,
+    color: '#6b7280',
+  },
+  filterTabTextActive: {
+    color: '#003554',
+    fontFamily: Fonts.semiBold,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: Fonts.semiBold,
+    color: '#374151',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontFamily: Fonts.regular,
+    textAlign: 'center',
   },
   tripList: {
     flex: 1,
@@ -335,6 +377,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -347,28 +390,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusText: {
-    fontSize: 11,
-    fontFamily: Fonts.semiBold,
-  },
   tripDate: {
     fontSize: 12,
     fontFamily: Fonts.semiBold,
     color: '#9ca3af',
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 13,
+    fontFamily: Fonts.medium,
+    color: '#6b7280',
   },
   addressContainer: {
     marginBottom: 12,
@@ -410,45 +445,19 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.05)',
   },
-  footerInfo: {
+  distanceContainer: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
+    alignItems: 'center',
+    gap: 6,
   },
-  vehicleText: {
-    fontSize: 12,
+  distanceText: {
+    fontSize: 13,
+    color: '#6b7280',
     fontFamily: Fonts.medium,
-    color: '#9ca3af',
   },
   earningsText: {
     fontSize: 16,
     fontFamily: Fonts.semiBold,
     color: '#10B981',
-  },
-  cancelButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fee2e2',
-  },
-  cancelText: {
-    fontSize: 12,
-    fontFamily: Fonts.semiBold,
-    color: '#ef4444',
-  },
-  loader: {
-    marginTop: 20,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyText: {
-    color: '#9ca3af',
-    fontFamily: Fonts.medium,
   },
 });

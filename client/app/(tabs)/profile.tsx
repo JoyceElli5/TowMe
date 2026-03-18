@@ -11,13 +11,14 @@
  */
 
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
+import { router, useFocusEffect } from 'expo-router';
 import {
   AlertCircleIcon,
   ArrowRight01Icon,
   Camera01Icon,
   Car01Icon,
-  Chatting01Icon,
   CheckmarkCircle01Icon,
   CreditCardIcon,
   HeadsetIcon,
@@ -25,14 +26,11 @@ import {
   LegalDocument01Icon,
   Location01Icon,
   Logout01Icon,
-  Mail01Icon,
   Moon01Icon,
   Notification01Icon,
   Sun01Icon,
-  UserBlock01Icon
 } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
@@ -52,8 +50,9 @@ import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useToast } from '@/hooks/use-toast';
-import { ApiError, getCurrentUser, getUserRequests, logout, updateUserAvatar, type TowingRequest, type User } from '@/lib/api';
+import { ApiError, getCurrentUser, logout, updateUserAvatar, type User } from '@/lib/api';
 import { getCurrentUser as getAuthUser } from '@/lib/services/authService';
+import { initPushNotifications } from '@/lib/services/pushNotificationService';
 import { getUserVehicles, type UserVehicle } from '@/lib/services/vehicleService';
 
 interface SettingItemProps {
@@ -125,14 +124,10 @@ export default function ProfileScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [vehicles, setVehicles] = useState<UserVehicle[]>([]);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
-  const [tripHistory, setTripHistory] = useState<TowingRequest[]>([]);
-  const [isLoadingTrips, setIsLoadingTrips] = useState(false);
-  
-  // Notification preferences
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [smsAlerts, setSmsAlerts] = useState(true);
-  const [emailUpdates, setEmailUpdates] = useState(false);
-  
+  // Notification & location toggles (reflect real permission state)
+  const [pushNotifications, setPushNotifications] = useState(false);
+  const [locationSharing, setLocationSharing] = useState(false);
+
   // All hooks must be called before any conditional returns
   const backgroundColor = useThemeColor({}, 'background');
   const statsBg = useThemeColor({ light: '#F9FAFB', dark: '#1F2937' }, 'background');
@@ -143,8 +138,40 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadUser();
     loadVehicles();
-    loadTripHistory();
+    loadPermissionStates();
   }, []);
+
+  const loadPermissionStates = async () => {
+    const [notifPerm, locPerm] = await Promise.all([
+      Notifications.getPermissionsAsync(),
+      Location.getForegroundPermissionsAsync(),
+    ]);
+    setPushNotifications(notifPerm.status === 'granted');
+    setLocationSharing(locPerm.status === 'granted');
+  };
+
+  const handlePushToggle = async (value: boolean) => {
+    if (value) {
+      await initPushNotifications();
+      const { status } = await Notifications.getPermissionsAsync();
+      const granted = status === 'granted';
+      setPushNotifications(granted);
+      showToast(granted ? 'Push notifications enabled' : 'Permission denied — enable in Settings', granted ? 'success' : 'error');
+    } else {
+      showToast('To disable notifications, go to your device Settings', 'info');
+    }
+  };
+
+  const handleLocationToggle = async (value: boolean) => {
+    if (value) {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      const granted = status === 'granted';
+      setLocationSharing(granted);
+      showToast(granted ? 'Location sharing enabled' : 'Permission denied — enable in Settings', granted ? 'success' : 'error');
+    } else {
+      showToast('To disable location, go to your device Settings', 'info');
+    }
+  };
 
   // Refresh vehicles when screen comes into focus (e.g., after adding/editing)
   useFocusEffect(
@@ -165,24 +192,6 @@ export default function ProfileScreen() {
       console.error('Error loading vehicles:', error);
     } finally {
       setIsLoadingVehicles(false);
-    }
-  };
-
-  const loadTripHistory = async () => {
-    try {
-      const user = await getCurrentUser();
-      if (user) {
-        setIsLoadingTrips(true);
-        const trips = await getUserRequests(user.id, {
-          status: 'completed',
-          limit: 10,
-        });
-        setTripHistory(trips || []);
-      }
-    } catch (error) {
-      console.error('Error loading trip history:', error);
-    } finally {
-      setIsLoadingTrips(false);
     }
   };
 
@@ -421,56 +430,6 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Trip History */}
-        <SectionHeader title="Trip History" />
-        <View style={styles.settingsCard}>
-          {isLoadingTrips ? (
-            <View style={styles.vehicleLoading}>
-              <ActivityIndicator size="small" />
-            </View>
-          ) : tripHistory.length === 0 ? (
-            <ThemedView style={styles.emptyVehicles}>
-              <ThemedText style={styles.emptyVehiclesText}>No completed trips yet</ThemedText>
-              <ThemedText style={styles.emptyVehiclesSubtext}>
-                Your completed trips will appear here
-              </ThemedText>
-            </ThemedView>
-          ) : (
-            tripHistory.map((trip) => (
-              <TouchableOpacity
-                key={trip.id}
-                style={styles.tripItem}
-                onPress={() => {
-                  router.push({
-                    pathname: '/screens/user/trip-completed',
-                    params: { requestId: trip.id },
-                  });
-                }}
-              >
-                <View style={styles.tripItemContent}>
-                  <View style={[styles.tripIconContainer, { backgroundColor: dividerColor }]}>
-                    <Car01Icon size={20} color={tintColor} strokeWidth={2} />
-                  </View>
-                  <View style={styles.tripInfo}>
-                    <ThemedText style={styles.tripRoute}>
-                      {trip.pickupAddress.split(',')[0]} → {trip.destinationAddress.split(',')[0]}
-                    </ThemedText>
-                    <ThemedText style={styles.tripDetails}>
-                      {trip.distanceKm?.toFixed(1) || '0'} km • GH₵ {(trip.finalPrice || trip.estimatedPrice || 0).toFixed(2)}
-                    </ThemedText>
-                    {trip.completedAt && (
-                      <ThemedText style={styles.tripDate}>
-                        {new Date(trip.completedAt).toLocaleDateString()}
-                      </ThemedText>
-                    )}
-                  </View>
-                </View>
-                <ArrowRight01Icon size={20} color={iconColor} strokeWidth={2} />
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-
         {/* Appearance */}
         <SectionHeader title="Appearance" />
         <View style={styles.settingsCard}>
@@ -497,36 +456,7 @@ export default function ProfileScreen() {
             showArrow={false}
             showSwitch
             switchValue={pushNotifications}
-            onSwitchChange={(value) => {
-              setPushNotifications(value);
-              showToast(value ? 'Push notifications enabled' : 'Push notifications disabled', 'success');
-            }}
-          />
-          <SettingItem
-            icon={Chatting01Icon}
-            iconColor="#10B981"
-            title="SMS Alerts"
-            subtitle="Get SMS updates about your requests"
-            showArrow={false}
-            showSwitch
-            switchValue={smsAlerts}
-            onSwitchChange={(value) => {
-              setSmsAlerts(value);
-              showToast(value ? 'SMS alerts enabled' : 'SMS alerts disabled', 'success');
-            }}
-          />
-          <SettingItem
-            icon={Mail01Icon}
-            iconColor="#F59E0B"
-            title="Email Updates"
-            subtitle="Receive email notifications and updates"
-            showArrow={false}
-            showSwitch
-            switchValue={emailUpdates}
-            onSwitchChange={(value) => {
-              setEmailUpdates(value);
-              showToast(value ? 'Email updates enabled' : 'Email updates disabled', 'success');
-            }}
+            onSwitchChange={handlePushToggle}
           />
         </View>
 
@@ -552,17 +482,8 @@ export default function ProfileScreen() {
             subtitle="Location is shared with operators during active trips"
             showArrow={false}
             showSwitch
-            switchValue={true}
-            onSwitchChange={() => {
-              showToast('Location sharing is required for active trips', 'info');
-            }}
-          />
-          <SettingItem
-            icon={UserBlock01Icon}
-            iconColor="#6B7280"
-            title="Blocked Users"
-            subtitle="Manage blocked users"
-            onPress={() => router.push('/screens/user/blocked-users-screen')}
+            switchValue={locationSharing}
+            onSwitchChange={handleLocationToggle}
           />
         </View>
 
@@ -848,44 +769,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 16,
-  },
-  tripItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  tripItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  tripIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  tripInfo: {
-    flex: 1,
-  },
-  tripRoute: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  tripDetails: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  tripDate: {
-    fontSize: 11,
-    color: '#9ca3af',
-    marginTop: 4,
   },
 });

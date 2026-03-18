@@ -10,6 +10,13 @@ import { validateBody, validateParams, schemas } from '../middleware/validate.mi
 
 const router = Router();
 
+// Save push notification token (protected)
+router.patch(
+  '/push-token',
+  authMiddleware,
+  asyncHandler(usersController.updatePushToken)
+);
+
 // Get user by ID
 router.get(
   '/:id',

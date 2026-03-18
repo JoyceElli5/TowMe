@@ -130,6 +130,36 @@ export async function createRequest(
   logger.info({ requestId: request.id, fromStatus: null, toStatus: 'pending', actorId: userId },
     'Request created');
 
+  // Notify all online operators about the new request (fire-and-forget)
+  (async () => {
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      const { data: onlineOperators } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('role', 'tow_operator')
+        .eq('is_online', true);
+
+      if (onlineOperators && onlineOperators.length > 0) {
+        const { notifyUser } = await import('./notification.service');
+        const distanceKm = request.distance_km?.toFixed(1) ?? '?';
+        await Promise.allSettled(
+          onlineOperators.map(op =>
+            notifyUser(
+              op.id,
+              'New Tow Request! 🔔',
+              `New ${request.vehicle_type} towing request, ${distanceKm}km trip. Tap to view.`,
+              'request',
+              { requestId: request.id }
+            )
+          )
+        );
+      }
+    } catch (err) {
+      logger.warn('Failed to notify operators of new request:', err);
+    }
+  })();
+
   // Attempt to automatically assign an operator
   matchingService.autoAssignOperator(request.id, data.pickupLat, data.pickupLng)
     .then((match) => {
@@ -457,6 +487,20 @@ export async function acceptRequest(
   logger.info({ requestId, fromStatus: 'pending', toStatus: 'accepted', actorId: operatorId },
     'Request accepted');
 
+  // Notify the vehicle owner that their request was accepted
+  try {
+    const { data: operator } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', operatorId)
+      .single();
+    const { notifyUser, notificationTemplates } = await import('./notification.service');
+    const tmpl = notificationTemplates.requestAccepted(operator?.full_name ?? 'A tow operator');
+    await notifyUser(updatedRequest.user_id, tmpl.title, tmpl.message, tmpl.type, { requestId });
+  } catch (err) {
+    logger.warn('Failed to send accept notification:', err);
+  }
+
   return updatedRequest;
 }
 
@@ -579,6 +623,20 @@ export async function startRequest(
   logger.info({ requestId, fromStatus: 'accepted', toStatus: 'in_progress', actorId: operatorId },
     'Trip started');
 
+  // Notify the vehicle owner that the operator has arrived
+  try {
+    const { data: operator } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', operatorId)
+      .single();
+    const { notifyUser, notificationTemplates } = await import('./notification.service');
+    const tmpl = notificationTemplates.operatorArrived(operator?.full_name ?? 'Your operator');
+    await notifyUser(request.user_id, tmpl.title, tmpl.message, tmpl.type, { requestId });
+  } catch (err) {
+    logger.warn('Failed to send arrived notification:', err);
+  }
+
   return updatedRequest;
 }
 
@@ -635,6 +693,19 @@ export async function completeRequest(
     incrementUserTrips(request.user_id),
     incrementUserTrips(operatorId),
   ]);
+
+  // Notify both parties that the trip is complete
+  try {
+    const { notifyUser, notificationTemplates } = await import('./notification.service');
+    const userTmpl = notificationTemplates.tripCompleted(finalPrice);
+    const operatorTmpl = notificationTemplates.paymentReceived(finalPrice);
+    await Promise.allSettled([
+      notifyUser(request.user_id, userTmpl.title, userTmpl.message, userTmpl.type, { requestId }),
+      notifyUser(operatorId, operatorTmpl.title, operatorTmpl.message, operatorTmpl.type, { requestId }),
+    ]);
+  } catch (err) {
+    logger.warn('Failed to send completion notifications:', err);
+  }
 
   return updatedRequest;
 }

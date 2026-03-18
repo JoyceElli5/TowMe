@@ -138,6 +138,27 @@ export async function updateAvatar(req: AuthenticatedRequest, res: Response): Pr
 }
 
 /**
+ * PATCH /api/users/push-token
+ */
+export async function updatePushToken(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
+  const { pushToken } = req.body;
+
+  if (!pushToken || typeof pushToken !== 'string') {
+    res.status(400).json({ success: false, error: 'pushToken is required' });
+    return;
+  }
+
+  await usersService.savePushToken(req.user.id, pushToken);
+
+  res.json({ success: true, message: 'Push token saved' });
+}
+
+/**
  * PATCH /api/operators/:id/online-status
  */
 export async function toggleOnlineStatus(req: AuthenticatedRequest, res: Response): Promise<void> {

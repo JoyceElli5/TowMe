@@ -25,6 +25,7 @@ import {
   ApiError,
   type TowingRequest,
 } from '@/lib/api';
+import { operatorSafeBack } from '@/lib/navigation';
 
 // Estimated minutes per kilometer for duration calculation
 const MINUTES_PER_KM_ESTIMATE = 2.5;
@@ -45,7 +46,7 @@ export default function IncomingRequestScreen() {
   useEffect(() => {
     const fetchRequest = async () => {
       if (!params.requestId) {
-        router.back();
+        operatorSafeBack();
         return;
       }
 
@@ -108,7 +109,7 @@ export default function IncomingRequestScreen() {
   };
 
   const handleDecline = () => {
-    router.back();
+    operatorSafeBack();
   };
 
   // Get user initials

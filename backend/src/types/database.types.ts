@@ -34,6 +34,7 @@ export interface Database {
           total_trips: number;
           is_online: boolean;
           is_verified: boolean;
+          push_token: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -48,6 +49,7 @@ export interface Database {
           total_trips?: number;
           is_online?: boolean;
           is_verified?: boolean;
+          push_token?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -62,6 +64,7 @@ export interface Database {
           total_trips?: number;
           is_online?: boolean;
           is_verified?: boolean;
+          push_token?: string | null;
           updated_at?: string;
         };
       };

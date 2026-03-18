@@ -122,7 +122,14 @@ export default function OperatorJobsScreen() {
                         </>
                     )}
                     {!isActive && (
-                        <ThemedText style={styles.viewDetailsText}>View Details →</ThemedText>
+                        <TouchableOpacity
+                            onPress={() => router.push({
+                                pathname: '/screens/operator/job-detail',
+                                params: { requestId: request.id },
+                            })}
+                        >
+                            <ThemedText style={[styles.viewDetailsText, { color: '#003554' }]}>View Details →</ThemedText>
+                        </TouchableOpacity>
                     )}
                 </View>
             </View>

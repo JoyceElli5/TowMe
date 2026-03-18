@@ -3,11 +3,120 @@
  * Handles push notifications and in-app notifications
  */
 
+import * as admin from 'firebase-admin';
+import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabaseAdmin } from '../config/database';
 import { createError } from '../middleware/error.middleware';
 import type { Notification, NotificationType } from '../types/database.types';
 import logger from '../utils/logger';
+
+// ── Firebase Admin SDK ──────────────────────────────────────────────────────
+const serviceAccountPath = path.resolve(__dirname, '../../firebase-service-account.json');
+
+if (!admin.apps.length) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccountPath),
+    });
+    logger.info('Firebase Admin SDK initialised');
+  } catch (err) {
+    logger.warn('Firebase Admin SDK failed to initialise:', err);
+  }
+}
+
+/**
+ * Send a push notification via Expo's push API (for ExponentPushToken[...] tokens).
+ */
+async function sendExpoPush(
+  pushToken: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> {
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ to: pushToken, title, body, data: data ?? {}, sound: 'default', priority: 'high' }),
+  });
+  const result = await response.json() as { data?: { status: string; message?: string } };
+  if (result.data?.status === 'error') {
+    logger.warn('[Expo Push] Error:', result.data.message);
+  }
+}
+
+/**
+ * Send a push notification to a single device token.
+ * Supports both Expo push tokens and native FCM tokens.
+ * Silently skips if token is missing.
+ */
+export async function sendFcmPush(
+  pushToken: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> {
+  if (!pushToken) return;
+
+  try {
+    if (pushToken.startsWith('ExponentPushToken[')) {
+      // Expo push token — use Expo's push API
+      await sendExpoPush(pushToken, title, body, data);
+    } else if (admin.apps.length) {
+      // Native FCM token — use Firebase Admin SDK
+      await admin.messaging().send({
+        token: pushToken,
+        notification: { title, body },
+        data: data ?? {},
+        android: { priority: 'high' },
+        apns: { payload: { aps: { sound: 'default' } } },
+      });
+    }
+  } catch (err) {
+    // Non-fatal — log and continue
+    logger.warn('[Push] Failed to send push:', err);
+  }
+}
+
+/**
+ * Lookup a user's push token from the database.
+ */
+async function getUserPushToken(userId: string): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from('users')
+    .select('push_token')
+    .eq('id', userId)
+    .single();
+  return data?.push_token ?? null;
+}
+
+/**
+ * Create an in-app notification AND send an FCM push in one call.
+ */
+export async function notifyUser(
+  userId: string,
+  title: string,
+  message: string,
+  type: NotificationType,
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  // Fire both concurrently; DB notification is the source of truth
+  const [pushToken] = await Promise.all([
+    getUserPushToken(userId),
+    createNotification(userId, title, message, type, metadata),
+  ]);
+
+  if (pushToken) {
+    const stringMeta: Record<string, string> = {};
+    if (metadata) {
+      for (const [k, v] of Object.entries(metadata)) {
+        stringMeta[k] = String(v);
+      }
+    }
+    await sendFcmPush(pushToken, title, message, stringMeta);
+  }
+}
 
 /**
  * Create a notification
