@@ -21,6 +21,50 @@ interface RouteQuery {
 }
 
 /**
+ * Decode a Google encoded polyline string into lat/lng points.
+ * Returns array of { latitude, longitude }.
+ */
+function decodePolyline(encoded: string): Array<{ latitude: number; longitude: number }> {
+  const points: Array<{ latitude: number; longitude: number }> = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let b = 0;
+    let shift = 0;
+    let result = 0;
+
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += dlng;
+
+    points.push({
+      latitude: lat / 1e5,
+      longitude: lng / 1e5,
+    });
+  }
+
+  return points;
+}
+
+/**
  * GET /api/directions
  * Get route between two points using Google Directions API
  */
@@ -78,27 +122,19 @@ export async function getRoute(req: AuthenticatedRequest<{}, {}, RouteQuery>, re
       });
 
       if (response.data.status !== 'OK') {
-        logger.error('Google Directions API error:', response.data.status);
+        logger.error('Google Directions API error:', response.data.status, response.data.error_message);
         throw new Error(`Directions API error: ${response.data.status}`);
       }
 
       const route = response.data.routes[0];
       const leg = route.legs[0];
 
-      const points: Array<{ latitude: number; longitude: number }> = [];
-      const steps = leg.steps;
-      for (const step of steps) {
-        const startLocation = step.start_location;
-        points.push({
-          latitude: startLocation.lat,
-          longitude: startLocation.lng,
-        });
-      }
-      const endLocation = leg.end_location;
-      points.push({
-        latitude: endLocation.lat,
-        longitude: endLocation.lng,
-      });
+      // Use the overview polyline for a smooth, road-snapped path (Uber/Bolt style)
+      const encoded = route?.overview_polyline?.points as string | undefined;
+      const points = encoded ? decodePolyline(encoded) : [
+        { latitude: originLat, longitude: originLng },
+        { latitude: destLat, longitude: destLng },
+      ];
 
       res.json({
         success: true,
