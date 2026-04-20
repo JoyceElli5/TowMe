@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getCurrentUser, sendOTP, verifyOTP } from '@/lib/services/authService';
 import { isProfileComplete } from '@/lib/services/operatorService';
 import { supabase } from '@/lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
@@ -177,6 +178,10 @@ export default function OTPVerifyScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/screens/auth/login-screen')}>
+            <Ionicons name="arrow-back" size={22} color="#111827" />
+          </TouchableOpacity>
+
           <ThemedText style={styles.title}>Enter Verification Code</ThemedText>
           <ThemedText style={styles.subtitle}>
             We sent a 6-digit code to {isEmailMode ? email : phone}
@@ -186,7 +191,7 @@ export default function OTPVerifyScreen() {
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
-                ref={(ref) => (inputRefs.current[index] = ref)}
+                ref={(ref) => { inputRefs.current[index] = ref; }}
                 style={[
                   styles.otpInput,
                   { borderColor, color: textColor },
@@ -245,7 +250,20 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
+    paddingTop: 60,
     justifyContent: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 16,
+    left: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   title: {
     fontSize: 32,

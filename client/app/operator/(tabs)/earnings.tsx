@@ -12,7 +12,7 @@ import {
     TransactionIcon,
     Wallet01Icon
 } from 'hugeicons-react-native';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -45,6 +45,7 @@ export default function EarningsWalletScreen() {
     const borderColor = useThemeColor({ light: '#e5e7eb', dark: '#374151' }, 'background');
 
     const [selectedPeriod, setSelectedPeriod] = useState<Period>('Weekly');
+    const textColor = useThemeColor({ light: '#111827', dark: '#f9fafb' }, 'text');
     const [withdrawalModalVisible, setWithdrawalModalVisible] = useState(false);
 
     // Integrated hook-based logic
@@ -56,6 +57,23 @@ export default function EarningsWalletScreen() {
         onRefresh,
         handleWithdrawal
     } = useOperatorEarnings();
+
+    // Period-based earnings summary computed from real transactions
+    const periodEarnings = useMemo(() => {
+        const now = new Date();
+        const cutoff = new Date(now);
+        if (selectedPeriod === 'Daily') cutoff.setHours(0, 0, 0, 0);
+        else if (selectedPeriod === 'Weekly') cutoff.setDate(now.getDate() - 7);
+        else cutoff.setDate(now.getDate() - 30);
+
+        const gross = transactions
+            .filter(t => t.type === 'trip_payment' && t.status === 'completed' && new Date(t.createdAt) >= cutoff)
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+        const fees = gross * 0.2;
+        const net = gross - fees;
+        return { gross, fees, net };
+    }, [transactions, selectedPeriod]);
 
     const onWithdraw = async (amount: number, provider: string, phone: string) => {
         try {
@@ -109,8 +127,7 @@ export default function EarningsWalletScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.7}
                 >
-                    {/* Placeholder for dynamic calculation */}
-                    GH₵ 1,240.00
+                    GH₵ {periodEarnings.net.toFixed(2)}
                 </ThemedText>
             </View>
 
@@ -119,17 +136,17 @@ export default function EarningsWalletScreen() {
             <View style={styles.breakdownRow}>
                 <View style={styles.breakdownItem}>
                     <ThemedText style={styles.breakdownLabel}>Gross</ThemedText>
-                    <ThemedText style={styles.breakdownValue}>GH₵ 1,550</ThemedText>
+                    <ThemedText style={[styles.breakdownValue, { color: textColor }]}>GH₵ {periodEarnings.gross.toFixed(0)}</ThemedText>
                 </View>
                 <View style={[styles.verticalDivider, { backgroundColor: borderColor }]} />
                 <View style={styles.breakdownItem}>
                     <ThemedText style={styles.breakdownLabel}>Fees (20%)</ThemedText>
-                    <ThemedText style={[styles.breakdownValue, { color: '#ef4444' }]}>-GH₵ 310</ThemedText>
+                    <ThemedText style={[styles.breakdownValue, { color: '#ef4444' }]}>-GH₵ {periodEarnings.fees.toFixed(0)}</ThemedText>
                 </View>
                 <View style={[styles.verticalDivider, { backgroundColor: borderColor }]} />
                 <View style={styles.breakdownItem}>
                     <ThemedText style={styles.breakdownLabel}>Net Payout</ThemedText>
-                    <ThemedText style={[styles.breakdownValue, { color: '#22c55e' }]}>GH₵ 1,240</ThemedText>
+                    <ThemedText style={[styles.breakdownValue, { color: '#22c55e' }]}>GH₵ {periodEarnings.net.toFixed(0)}</ThemedText>
                 </View>
             </View>
         </ThemedView>
@@ -184,7 +201,7 @@ export default function EarningsWalletScreen() {
     );
 
     const renderTransactionItem = (item: WalletTransaction) => (
-        <TouchableOpacity key={item.id} style={[styles.transactionItem, { backgroundColor: cardBg }]}>
+        <TouchableOpacity key={item.id} style={[styles.transactionItem, { backgroundColor: cardBg, borderWidth: 1, borderColor }]}>
             <View style={[styles.transactionIcon, { backgroundColor: item.amount > 0 ? '#dcfce7' : '#fee2e2' }]}>
                 {item.type === 'trip_payment' ? (
                     <TransactionIcon size={20} color={item.amount > 0 ? '#16a34a' : '#dc2626'} />
@@ -205,7 +222,7 @@ export default function EarningsWalletScreen() {
             <View style={styles.transactionAmount}>
                 <ThemedText style={[
                     styles.amountText,
-                    { color: item.amount > 0 ? '#16a34a' : '#1f2937' }
+                    { color: item.amount > 0 ? '#16a34a' : '#ef4444' }
                 ]}>
                     {item.amount > 0 ? '+' : ''} {item.currency} {Math.abs(item.amount).toFixed(2)}
                 </ThemedText>
@@ -535,7 +552,6 @@ const styles = StyleSheet.create({
         marginHorizontal: 20,
         padding: 16,
         borderRadius: 16,
-        backgroundColor: '#ffffff',
     },
     transactionIcon: {
         width: 40,

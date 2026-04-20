@@ -4,6 +4,7 @@
  * Shown when operator's verification is pending or under review
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { AlertCircleIcon, LegalDocument01Icon } from 'hugeicons-react-native';
 import React, { useEffect, useState } from 'react';
@@ -21,6 +22,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getCurrentUser } from '@/lib/api';
 import { getVerificationStatus } from '@/lib/services/operatorService';
+import { supabase } from '@/lib/supabase';
 
 export default function VerificationPendingScreen() {
   const backgroundColor = useThemeColor({}, 'background');
@@ -61,9 +63,14 @@ export default function VerificationPendingScreen() {
     }
   };
 
-  // const handleEditProfile = () => {
-  //   router.push('/screens/operator/profile-setup-screen');
-  // };
+  const handleEditProfile = () => {
+    router.push('/screens/operator/profile-setup-screen');
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.replace('/screens/auth/login-screen');
+  };
 
   if (isLoading) {
     return (
@@ -77,6 +84,12 @@ export default function VerificationPendingScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+      {/* Sign Out */}
+      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+        <Ionicons name="log-out-outline" size={20} color="#6b7280" />
+        <ThemedText style={styles.signOutText}>Sign Out</ThemedText>
+      </TouchableOpacity>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -140,14 +153,14 @@ export default function VerificationPendingScreen() {
         </ThemedView>
 
         {/* Action Button */}
-        {/* {verificationStatus === 'pending' && (
+        {verificationStatus === 'pending' && (
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: tintColor }]}
             onPress={handleEditProfile}
           >
             <ThemedText style={styles.actionButtonText}>Complete Profile</ThemedText>
           </TouchableOpacity>
-        )} */}
+        )}
 
         {/* Refresh Button */}
         <TouchableOpacity
@@ -171,6 +184,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    alignSelf: 'flex-start',
+  },
+  signOutText: {
+    fontSize: 14,
+    color: '#6b7280',
   },
   scrollView: {
     flex: 1,

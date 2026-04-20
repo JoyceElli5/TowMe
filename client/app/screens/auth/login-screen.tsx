@@ -82,10 +82,10 @@ export default function LoginScreen() {
           const { isProfileComplete, getVerificationStatus } = await import('@/lib/services/operatorService');
 
           const profileComplete = await isProfileComplete(user.id);
-          // if (!profileComplete) {
-          //   router.replace('/screens/operator/profile-setup-screen');
-          //   return;
-          // }
+          if (!profileComplete) {
+            router.replace('/screens/operator/profile-setup-screen');
+            return;
+          }
 
           const verificationStatus = await getVerificationStatus(user.id);
           if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
@@ -95,9 +95,7 @@ export default function LoginScreen() {
           } else if (verificationStatus === 'approved') {
             router.replace('/operator/(tabs)/dashboard');
           } else {
-            // router.replace('/screens/operator/profile-setup-screen');
-            console.warn('Operator verification status unknown, and profile setup screen is disabled');
-            router.replace('/operator/(tabs)/dashboard'); // Fallback to dashboard
+            router.replace('/screens/operator/profile-setup-screen');
           }
         } else {
           router.replace('/(tabs)');

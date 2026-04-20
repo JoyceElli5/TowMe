@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -18,6 +20,7 @@ import {
 
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, checkApiConnection, register as registerApi } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { RegisterFormData, registerSchema, UserRole } from '@/schemas/auth';
 
 export default function RegisterScreen() {
@@ -189,6 +192,71 @@ export default function RegisterScreen() {
       } else {
         showToast('An unexpected error occurred. Please try again.', 'error');
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      const redirectUrl = Linking.createURL('/auth/callback');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+      });
+
+      if (error || !data.url) {
+        showToast('Google sign-in is not configured yet', 'error');
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
+      if (result.type === 'success') {
+        const fragment = result.url.split('#')[1] || '';
+        const params = new URLSearchParams(fragment);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+
+        if (accessToken) {
+          const { data: sessionData } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+          });
+
+          const googleUser = sessionData.user;
+          if (googleUser) {
+            // Create backend profile for the Google user
+            try {
+              const { isProfileComplete } = await import('@/lib/services/operatorService');
+              const { getVerificationStatus } = await import('@/lib/services/operatorService');
+
+              // Ensure backend profile exists
+              const { createProfile } = await import('@/lib/api/auth');
+              await createProfile({
+                userId: googleUser.id,
+                email: googleUser.email || '',
+                fullName: googleUser.user_metadata?.full_name || googleUser.email || '',
+                phone: googleUser.phone || '',
+                role,
+              }, accessToken);
+            } catch {
+              // Profile may already exist — that's fine
+            }
+
+            showToast('Signed in with Google!', 'success');
+
+            if (role === 'tow_operator') {
+              router.replace('/screens/operator/profile-setup-screen');
+            } else {
+              router.replace('/(tabs)');
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Google sign-in failed', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -448,6 +516,8 @@ export default function RegisterScreen() {
                 style={styles.socialButton}
                 accessibilityLabel="Sign up with Google"
                 accessibilityRole="button"
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
               >
                 <Ionicons name="logo-google" size={24} color="#4285F4" />
               </TouchableOpacity>
