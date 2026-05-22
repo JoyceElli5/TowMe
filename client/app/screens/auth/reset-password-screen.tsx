@@ -6,6 +6,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -83,7 +84,7 @@ export default function ResetPasswordScreen() {
   };
 
   const handleBackPress = () => {
-    router.back();
+    safeBack('/screens/auth/login-screen');
   };
 
   return (

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 export interface OperatorProfileData {
   ghana_card_number?: string;
   ghana_card_photo_url?: string;
+  selfie_with_id_photo_url?: string;
   drivers_license_number?: string;
   drivers_license_photo_url?: string;
   operator_photo_url?: string;
@@ -71,9 +72,14 @@ export async function updateOperatorProfile(
     const requiredFields = [
       'ghana_card_number',
       'ghana_card_photo_url',
+      'selfie_with_id_photo_url',
       'drivers_license_number',
       'drivers_license_photo_url',
       'operator_photo_url',
+      'vehicle_registration_number',
+      'vehicle_registration_photo_url',
+      'insurance_policy_number',
+      'insurance_photo_url',
     ];
 
     const hasAllRequired = requiredFields.every(

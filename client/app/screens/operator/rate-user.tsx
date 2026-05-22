@@ -1,8 +1,8 @@
 /**
- * Rate User Screen
- * 
- * Allows operator to rate the customer after trip completion.
- * Features a star rating system and optional comment.
+ * Rate User Screen (operator → customer)
+ *
+ * Wrapped in KeyboardAvoidingView + ScrollView so the submit button is never
+ * hidden by the keyboard.
  */
 
 import { router, useLocalSearchParams } from 'expo-router';
@@ -10,22 +10,28 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getRequestById, createRating, type TowingRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { operatorSafeBack } from '@/lib/navigation';
 
 export default function RateUserScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
   const { showToast } = useToast();
-  
+
   const [request, setRequest] = useState<TowingRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [rating, setRating] = useState(0);
@@ -36,7 +42,7 @@ export default function RateUserScreen() {
     const fetchRequest = async () => {
       if (!params.requestId) {
         Alert.alert('Error', 'Request ID is missing');
-        router.back();
+        operatorSafeBack();
         return;
       }
 
@@ -46,7 +52,7 @@ export default function RateUserScreen() {
       } catch (error) {
         console.error('Failed to fetch request:', error);
         Alert.alert('Error', 'Failed to load request details');
-        router.back();
+        operatorSafeBack();
       } finally {
         setIsLoading(false);
       }
@@ -106,104 +112,100 @@ export default function RateUserScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Customer Avatar */}
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{getUserInitials(request.user?.fullName)}</Text>
+              </View>
+              <Text style={styles.customerName}>{request.user?.fullName || 'Unknown User'}</Text>
+              <Text style={styles.subtitle}>How was your customer?</Text>
+            </View>
 
-      <View style={styles.content}>
-        {/* Customer Avatar */}
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getUserInitials(request.user?.fullName)}</Text>
-          </View>
-          <Text style={styles.customerName}>{request.user?.fullName || 'Unknown User'}</Text>
-          <Text style={styles.subtitle}>How was your customer?</Text>
-        </View>
+            {/* Star Rating */}
+            <View style={styles.starsContainer}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setRating(star)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.star, star <= rating && styles.starSelected]}>★</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        {/* Star Rating */}
-        <View style={styles.starsContainer}>
-          {[1, 2, 3, 4, 5].map((star) => (
+            <Text style={styles.ratingLabel}>
+              {rating === 0 && 'Tap to rate'}
+              {rating === 1 && 'Poor'}
+              {rating === 2 && 'Fair'}
+              {rating === 3 && 'Good'}
+              {rating === 4 && 'Very Good'}
+              {rating === 5 && 'Excellent!'}
+            </Text>
+
+            {/* Comment */}
+            <View style={styles.commentContainer}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Add a comment (optional)"
+                placeholderTextColor="#9ca3af"
+                multiline
+                numberOfLines={4}
+                value={comment}
+                onChangeText={setComment}
+                blurOnSubmit
+                returnKeyType="done"
+              />
+            </View>
+
+            {/* Submit */}
             <TouchableOpacity
-              key={star}
-              onPress={() => setRating(star)}
-              activeOpacity={0.7}
+              style={[styles.submitButton, (rating === 0 || isSubmitting) && styles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={rating === 0 || isSubmitting}
+              activeOpacity={0.8}
             >
-              <Text
-                style={[
-                  styles.star,
-                  star <= rating && styles.starSelected,
-                ]}
-              >
-                ★
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.submitButtonText}>Submit Rating</Text>
+              )}
             </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* Rating Label */}
-        <Text style={styles.ratingLabel}>
-          {rating === 0 && 'Tap to rate'}
-          {rating === 1 && 'Poor'}
-          {rating === 2 && 'Fair'}
-          {rating === 3 && 'Good'}
-          {rating === 4 && 'Very Good'}
-          {rating === 5 && 'Excellent!'}
-        </Text>
-
-        {/* Comment Input */}
-        <View style={styles.commentContainer}>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Add a comment (optional)"
-            placeholderTextColor="#9ca3af"
-            multiline
-            numberOfLines={4}
-            value={comment}
-            onChangeText={setComment}
-          />
-        </View>
-
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[styles.submitButton, (rating === 0 || isSubmitting) && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={rating === 0 || isSubmitting}
-          activeOpacity={0.8}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.submitButtonText}>Submit Rating</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Skip Button */}
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={handleSkip}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.skipButtonText}>Skip</Text>
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity style={styles.skipButton} onPress={handleSkip} activeOpacity={0.7}>
+              <Text style={styles.skipButtonText}>Skip</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  content: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: '#ffffff' },
+  flex: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 32,
+    paddingBottom: 40,
     alignItems: 'center',
   },
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
+  avatarContainer: { alignItems: 'center', marginBottom: 28 },
   avatar: {
     width: 80,
     height: 80,
@@ -213,43 +215,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#003554',
-  },
-  customerName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  star: {
-    fontSize: 48,
-    color: '#e5e7eb',
-  },
-  starSelected: {
-    color: '#fbbf24',
-  },
-  ratingLabel: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 32,
-  },
-  commentContainer: {
-    width: '100%',
-    marginBottom: 32,
-  },
+  avatarText: { fontSize: 28, fontWeight: '700', color: '#003554' },
+  customerName: { fontSize: 24, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  subtitle: { fontSize: 16, color: '#6b7280' },
+  starsContainer: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  star: { fontSize: 48, color: '#e5e7eb' },
+  starSelected: { color: '#fbbf24' },
+  ratingLabel: { fontSize: 18, fontWeight: '500', color: '#6b7280', marginBottom: 28 },
+  commentContainer: { width: '100%', marginBottom: 24 },
   commentInput: {
     backgroundColor: '#f9fafb',
     borderRadius: 16,
@@ -258,7 +231,7 @@ const styles = StyleSheet.create({
     color: '#111827',
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    minHeight: 120,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
   submitButton: {
@@ -268,38 +241,17 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#003554',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  skipButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-  },
-  skipButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6b7280',
-  },
+  buttonDisabled: { opacity: 0.5 },
+  submitButtonText: { fontSize: 16, fontWeight: '600', color: '#ffffff' },
+  skipButton: { paddingVertical: 14, paddingHorizontal: 32 },
+  skipButtonText: { fontSize: 16, fontWeight: '500', color: '#6b7280' },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { marginTop: 16, fontSize: 16, color: '#6b7280' },
 });

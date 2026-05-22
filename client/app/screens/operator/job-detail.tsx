@@ -6,7 +6,8 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { operatorSafeBack } from '@/lib/navigation';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -53,7 +54,7 @@ export default function JobDetailScreen() {
   useEffect(() => {
     if (!requestId) {
       showToast('Request ID not found', 'error');
-      router.back();
+      operatorSafeBack();
       return;
     }
     loadRequest();
@@ -65,7 +66,7 @@ export default function JobDetailScreen() {
       setRequest(data);
     } catch {
       showToast('Failed to load job details', 'error');
-      router.back();
+      operatorSafeBack();
     } finally {
       setIsLoading(false);
     }
@@ -114,7 +115,7 @@ export default function JobDetailScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => operatorSafeBack()} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={22} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Details</Text>

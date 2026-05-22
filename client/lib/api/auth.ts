@@ -2,7 +2,7 @@
  * Authentication API
  */
 
-import api, { ApiError, clearTokens, setAccessToken, setRefreshToken } from './client';
+import api, { API_BASE_URL, ApiError, clearTokens, setAccessToken, setRefreshToken } from './client';
 
 // Types
 export interface User {
@@ -134,4 +134,32 @@ export async function verifyEmail(otp: string): Promise<void> {
 
 export async function resendVerificationEmail(email: string): Promise<void> {
   await api.post('/auth/resend-verification', { email });
+}
+
+export async function googleLogin(data: {
+  supabaseToken: string;
+  role: string;
+  fullName?: string;
+}): Promise<User> {
+  const response = await fetch(`${API_BASE_URL}/auth/google-login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${data.supabaseToken}`,
+    },
+    body: JSON.stringify({ role: data.role, fullName: data.fullName }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.data) {
+    throw new ApiError(result.error || 'Google sign-in failed', response.status);
+  }
+
+  await setAccessToken(result.data.accessToken);
+  if (result.data.refreshToken) {
+    await setRefreshToken(result.data.refreshToken);
+  }
+
+  return result.data.user;
 }

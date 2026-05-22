@@ -1,6 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -18,7 +21,7 @@ import {
 
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, login as loginApi } from '@/lib/api';
-import { signInWithEmail } from '@/lib/supabase';
+import { signInWithEmail, supabase } from '@/lib/supabase';
 import { initPushNotifications } from '@/lib/services/pushNotificationService';
 import { LoginFormData, loginSchema, UserRole } from '@/schemas/auth';
 
@@ -118,6 +121,83 @@ export default function LoginScreen() {
   // const onSubmit= async () => {
   //   router.push('/screens/user/home-screen')
   // }
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      const redirectUrl = Linking.createURL('/auth/callback');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+      });
+
+      if (error || !data.url) {
+        showToast('Google sign-in is not available. Please use email login.', 'error');
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
+      if (result.type !== 'success') return;
+
+      const fragment = result.url.split('#')[1] || '';
+      const urlParams = new URLSearchParams(fragment);
+      const accessToken = urlParams.get('access_token');
+      const refreshToken = urlParams.get('refresh_token');
+
+      if (!accessToken) {
+        showToast('Google sign-in failed. Please try again.', 'error');
+        return;
+      }
+
+      const { data: sessionData } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || '',
+      });
+
+      const googleUser = sessionData.user;
+      if (!googleUser) {
+        showToast('Could not retrieve Google account info.', 'error');
+        return;
+      }
+
+      const { googleLogin } = await import('@/lib/api/auth');
+      const user = await googleLogin({
+        supabaseToken: accessToken,
+        role,
+        fullName: String(googleUser.user_metadata?.full_name || googleUser.email || ''),
+      });
+
+      showToast('Signed in with Google!', 'success');
+
+      initPushNotifications().catch(() => {});
+
+      if (user.role === 'tow_operator') {
+        const { isProfileComplete, getVerificationStatus } = await import('@/lib/services/operatorService');
+        const profileComplete = await isProfileComplete(user.id);
+        if (!profileComplete) {
+          router.replace('/screens/operator/profile-setup-screen');
+          return;
+        }
+        const verificationStatus = await getVerificationStatus(user.id);
+        if (verificationStatus === 'pending' || verificationStatus === 'under_review') {
+          router.replace('/screens/operator/verification-pending');
+        } else if (verificationStatus === 'rejected') {
+          router.replace('/screens/operator/verification-rejected');
+        } else if (verificationStatus === 'approved') {
+          router.replace('/operator/(tabs)/dashboard');
+        } else {
+          router.replace('/screens/operator/profile-setup-screen');
+        }
+      } else {
+        router.replace('/(tabs)');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Google sign-in failed', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleRegisterPress = () => {
     router.push({
       pathname: '/screens/auth/register-screen',
@@ -126,7 +206,7 @@ export default function LoginScreen() {
   };
 
   const handleBackPress = () => {
-    router.back();
+    safeBack('/screens/onboarding/role-selection-screen');
   };
 
   const getRoleTitle = () => {
@@ -280,6 +360,8 @@ export default function LoginScreen() {
                 style={styles.socialButton}
                 accessibilityLabel="Sign in with Google"
                 accessibilityRole="button"
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
               >
                 <Ionicons name="logo-google" size={24} color="#4285F4" />
               </TouchableOpacity>

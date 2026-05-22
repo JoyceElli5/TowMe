@@ -7,6 +7,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { operatorSafeBack } from '@/lib/navigation';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,9 +26,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '@/hooks/use-toast';
 import { ApiError, getCurrentUser, getRequestById, startRequest, type TowingRequest } from '@/lib/api';
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
-import { calculateDistance } from '@/lib/services/locationService';
+import { calculateDistance, looksLikeCoords, reverseGeocode } from '@/lib/services/locationService';
 import { getCurrentOperatorLocation, startLocationTracking, type OperatorLocation } from '@/lib/services/operatorLocationService';
-import { operatorSafeBack } from '@/lib/navigation';
 
 export default function NavigationToPickupScreen() {
   const params = useLocalSearchParams<{ requestId: string }>();
@@ -41,6 +41,7 @@ export default function NavigationToPickupScreen() {
   const [distance, setDistance] = useState<number>(0);
   const [eta, setEta] = useState<number>(0);
   const [isStarting, setIsStarting] = useState(false);
+  const [pickupDisplayAddress, setPickupDisplayAddress] = useState<string>('');
 
   // Fetch request details
   useEffect(() => {
@@ -54,6 +55,20 @@ export default function NavigationToPickupScreen() {
       try {
         const requestData = await getRequestById(params.requestId);
         setRequest(requestData);
+
+        // Resolve the pickup address. If it's missing or stored as raw "lat, lng",
+        // reverse-geocode to a real place name.
+        const saved = requestData.pickupAddress?.trim() || '';
+        if (saved && !looksLikeCoords(saved)) {
+          setPickupDisplayAddress(saved);
+        } else if (requestData.pickupLat && requestData.pickupLng) {
+          setPickupDisplayAddress('Resolving address…');
+          const nice = await reverseGeocode({
+            lat: requestData.pickupLat,
+            lng: requestData.pickupLng,
+          });
+          setPickupDisplayAddress(nice);
+        }
 
         // Set initial map region
         if (requestData.pickupLat && requestData.pickupLng) {
@@ -137,15 +152,16 @@ export default function NavigationToPickupScreen() {
         );
         setRoutePoints(route.points);
 
-        // Calculate distance and ETA
-        const dist = calculateDistance(
+        // Prefer real road distance + ETA from Directions API; fall back to haversine.
+        const haversineKm = calculateDistance(
           operatorLocation.latitude,
           operatorLocation.longitude,
           request.pickupLat,
           request.pickupLng
         );
-        setDistance(dist / 1000); // Convert to km
-        setEta(Math.max(1, Math.round((dist / 1000) * 2.5))); // ~2.5 min per km
+        const km = route.distance > 0 ? route.distance / 1000 : haversineKm;
+        setDistance(km);
+        setEta(route.duration > 0 ? Math.max(1, Math.round(route.duration / 60)) : Math.max(1, Math.round(km * 2.5)));
 
         // Update map region to show both operator and pickup
         const allCoords = [
@@ -273,7 +289,7 @@ export default function NavigationToPickupScreen() {
 
       {/* Navigation Header */}
       <SafeAreaView style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => operatorSafeBack()}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <View style={styles.navInfo}>
@@ -290,7 +306,9 @@ export default function NavigationToPickupScreen() {
           </View>
           <View style={styles.customerDetails}>
             <Text style={styles.customerName}>{request.user?.fullName || 'Unknown User'}</Text>
-            <Text style={styles.pickupAddress}>{request.pickupAddress || 'Loading...'}</Text>
+            <Text style={styles.pickupAddress} numberOfLines={2}>
+              {pickupDisplayAddress || request.pickupAddress || 'Loading…'}
+            </Text>
           </View>
           <View style={styles.actionButtons}>
             <TouchableOpacity style={[styles.circularButton, { backgroundColor: '#bae6fd' }]} onPress={handleMessage}>

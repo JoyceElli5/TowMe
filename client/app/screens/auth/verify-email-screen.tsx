@@ -5,6 +5,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -60,7 +61,7 @@ export default function VerifyEmailScreen() {
   }, [token, handleVerification]);
 
   const handleBackPress = () => {
-    router.back();
+    safeBack('/screens/auth/login-screen');
   };
 
   const handleLogin = () => {

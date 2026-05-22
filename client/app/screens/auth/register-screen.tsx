@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -207,53 +208,68 @@ export default function RegisterScreen() {
       });
 
       if (error || !data.url) {
-        showToast('Google sign-in is not configured yet', 'error');
+        showToast('Google sign-in is not available. Please use email registration.', 'error');
         return;
       }
 
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
 
-      if (result.type === 'success') {
-        const fragment = result.url.split('#')[1] || '';
-        const params = new URLSearchParams(fragment);
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
+      if (result.type !== 'success') return;
 
-        if (accessToken) {
-          const { data: sessionData } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
+      const fragment = result.url.split('#')[1] || '';
+      const urlParams = new URLSearchParams(fragment);
+      const accessToken = urlParams.get('access_token');
+      const refreshToken = urlParams.get('refresh_token');
 
-          const googleUser = sessionData.user;
-          if (googleUser) {
-            // Create backend profile for the Google user
-            try {
-              const { isProfileComplete } = await import('@/lib/services/operatorService');
-              const { getVerificationStatus } = await import('@/lib/services/operatorService');
+      if (!accessToken) {
+        showToast('Google sign-in failed. Please try again.', 'error');
+        return;
+      }
 
-              // Ensure backend profile exists
-              const { createProfile } = await import('@/lib/api/auth');
-              await createProfile({
-                userId: googleUser.id,
-                email: googleUser.email || '',
-                fullName: googleUser.user_metadata?.full_name || googleUser.email || '',
-                phone: googleUser.phone || '',
-                role,
-              }, accessToken);
-            } catch {
-              // Profile may already exist — that's fine
-            }
+      const { data: sessionData } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || '',
+      });
 
-            showToast('Signed in with Google!', 'success');
+      const googleUser = sessionData.user;
+      if (!googleUser) {
+        showToast('Could not retrieve Google account info.', 'error');
+        return;
+      }
 
-            if (role === 'tow_operator') {
-              router.replace('/screens/operator/profile-setup-screen');
-            } else {
-              router.replace('/(tabs)');
-            }
-          }
+      const { googleLogin } = await import('@/lib/api/auth');
+      const user = await googleLogin({
+        supabaseToken: accessToken,
+        role,
+        fullName: String(googleUser.user_metadata?.full_name || googleUser.email || ''),
+      });
+
+      showToast('Signed in with Google!', 'success');
+
+      if (user.role === 'tow_operator') {
+        const { isProfileComplete } = await import('@/lib/services/operatorService');
+        const profileComplete = await isProfileComplete(user.id);
+        if (!profileComplete) {
+          router.replace('/screens/operator/profile-setup-screen');
+          return;
         }
+        const { data: opData } = await supabase
+          .from('users')
+          .select('verification_status')
+          .eq('id', user.id)
+          .single();
+        const status = opData?.verification_status;
+        if (status === 'pending' || status === 'under_review') {
+          router.replace('/screens/operator/verification-pending');
+        } else if (status === 'rejected') {
+          router.replace('/screens/operator/verification-rejected');
+        } else if (status === 'approved') {
+          router.replace('/operator/(tabs)/dashboard');
+        } else {
+          router.replace('/screens/operator/profile-setup-screen');
+        }
+      } else {
+        router.replace('/(tabs)');
       }
     } catch (err: any) {
       showToast(err.message || 'Google sign-in failed', 'error');
@@ -270,7 +286,7 @@ export default function RegisterScreen() {
   };
 
   const handleBackPress = () => {
-    router.back();
+    safeBack('/screens/auth/login-screen');
   };
 
   const getRoleTitle = () => {

@@ -22,9 +22,9 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useToast } from '@/hooks/use-toast';
-import { completeRequest, getRequestById, type TowingRequest } from '@/lib/api';
+import { cancelRequest, completeRequest, getRequestById, type TowingRequest } from '@/lib/api';
 import { getRoute, type RoutePoint } from '@/lib/services/directionsService';
-import { calculateDistance } from '@/lib/services/locationService';
+import { looksLikeCoords, reverseGeocode } from '@/lib/services/locationService';
 import { getCurrentOperatorLocation, type OperatorLocation } from '@/lib/services/operatorLocationService';
 import { operatorSafeBack } from '@/lib/navigation';
 
@@ -41,6 +41,8 @@ export default function TowingInProgressScreen() {
   const [eta, setEta] = useState<number>(0);
   const [progress, setProgress] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [displayAddress, setDisplayAddress] = useState<string>('');
 
   // Fetch request details
   useEffect(() => {
@@ -54,6 +56,20 @@ export default function TowingInProgressScreen() {
       try {
         const requestData = await getRequestById(params.requestId);
         setRequest(requestData);
+
+        // Resolve destination to a human-readable place name.
+        // If the saved address is missing/looks like coordinates, reverse-geocode it.
+        const saved = requestData.destinationAddress?.trim() || '';
+        if (saved && !looksLikeCoords(saved)) {
+          setDisplayAddress(saved);
+        } else if (requestData.destinationLat && requestData.destinationLng) {
+          setDisplayAddress('Resolving address…');
+          const nice = await reverseGeocode({
+            lat: requestData.destinationLat,
+            lng: requestData.destinationLng,
+          });
+          setDisplayAddress(nice);
+        }
 
         // Set initial map region
         if (requestData.destinationLat && requestData.destinationLng) {
@@ -86,27 +102,22 @@ export default function TowingInProgressScreen() {
         if (location) {
           setOperatorLocation(location);
 
-          // Update route
+          // Get road-following route from Google Directions
           const route = await getRoute(
             { latitude: location.latitude, longitude: location.longitude },
             { latitude: request.destinationLat, longitude: request.destinationLng }
           );
           setRoutePoints(route.points);
 
-          // Calculate distance and ETA
-          const dist = calculateDistance(
-            location.latitude,
-            location.longitude,
-            request.destinationLat,
-            request.destinationLng
-          );
-          setDistance(dist / 1000); // Convert to km
-          setEta(Math.max(1, Math.round((dist / 1000) * 2.5))); // ~2.5 min per km
+          // Use REAL route distance & duration (not straight-line haversine)
+          const remainingKm = route.distance > 0 ? route.distance / 1000 : 0;
+          setDistance(remainingKm);
+          const minutes = route.duration > 0 ? Math.max(1, Math.round(route.duration / 60)) : Math.max(1, Math.round(remainingKm * 2.5));
+          setEta(minutes);
 
-          // Calculate progress (0-100%)
-          const totalDistance = request.distanceKm || 1;
-          const remainingDistance = dist / 1000;
-          const traveledDistance = Math.max(0, totalDistance - remainingDistance);
+          // Progress = (initial trip distance - remaining) / initial trip distance
+          const totalDistance = request.distanceKm || remainingKm || 1;
+          const traveledDistance = Math.max(0, totalDistance - remainingKm);
           const progressPercent = Math.min(100, Math.max(0, (traveledDistance / totalDistance) * 100));
           setProgress(progressPercent);
 
@@ -153,6 +164,56 @@ export default function TowingInProgressScreen() {
       showToast('Failed to complete trip', 'error');
     } finally {
       setIsCompleting(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (!params.requestId) return;
+
+    // iOS supports a text-input prompt for the cancellation reason.
+    // Android falls back to a simple confirm with a default reason.
+    if (Platform.OS === 'ios' && typeof Alert.prompt === 'function') {
+      Alert.prompt(
+        'Cancel Towing?',
+        'This trip is already in progress. Briefly tell us why you are cancelling — the customer will see this.',
+        [
+          { text: 'Keep Towing', style: 'cancel' },
+          {
+            text: 'Cancel Job',
+            style: 'destructive',
+            onPress: (reason?: string) => doCancel(reason?.trim() || 'Cancelled by operator'),
+          },
+        ],
+        'plain-text'
+      );
+    } else {
+      Alert.alert(
+        'Cancel Towing?',
+        'Are you sure you want to cancel this towing job? This trip is already in progress — the customer will be notified.',
+        [
+          { text: 'Keep Towing', style: 'cancel' },
+          {
+            text: 'Cancel Job',
+            style: 'destructive',
+            onPress: () => doCancel('Cancelled by operator'),
+          },
+        ]
+      );
+    }
+  };
+
+  const doCancel = async (reason: string) => {
+    if (!params.requestId) return;
+    setIsCancelling(true);
+    try {
+      await cancelRequest(params.requestId, reason);
+      showToast('Towing job cancelled', 'success');
+      operatorSafeBack();
+    } catch (error) {
+      console.error('Failed to cancel towing:', error);
+      showToast('Failed to cancel towing. Please try again.', 'error');
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -240,7 +301,9 @@ export default function TowingInProgressScreen() {
         {/* Progress Info */}
         <View style={styles.progressInfo}>
           <Text style={styles.destinationLabel}>Heading to</Text>
-          <Text style={styles.destinationText}>{request.destinationAddress || 'Loading...'}</Text>
+          <Text style={styles.destinationText} numberOfLines={2}>
+            {displayAddress || request.destinationAddress || 'Loading…'}
+          </Text>
         </View>
 
         {/* Progress Stats */}
@@ -268,10 +331,10 @@ export default function TowingInProgressScreen() {
         <TouchableOpacity
           style={[
             styles.completeButton,
-            (progress < 90 || isCompleting) && styles.buttonDisabled,
+            (progress < 90 || isCompleting || isCancelling) && styles.buttonDisabled,
           ]}
           onPress={handleComplete}
-          disabled={progress < 90 || isCompleting}
+          disabled={progress < 90 || isCompleting || isCancelling}
           activeOpacity={0.8}
         >
           {isCompleting ? (
@@ -280,6 +343,23 @@ export default function TowingInProgressScreen() {
             <Text style={styles.completeButtonText}>
               {progress < 90 ? 'Towing...' : 'Complete Trip'}
             </Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Cancel Towing Button */}
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={handleCancel}
+          disabled={isCompleting || isCancelling}
+          activeOpacity={0.7}
+        >
+          {isCancelling ? (
+            <ActivityIndicator color="#ef4444" size="small" />
+          ) : (
+            <>
+              <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+              <Text style={styles.cancelButtonText}>Cancel Towing</Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
@@ -432,6 +512,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  cancelButton: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ef4444',
   },
   loadingContainer: {
     flex: 1,

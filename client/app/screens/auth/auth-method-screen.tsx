@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import React from 'react';
 import {
   StyleSheet,
@@ -90,7 +91,7 @@ export default function AuthMethodScreen() {
 
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeBack('/screens/onboarding/role-selection-screen')}
           >
             <ThemedText style={styles.backButtonText}>← Back</ThemedText>
           </TouchableOpacity>

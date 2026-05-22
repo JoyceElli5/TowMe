@@ -171,6 +171,24 @@ export function useOperatorDashboard() {
           }
           return;
         }
+
+        // Check commission suspension before allowing operator to go online
+        try {
+          const { api } = await import('@/lib/api/client');
+          const suspRes = await api.get<{ suspended: boolean; outstandingBalance: number; threshold: number }>(
+            `/wallet/${currentUser.id}/suspension`
+          );
+          if (suspRes.success && suspRes.data?.suspended) {
+            Alert.alert(
+              'Account Suspended',
+              `You have an outstanding commission balance of GH₵${suspRes.data.outstandingBalance.toFixed(2)} which exceeds the GH₵${suspRes.data.threshold} limit.\n\nPlease settle your balance to continue accepting requests.`,
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+        } catch {
+          // Non-blocking — allow going online if suspension check fails
+        }
       }
 
       setState((prev) => ({ ...prev, isLoadingStatus: true }));

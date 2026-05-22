@@ -6,6 +6,7 @@
  */
 
 import { router, useLocalSearchParams } from 'expo-router';
+import { operatorSafeBack } from '@/lib/navigation';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,7 +26,6 @@ import {
   ApiError,
   type TowingRequest,
 } from '@/lib/api';
-import { operatorSafeBack } from '@/lib/navigation';
 
 // Estimated minutes per kilometer for duration calculation
 const MINUTES_PER_KM_ESTIMATE = 2.5;
@@ -58,7 +58,7 @@ export default function IncomingRequestScreen() {
         if (error instanceof ApiError) {
           if (error.status === 404) {
             Alert.alert('Request not found', 'This tow request is no longer available.', [
-              { text: 'OK', onPress: () => router.back() },
+              { text: 'OK', onPress: () => operatorSafeBack() },
             ]);
           } else if (error.status === 401) {
             Alert.alert('Session expired', 'Please sign in again.', [
@@ -66,11 +66,11 @@ export default function IncomingRequestScreen() {
             ]);
           } else {
             Alert.alert('Error', error.message || 'Failed to load request details');
-            router.back();
+            operatorSafeBack();
           }
         } else {
           Alert.alert('Error', 'Failed to load request details');
-          router.back();
+          operatorSafeBack();
         }
       } finally {
         setIsLoading(false);
@@ -221,7 +221,7 @@ export default function IncomingRequestScreen() {
             disabled={isAccepting}
           >
             {isAccepting ? (
-              <View style={styles.loadingContainer}>
+              <View style={styles.buttonLoadingRow}>
                 <ActivityIndicator color="#ffffff" size="small" />
                 <Text style={[styles.acceptButtonText, { marginLeft: 12 }]}>Accepting...</Text>
               </View>
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.7,
   },
-  loadingContainer: {
+  buttonLoadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
