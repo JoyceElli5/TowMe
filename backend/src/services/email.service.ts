@@ -139,6 +139,90 @@ export async function sendPasswordResetEmail(
 }
 
 /**
+ * Send "documents under review" email when an operator submits their profile.
+ */
+export async function sendOperatorUnderReviewEmail(email: string, fullName: string): Promise<void> {
+  const html = baseWrapper(`
+    <h2 style="color:#111827;font-size:20px;margin:0 0 12px;">Hi ${fullName},</h2>
+    <p style="color:#374151;line-height:1.6;margin:0 0 16px;">
+      Thank you for submitting your tow operator application. Your documents are now
+      <strong style="color:#2563eb;">under review</strong> by our team.
+    </p>
+    <div style="background:#eff6ff;border-left:4px solid #3b82f6;border-radius:4px;padding:16px;margin-bottom:24px;">
+      <p style="color:#1e3a8a;margin:0 0 4px;font-weight:600;">What happens next?</p>
+      <ul style="color:#1e40af;margin:8px 0 0 0;padding-left:18px;line-height:1.7;">
+        <li>Our team will verify your identity and documents within 24-48 hours.</li>
+        <li>You'll receive another email as soon as your account is approved or if we need more information.</li>
+        <li>Once approved, you can go online and start accepting tow requests.</li>
+      </ul>
+    </div>
+    <p style="color:#374151;line-height:1.6;margin:0 0 8px;">
+      <strong>Submitted documents:</strong>
+    </p>
+    <ul style="color:#6b7280;line-height:1.7;margin:0 0 16px;padding-left:18px;font-size:13px;">
+      <li>Ghana Card / National ID + selfie with ID</li>
+      <li>Driver's License</li>
+      <li>Profile photo</li>
+      <li>Vehicle registration</li>
+      <li>Insurance policy</li>
+    </ul>
+    <p style="color:#9ca3af;font-size:13px;margin:0;">
+      If you have any questions, contact our support team. Thank you for choosing TowMe.
+    </p>
+  `);
+
+  await sendEmail(email, fullName, 'Your TowMe Application Is Under Review', html);
+}
+
+/**
+ * Send approval email to a tow operator after admin verifies them
+ */
+export async function sendOperatorApprovalEmail(email: string, fullName: string): Promise<void> {
+  const html = baseWrapper(`
+    <h2 style="color:#111827;font-size:20px;margin:0 0 12px;">Congratulations, ${fullName}!</h2>
+    <p style="color:#374151;line-height:1.6;margin:0 0 16px;">
+      Your TowMe operator account has been <strong style="color:#16a34a;">approved</strong>.
+      You can now log in to the app and start accepting tow requests.
+    </p>
+    <div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:4px;padding:16px;margin-bottom:24px;">
+      <p style="color:#15803d;margin:0;font-weight:600;">Your account is now active.</p>
+    </div>
+    <p style="color:#374151;line-height:1.6;margin:0;">
+      Thank you for joining TowMe. Open the app to get started.
+    </p>
+  `);
+
+  await sendEmail(email, fullName, 'Your TowMe Operator Account Has Been Approved!', html);
+}
+
+/**
+ * Send rejection email to a tow operator
+ */
+export async function sendOperatorRejectionEmail(
+  email: string,
+  fullName: string,
+  reason?: string
+): Promise<void> {
+  const html = baseWrapper(`
+    <h2 style="color:#111827;font-size:20px;margin:0 0 12px;">Hi ${fullName},</h2>
+    <p style="color:#374151;line-height:1.6;margin:0 0 16px;">
+      Unfortunately, your TowMe operator application was not approved at this time.
+    </p>
+    ${reason ? `
+    <div style="background:#fef2f2;border-left:4px solid #ef4444;border-radius:4px;padding:16px;margin-bottom:24px;">
+      <p style="color:#b91c1c;margin:0 0 4px;font-weight:600;">Reason:</p>
+      <p style="color:#7f1d1d;margin:0;">${reason}</p>
+    </div>
+    ` : ''}
+    <p style="color:#374151;line-height:1.6;margin:0;">
+      Please review your submitted documents and contact our support team if you have any questions.
+    </p>
+  `);
+
+  await sendEmail(email, fullName, 'TowMe Operator Application Update', html);
+}
+
+/**
  * Send welcome email after successful verification
  */
 export async function sendWelcomeEmail(email: string, fullName: string): Promise<void> {

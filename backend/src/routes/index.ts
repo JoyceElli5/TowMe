@@ -10,11 +10,13 @@ import directionsRoutes from './directions.routes';
 import inspectionsRoutes from './inspections.routes';
 import messagesRoutes from './messages.routes';
 import operatorsRoutes from './operators.routes';
+import placesRoutes from './places.routes';
 import supportRoutes from './support.routes';
 import paymentsRoutes from './payments.routes';
 import ratingsRoutes from './ratings.routes';
 import requestsRoutes from './requests.routes';
 import usersRoutes from './users.routes';
+import walletRoutes from './wallet.routes';
 
 const router = Router();
 
@@ -31,6 +33,8 @@ router.use('/pricing', paymentsRoutes); // Alias for pricing/estimate
 router.use('/directions', directionsRoutes);
 router.use('/messages', messagesRoutes);
 router.use('/support', supportRoutes);
+router.use('/wallet', walletRoutes);
+router.use('/places', placesRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

@@ -88,10 +88,11 @@ initializeSocket(httpServer);
 // Start server
 const PORT = config.port;
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   logger.info(`🚀 TowMe API server running on port ${PORT}`);
   logger.info(`📍 Environment: ${config.nodeEnv}`);
   logger.info(`🔗 API Base URL: http://localhost:${PORT}/api`);
+  logger.info(`🌐 Network URL: http://172.20.10.14:${PORT}/api`);
   logger.info(`⚡ Socket.io ready for real-time connections`);
 
   // Start background jobs

@@ -66,6 +66,9 @@ export const config = {
     email: process.env.ADMIN_EMAIL || '',
     password: process.env.ADMIN_PASSWORD || '',
   },
+
+  // Google APIs (Directions + Places share the same key)
+  googleDirectionsApiKey: process.env.GOOGLE_DIRECTIONS_API_KEY || '',
 };
 
 const DEFAULT_JWT_SECRET = 'development-secret-key-change-in-production';

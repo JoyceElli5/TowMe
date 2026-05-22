@@ -694,6 +694,13 @@ export async function completeRequest(
     incrementUserTrips(operatorId),
   ]);
 
+  // Record commission for this trip (fire-and-forget, non-blocking)
+  import('./commission.service').then(({ recordTripCommission }) => {
+    recordTripCommission(requestId, operatorId, finalPrice).catch(err =>
+      logger.warn('Commission recording failed (non-critical):', err)
+    );
+  });
+
   // Notify both parties that the trip is complete
   try {
     const { notifyUser, notificationTemplates } = await import('./notification.service');

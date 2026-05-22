@@ -68,6 +68,13 @@ router.post(
   asyncHandler(authController.createProfile)
 );
 
+// Google OAuth sign-in / sign-up
+router.post(
+  '/google-login',
+  supabaseAuthMiddleware,
+  asyncHandler(authController.googleLogin)
+);
+
 // Get session/user data using Supabase token
 // This is used after Supabase login to get the user's profile and generate backend tokens
 router.get(

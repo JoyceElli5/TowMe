@@ -193,6 +193,27 @@ export async function createProfile(req: AuthenticatedRequest, res: Response): P
 }
 
 /**
+ * POST /api/auth/google-login
+ * Sign in or register via Google OAuth. Protected by supabaseAuthMiddleware.
+ */
+export async function googleLogin(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
+  const { role, fullName } = req.body;
+  const result = await authService.googleLogin(
+    req.user.id,
+    req.user.email,
+    fullName || req.user.email,
+    role || 'vehicle_owner'
+  );
+
+  res.json({ success: true, data: result, message: 'Google sign-in successful' });
+}
+
+/**
  * GET /api/auth/session
  * Gets the user's session data using Supabase token
  * Returns the user profile and generates backend tokens for subsequent API calls

@@ -44,6 +44,17 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
     throw createError.conflict('Email already registered');
   }
 
+  // Check if phone already exists
+  const { data: existingPhone } = await supabase
+    .from('users')
+    .select('id')
+    .eq('phone', data.phone)
+    .single();
+
+  if (existingPhone) {
+    throw createError.conflict('Phone number already registered');
+  }
+
   // Hash password
   const passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
 
@@ -504,6 +515,58 @@ export async function createProfile(
     accessToken,
     refreshToken,
   };
+}
+
+/**
+ * Sign in or register a user via Google OAuth (Supabase OAuth flow).
+ * If the user already exists, returns their session. If new, creates a profile.
+ */
+export async function googleLogin(
+  googleUserId: string,
+  googleEmail: string,
+  googleName: string,
+  role: string
+): Promise<AuthResponse> {
+  const supabase = getSupabaseAdmin();
+
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', googleUserId)
+    .single();
+
+  if (existingUser) {
+    const accessToken = generateToken(existingUser.id, existingUser.email, existingUser.role);
+    const refreshToken = generateRefreshToken(existingUser.id);
+    return { user: mapUserToResponse(existingUser), accessToken, refreshToken };
+  }
+
+  const validRole: UserRole = role === 'tow_operator' ? 'tow_operator' : 'vehicle_owner';
+
+  const { data: newUser, error } = await supabase
+    .from('users')
+    .insert({
+      id: googleUserId,
+      email: googleEmail.toLowerCase(),
+      full_name: googleName || googleEmail,
+      phone: `oauth_${googleUserId.slice(0, 12)}`,
+      role: validRole,
+      average_rating: 0,
+      total_trips: 0,
+      is_online: false,
+      is_verified: true,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    logger.error('Error creating Google user:', error);
+    throw createError.internal('Failed to create user profile');
+  }
+
+  const accessToken = generateToken(newUser.id, newUser.email, newUser.role);
+  const refreshToken = generateRefreshToken(newUser.id);
+  return { user: mapUserToResponse(newUser), accessToken, refreshToken };
 }
 
 /**

@@ -17,6 +17,13 @@ router.patch(
   asyncHandler(usersController.updatePushToken)
 );
 
+// Send "under review" email after operator submits docs (protected)
+router.post(
+  '/me/notify-profile-submitted',
+  authMiddleware,
+  asyncHandler(usersController.notifyProfileSubmitted)
+);
+
 // Get user by ID
 router.get(
   '/:id',

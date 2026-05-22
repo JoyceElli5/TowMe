@@ -15,7 +15,7 @@ export async function getMessagesByRequest(requestId: string, userId: string): P
 
     const { data: request } = await supabase
         .from('towing_requests')
-        .select('user_id, operator_id')
+        .select('user_id, operator_id, status, completed_at')
         .eq('id', requestId)
         .single();
 
@@ -26,6 +26,14 @@ export async function getMessagesByRequest(requestId: string, userId: string): P
     const isParticipant = request.user_id === userId || request.operator_id === userId;
     if (!isParticipant) {
         throw createError.forbidden('You can only view messages for your own requests');
+    }
+
+    // Auto-expire messages 1 hour after trip completion
+    if (request.status === 'completed' && request.completed_at) {
+        const completedAt = new Date(request.completed_at).getTime();
+        if (Date.now() - completedAt > 60 * 60 * 1000) {
+            return [];
+        }
     }
 
     const { data: messages, error } = await supabase
@@ -116,12 +124,16 @@ export interface ConversationSummary {
 export async function getConversations(userId: string): Promise<ConversationSummary[]> {
     const supabase = getSupabaseAdmin();
 
+    // 1-hour cutoff: exclude completed requests older than 1 hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
     // Fetch all requests where the user is involved (as owner or operator)
     const { data: requests, error: reqError } = await supabase
         .from('towing_requests')
-        .select('id, user_id, operator_id, users!towing_requests_user_id_fkey(id, full_name, phone, avatar_url), operators:users!towing_requests_operator_id_fkey(id, full_name, phone, avatar_url)')
+        .select('id, user_id, operator_id, status, completed_at, users!towing_requests_user_id_fkey(id, full_name, phone, avatar_url), operators:users!towing_requests_operator_id_fkey(id, full_name, phone, avatar_url)')
         .or(`user_id.eq.${userId},operator_id.eq.${userId}`)
         .not('operator_id', 'is', null)
+        .or(`status.neq.completed,completed_at.gt.${oneHourAgo}`)
         .order('created_at', { ascending: false });
 
     if (reqError || !requests || requests.length === 0) {

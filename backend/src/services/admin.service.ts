@@ -6,6 +6,26 @@
 import { getSupabaseAdmin } from '../config/database';
 import { createError } from '../middleware/error.middleware';
 import logger from '../utils/logger';
+import { sendOperatorApprovalEmail, sendOperatorRejectionEmail } from './email.service';
+import {
+  getOperatorWallet,
+  recordCommissionPayment,
+  getCommissionPayments,
+  getCommissionSummary,
+  isOperatorSuspended,
+  type OperatorWallet,
+  type CommissionPayment,
+} from './commission.service';
+
+export {
+  getOperatorWallet,
+  recordCommissionPayment,
+  getCommissionPayments,
+  getCommissionSummary,
+  isOperatorSuspended,
+  type OperatorWallet,
+  type CommissionPayment,
+};
 
 export type VerificationStatus = 'pending' | 'under_review' | 'approved' | 'rejected';
 
@@ -117,7 +137,7 @@ export async function updateOperatorVerification(
 
   const { data: existing } = await supabase
     .from('users')
-    .select('id, role')
+    .select('id, role, email, full_name')
     .eq('id', operatorId)
     .single();
 
@@ -141,6 +161,17 @@ export async function updateOperatorVerification(
   if (error) {
     logger.error('Admin updateOperatorVerification error:', error);
     throw createError.internal('Failed to update verification');
+  }
+
+  // Send email notification to operator (non-blocking)
+  try {
+    if (body.status === 'approved') {
+      await sendOperatorApprovalEmail(existing.email, existing.full_name);
+    } else if (body.status === 'rejected') {
+      await sendOperatorRejectionEmail(existing.email, existing.full_name, body.reason);
+    }
+  } catch (emailError) {
+    logger.error('Failed to send operator verification email:', emailError);
   }
 
   return updated as AdminOperatorDetail;

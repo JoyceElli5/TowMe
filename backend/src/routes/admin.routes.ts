@@ -50,4 +50,39 @@ router.patch(
   asyncHandler(adminController.verifyOperator)
 );
 
+// Commission summary (platform-wide)
+router.get(
+  '/commission/summary',
+  asyncHandler(adminController.getCommissionSummaryHandler)
+);
+
+// Operator wallet / balance
+router.get(
+  '/operators/:id/wallet',
+  validateParams(z.object({ id: z.string().uuid() })),
+  asyncHandler(adminController.getOperatorWalletHandler)
+);
+
+// Operator commission payment history
+router.get(
+  '/operators/:id/commission-payments',
+  validateParams(z.object({ id: z.string().uuid() })),
+  asyncHandler(adminController.getOperatorCommissionPaymentsHandler)
+);
+
+// Settle operator commission debt
+const settleBody = z.object({
+  amountPaid: z.number().positive(),
+  paymentMethod: z.string().min(1),
+  transactionReference: z.string().optional(),
+  adminNotes: z.string().max(500).optional(),
+});
+
+router.post(
+  '/operators/:id/settle-commission',
+  validateParams(z.object({ id: z.string().uuid() })),
+  validateBody(settleBody),
+  asyncHandler(adminController.settleCommissionHandler)
+);
+
 export default router;

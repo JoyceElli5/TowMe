@@ -48,3 +48,7 @@ export const GHANA_PHONE_PREFIXES = ['024', '054', '055', '059', '020', '050', '
 
 // Request timeout in minutes
 export const REQUEST_AUTO_CANCEL_MINUTES = 10;
+
+// Commission settings
+export const COMMISSION_RATE = 0.20; // 20%
+export const COMMISSION_SUSPENSION_THRESHOLD = 100; // GHS 100 outstanding triggers suspension

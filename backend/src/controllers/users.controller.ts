@@ -6,6 +6,9 @@
 import { Response } from 'express';
 import * as usersService from '../services/users.service';
 import * as ratingsService from '../services/ratings.service';
+import { sendOperatorUnderReviewEmail } from '../services/email.service';
+import { getSupabaseAdmin } from '../config/database';
+import logger from '../utils/logger';
 import type { AuthenticatedRequest } from '../types/api.types';
 
 /**
@@ -218,5 +221,46 @@ export async function updateOperatorLocation(req: AuthenticatedRequest, res: Res
   res.json({
     success: true,
     message: 'Location updated successfully',
+  });
+}
+
+/**
+ * POST /api/users/me/notify-profile-submitted
+ * Send the "documents under review" email to the authenticated operator.
+ * Called by the client right after a successful profile-setup submission.
+ */
+export async function notifyProfileSubmitted(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: 'Not authenticated' });
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('email, full_name, role, verification_status')
+    .eq('id', req.user.id)
+    .single();
+
+  if (error || !user) {
+    res.status(404).json({ success: false, error: 'User not found' });
+    return;
+  }
+
+  if (user.role !== 'tow_operator') {
+    res.status(403).json({ success: false, error: 'Only operators can submit verification' });
+    return;
+  }
+
+  // Send email (non-blocking — return success even if email fails so user isn't blocked)
+  try {
+    await sendOperatorUnderReviewEmail(user.email, user.full_name);
+  } catch (err) {
+    logger.warn('Failed to send under-review email:', err);
+  }
+
+  res.json({
+    success: true,
+    message: 'Notification email sent',
   });
 }

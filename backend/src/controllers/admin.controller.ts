@@ -106,3 +106,69 @@ export async function verifyOperator(req: Request, res: Response): Promise<void>
     message: `Operator ${body.status}`,
   });
 }
+
+/**
+ * GET /api/admin/commission/summary
+ * Platform-wide commission summary.
+ */
+export async function getCommissionSummaryHandler(req: Request, res: Response): Promise<void> {
+  const summary = await adminService.getCommissionSummary();
+  res.json({ success: true, data: summary });
+}
+
+/**
+ * GET /api/admin/operators/:id/wallet
+ * Get operator wallet / commission balance.
+ */
+export async function getOperatorWalletHandler(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  const [wallet, suspension] = await Promise.all([
+    adminService.getOperatorWallet(id),
+    adminService.isOperatorSuspended(id),
+  ]);
+  res.json({ success: true, data: { wallet, suspension } });
+}
+
+/**
+ * GET /api/admin/operators/:id/commission-payments
+ * List commission payment history for an operator.
+ */
+export async function getOperatorCommissionPaymentsHandler(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  const payments = await adminService.getCommissionPayments(id);
+  res.json({ success: true, data: payments });
+}
+
+/**
+ * POST /api/admin/operators/:id/settle-commission
+ * Record a commission payment / settle operator debt.
+ * Body: { amountPaid, paymentMethod, transactionReference?, adminNotes? }
+ */
+export async function settleCommissionHandler(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  const { amountPaid, paymentMethod, transactionReference, adminNotes } = req.body as {
+    amountPaid: number;
+    paymentMethod: string;
+    transactionReference?: string;
+    adminNotes?: string;
+  };
+
+  if (!amountPaid || amountPaid <= 0) {
+    res.status(400).json({ success: false, error: 'amountPaid must be a positive number' });
+    return;
+  }
+  if (!paymentMethod) {
+    res.status(400).json({ success: false, error: 'paymentMethod is required' });
+    return;
+  }
+
+  const payment = await adminService.recordCommissionPayment(
+    id,
+    amountPaid,
+    paymentMethod,
+    transactionReference,
+    adminNotes
+  );
+
+  res.json({ success: true, data: payment, message: 'Commission payment recorded' });
+}
